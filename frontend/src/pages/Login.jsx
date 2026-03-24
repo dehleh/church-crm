@@ -73,7 +73,7 @@ export default function Login() {
                   className={`input pr-10 ${errors.password ? 'border-red-400' : ''}`}
                   placeholder="••••••••"
                   value={form.password}
-                  onChange={e => { setForm(f => ({ ...f, password: e.target.value })); setErrors(e2 => ({ ...e2, password: undefined })); }}}
+                  onChange={e => { setForm(f => ({ ...f, password: e.target.value })); setErrors(e2 => ({ ...e2, password: undefined })); }}
                 />
                 <button type="button" onClick={() => setShowPw(v => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
