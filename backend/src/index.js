@@ -7,6 +7,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 const logger = require('./config/logger');
 
 const app = express();
@@ -17,12 +18,17 @@ app.use(cors({
   origin: process.env.APP_URL || 'http://localhost:3000',
   credentials: true
 }));
+
+// Serve frontend static build in production (Railway single-service deploy)
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '../../frontend/dist');
+  app.use(express.static(frontendPath));
+}
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev', { stream: logger.stream }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files
-const path = require('path');
 app.use('/uploads', express.static(path.resolve(process.env.UPLOAD_DIR || 'uploads')));
 
 // Rate limiting
@@ -60,6 +66,15 @@ app.get('/health', (req, res) => res.json({
 // Swagger API docs
 const { setupSwagger } = require('./config/swagger');
 setupSwagger(app);
+
+// Serve frontend for any non-API route in production (SPA fallback)
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '../../frontend/dist');
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return next();
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
 
 // ── Error Handling ───────────────────────────────────────────
 const { notFound, errorHandler } = require('./middleware/errorHandler');
