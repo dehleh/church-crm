@@ -1,0 +1,10 @@
+const express = require('express');
+const router = express.Router();
+const c = require('../controllers/usersController');
+const { authenticate, authorize } = require('../middleware/auth');
+router.use(authenticate);
+router.get('/', authorize('super_admin','admin'), c.getUsers);
+router.post('/', authorize('super_admin','admin'), c.inviteUser);
+router.put('/:id', authorize('super_admin','admin'), c.updateUser);
+router.post('/:id/reset-password', authorize('super_admin','admin'), c.resetUserPassword);
+module.exports = router;

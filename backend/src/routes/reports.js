@@ -1,0 +1,10 @@
+const express = require('express');
+const router = express.Router();
+const c = require('../controllers/reportsController');
+const { authenticate } = require('../middleware/auth');
+router.use(authenticate);
+router.get('/members', c.getMemberReport);
+router.get('/finance', c.getFinanceReport);
+router.get('/attendance', c.getAttendanceReport);
+router.get('/first-timers', c.getFirstTimerReport);
+module.exports = router;
