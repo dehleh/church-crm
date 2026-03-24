@@ -14,16 +14,18 @@ const app = express();
 
 // ── Security & Middleware ────────────────────────────────────
 app.use(helmet());
+
+// CORS — allow multiple origins (comma-separated APP_URL)
+const allowedOrigins = (process.env.APP_URL || 'http://localhost:3000')
+  .split(',')
+  .map(o => o.trim());
 app.use(cors({
-  origin: process.env.APP_URL || 'http://localhost:3000',
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(null, false);
+  },
   credentials: true
 }));
-
-// Serve frontend static build in production (Railway single-service deploy)
-if (process.env.NODE_ENV === 'production') {
-  const frontendPath = path.join(__dirname, '../../frontend/dist');
-  app.use(express.static(frontendPath));
-}
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev', { stream: logger.stream }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -67,14 +69,7 @@ app.get('/health', (req, res) => res.json({
 const { setupSwagger } = require('./config/swagger');
 setupSwagger(app);
 
-// Serve frontend for any non-API route in production (SPA fallback)
-if (process.env.NODE_ENV === 'production') {
-  const frontendPath = path.join(__dirname, '../../frontend/dist');
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return next();
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  });
-}
+
 
 // ── Error Handling ───────────────────────────────────────────
 const { notFound, errorHandler } = require('./middleware/errorHandler');
