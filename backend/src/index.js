@@ -69,7 +69,15 @@ app.get('/health', (req, res) => res.json({
 const { setupSwagger } = require('./config/swagger');
 setupSwagger(app);
 
-
+// Serve frontend static build in production (single-service deploy)
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '../../frontend/dist');
+  app.use(express.static(frontendPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/') || req.path.startsWith('/health')) return next();
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
 
 // ── Error Handling ───────────────────────────────────────────
 const { notFound, errorHandler } = require('./middleware/errorHandler');
