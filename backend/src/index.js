@@ -13,6 +13,11 @@ const logger = require('./config/logger');
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
 
+// Trust proxy (Railway, Render, etc. run behind a reverse proxy)
+if (isProduction) {
+  app.set('trust proxy', 1);
+}
+
 // ── Security & Middleware ────────────────────────────────────
 app.use(helmet({
   contentSecurityPolicy: isProduction ? {
