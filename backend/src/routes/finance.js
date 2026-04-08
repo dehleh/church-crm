@@ -81,5 +81,6 @@ router.post('/accounts', authorize('super_admin', 'admin'), c.createAccount);
  *       200: { description: Category list }
  */
 router.get('/categories', c.getCategories);
+router.post('/categories', authorize('super_admin', 'admin', 'staff'), c.createCategory);
 
 module.exports = router;

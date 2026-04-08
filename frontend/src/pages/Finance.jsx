@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { DollarSign, Plus, TrendingUp, TrendingDown, Wallet, Loader2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { financeAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
@@ -25,6 +25,16 @@ export default function Finance() {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [period, setPeriod] = useState('month');
+  const [catSearch, setCatSearch] = useState('');
+  const [catDropdownOpen, setCatDropdownOpen] = useState(false);
+  const [creatingCat, setCreatingCat] = useState(false);
+  const catRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (catRef.current && !catRef.current.contains(e.target)) setCatDropdownOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -59,6 +69,23 @@ export default function Finance() {
   }, [fetchSummary, fetchTransactions]);
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const handleAddCategory = async () => {
+    if (!catSearch.trim()) return;
+    setCreatingCat(true);
+    try {
+      const res = await financeAPI.createCategory({ name: catSearch.trim() });
+      const cat = res.data.data;
+      if (!categories.find(c => c.id === cat.id)) {
+        setCategories(prev => [...prev, cat].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+      setForm(f => ({ ...f, categoryId: cat.id }));
+      setCatSearch(cat.name);
+      setCatDropdownOpen(false);
+      toast.success(`Category "${cat.name}" added`);
+    } catch { toast.error('Failed to create category'); }
+    finally { setCreatingCat(false); }
+  };
 
   const handleSave = async () => {
     if (!form.transactionType || !form.amount) return toast.error('Type and amount required');
@@ -99,7 +126,7 @@ export default function Finance() {
             <option value="month">This Month</option>
             <option value="year">This Year</option>
           </select>
-          <button onClick={() => { setForm({ transactionDate: format(new Date(), 'yyyy-MM-dd') }); setModal('add'); }} className="btn-primary">
+          <button onClick={() => { setForm({ transactionDate: format(new Date(), 'yyyy-MM-dd') }); setCatSearch(''); setModal('add'); }} className="btn-primary">
             <Plus size={16} /> Record Transaction
           </button>
         </div>
@@ -262,10 +289,47 @@ export default function Finance() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Category</label>
-              <select className="input" value={form.categoryId || ''} onChange={set('categoryId')}>
-                <option value="">Select category</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <div className="relative" ref={catRef}>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Search or add category…"
+                  value={catSearch}
+                  onChange={e => { setCatSearch(e.target.value); setCatDropdownOpen(true); setForm(f => ({ ...f, categoryId: '' })); }}
+                  onFocus={() => setCatDropdownOpen(true)}
+                />
+                {catDropdownOpen && (
+                  <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {categories
+                      .filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase()))
+                      .map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-brand-50 ${form.categoryId === c.id ? 'bg-brand-50 font-medium text-brand-700' : 'text-gray-700'}`}
+                          onClick={() => { setForm(f => ({ ...f, categoryId: c.id })); setCatSearch(c.name); setCatDropdownOpen(false); }}
+                        >
+                          {c.name}
+                        </button>
+                      ))
+                    }
+                    {catSearch.trim() && !categories.some(c => c.name.toLowerCase() === catSearch.toLowerCase()) && (
+                      <button
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm text-brand-600 font-medium hover:bg-brand-50 border-t border-gray-100 flex items-center gap-1.5"
+                        onClick={handleAddCategory}
+                        disabled={creatingCat}
+                      >
+                        {creatingCat ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                        Add &ldquo;{catSearch.trim()}&rdquo;
+                      </button>
+                    )}
+                    {!catSearch.trim() && categories.length === 0 && (
+                      <p className="px-3 py-2 text-sm text-gray-400">No categories yet — type to create one</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="label">Payment Method</label>

@@ -43,6 +43,7 @@ export const financeAPI = {
   accounts: () => api.get('/finance/accounts'),
   createAccount: (data) => api.post('/finance/accounts', data),
   categories: () => api.get('/finance/categories'),
+  createCategory: (data) => api.post('/finance/categories', data),
 };
 
 export const departmentsAPI = {

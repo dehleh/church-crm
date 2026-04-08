@@ -198,4 +198,29 @@ const getCategories = async (req, res) => {
   }
 };
 
-module.exports = { getTransactions, createTransaction, getFinanceSummary, getAccounts, createAccount, getCategories };
+// POST /api/finance/categories
+const createCategory = async (req, res) => {
+  const { name, description } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ success: false, message: 'Category name is required' });
+  }
+  try {
+    const existing = await query(
+      `SELECT id FROM giving_categories WHERE church_id = $1 AND LOWER(name) = LOWER($2) AND is_active = true`,
+      [req.churchId, name.trim()]
+    );
+    if (existing.rows.length > 0) {
+      return res.json({ success: true, data: existing.rows[0], message: 'Category already exists' });
+    }
+    const { rows } = await query(
+      `INSERT INTO giving_categories (id, church_id, name, description) VALUES ($1,$2,$3,$4) RETURNING *`,
+      [uuidv4(), req.churchId, name.trim(), description || null]
+    );
+    return res.status(201).json({ success: true, data: rows[0] });
+  } catch (err) {
+    logger.error(err.message, { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+module.exports = { getTransactions, createTransaction, getFinanceSummary, getAccounts, createAccount, getCategories, createCategory };
