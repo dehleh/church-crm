@@ -57,6 +57,7 @@ app.use('/api/budgets',        require('./routes/budgets'));
 app.use('/api/follow-ups',     require('./routes/followUps'));
 app.use('/api/settings',       require('./routes/settings'));
 app.use('/api/search',         require('./routes/search'));
+app.use('/api/groups',         require('./routes/groups'));
 
 // Health check
 app.get('/health', (req, res) => res.json({

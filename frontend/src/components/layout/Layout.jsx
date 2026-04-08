@@ -5,7 +5,7 @@ import {
   Building2, GitBranch, Film, HeartHandshake, LogOut,
   ChevronLeft, ChevronRight, Bell, Menu,
   MessageSquare, ShieldCheck, BarChart2, PiggyBank, CheckSquare,
-  Settings, PhoneCall
+  Settings, PhoneCall, Users2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import GlobalSearch from '../ui/GlobalSearch';
@@ -19,6 +19,7 @@ const NAV = [
     { to: '/members',      icon: Users,         label: 'Members' },
     { to: '/first-timers', icon: UserPlus,      label: 'First Timers' },
     { to: '/departments',  icon: Building2,     label: 'Departments' },
+    { to: '/groups',       icon: Users2,        label: 'Groups' },
   ]},
   { group: 'Church', items: [
     { to: '/events',         icon: CalendarDays,   label: 'Events' },

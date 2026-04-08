@@ -348,6 +348,37 @@ async function seed() {
     );
   }
 
+  // ── Groups (extra-curricular tribes)
+  const groupData = [
+    { name: 'Thrive Network',         purpose: 'Humanitarian activities',                          description: 'A network dedicated to community service, charitable giving, and humanitarian outreach in our society.' },
+    { name: 'Conclave Tribe',         purpose: 'Leadership, Governance & Nation building',          description: 'A tribe focused on raising leaders who influence governance, policy, and nation building from a godly perspective.' },
+    { name: 'Art & Culture Collective', purpose: 'Promoting Godly culture in our society',         description: 'A collective of creatives promoting God-honoring art, culture, and expression in the broader society.' },
+    { name: 'Create-X',               purpose: 'The very creative tribe',                          description: 'A tribe for innovators, designers, builders, and all-round creatives to collaborate and create together.' },
+    { name: 'Sage Hub',               purpose: 'Encouraging reading and meditation',               description: 'A tribe that cultivates the habit of reading, reflection, and deep meditation on the Word and wisdom literature.' },
+    { name: 'Ennova Tribe',           purpose: 'Technology, Career & Business',                    description: 'A tribe focused on technology, career development, entrepreneurship, and business growth among members.' },
+  ];
+  const groupIds = [];
+  for (const g of groupData) {
+    const gId = uuidv4();
+    groupIds.push(gId);
+    await query(
+      `INSERT INTO groups (id, church_id, name, description, purpose)
+       VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,
+      [gId, CHURCH_ID, g.name, g.description, g.purpose]
+    );
+  }
+  // Assign some members to groups
+  for (const mId of memberIds) {
+    if (Math.random() > 0.5) {
+      const gId = rand(groupIds);
+      await query(
+        `INSERT INTO member_groups (id, church_id, member_id, group_id, role)
+         VALUES ($1,$2,$3,$4,'member') ON CONFLICT DO NOTHING`,
+        [uuidv4(), CHURCH_ID, mId, gId]
+      );
+    }
+  }
+
   console.log('✅ Seed complete!\n');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('  Church:  TBC (The Baptizing Church), Lekki-Igbo-efon');

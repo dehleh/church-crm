@@ -126,3 +126,12 @@ export const settingsAPI = {
 export const searchAPI = {
   global: (q) => api.get('/search', { params: { q } }),
 };
+
+export const groupsAPI = {
+  list: () => api.get('/groups'),
+  create: (data) => api.post('/groups', data),
+  update: (id, data) => api.put(`/groups/${id}`, data),
+  members: (id) => api.get(`/groups/${id}/members`),
+  addMember: (id, data) => api.post(`/groups/${id}/members`, data),
+  removeMember: (id, memberId) => api.delete(`/groups/${id}/members/${memberId}`),
+};
