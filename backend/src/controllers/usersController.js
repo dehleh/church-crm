@@ -24,7 +24,7 @@ const inviteUser = async (req, res) => {
     const { rows } = await query(
       `INSERT INTO users (id, church_id, branch_id, first_name, last_name, email, phone, role, password_hash)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, first_name, last_name, email, role`,
-      [uuidv4(), req.churchId, branchId||null, firstName, lastName, email, phone||null, role||'staff', passwordHash]
+      [uuidv4(), req.churchId, branchId||null, firstName, lastName, email, phone||null, role||'hod', passwordHash]
     );
     // In production, send email with tempPassword. For now, return it.
     return res.status(201).json({ success: true, data: rows[0], tempPassword, message: `User invited. Temp password: ${tempPassword}` });

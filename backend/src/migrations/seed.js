@@ -46,19 +46,19 @@ async function seed() {
   // ── Users
   await query(
     `INSERT INTO users (id, church_id, branch_id, first_name, last_name, email, password_hash, role, phone)
-     VALUES ($1,$2,$3,'Emmanuel','Okafor','admin@tbclekki.ng',$4,'super_admin','+234 801 000 0001')
+     VALUES ($1,$2,$3,'Emmanuel','Okafor','admin@tbclekki.ng',$4,'head_pastor','+234 801 000 0001')
      ON CONFLICT DO NOTHING`,
     [ADMIN_ID, CHURCH_ID, BRANCH_HQ, hash]
   );
   await query(
     `INSERT INTO users (id, church_id, branch_id, first_name, last_name, email, password_hash, role, phone)
-     VALUES ($1,$2,$3,'Sarah','Adeyemi','pastor@tbclekki.ng',$4,'pastor','+234 801 000 0002')
+     VALUES ($1,$2,$3,'Sarah','Adeyemi','pastor@tbclekki.ng',$4,'director','+234 801 000 0002')
      ON CONFLICT DO NOTHING`,
     [PASTOR_ID, CHURCH_ID, BRANCH_VI, hash]
   );
   await query(
     `INSERT INTO users (id, church_id, branch_id, first_name, last_name, email, password_hash, role, phone)
-     VALUES ($1,$2,$3,'Daniel','Nwachukwu','staff@tbclekki.ng',$4,'staff','+234 801 000 0003')
+     VALUES ($1,$2,$3,'Daniel','Nwachukwu','staff@tbclekki.ng',$4,'hod','+234 801 000 0003')
      ON CONFLICT DO NOTHING`,
     [STAFF_ID, CHURCH_ID, BRANCH_HQ, hash]
   );

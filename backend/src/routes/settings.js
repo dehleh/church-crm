@@ -6,7 +6,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 router.use(authenticate);
 router.get('/', c.getChurchSettings);
 router.get('/stats', c.getChurchStats);
-router.put('/church', authorize('super_admin', 'admin'), c.updateChurchSettings);
+router.put('/church', authorize('head_pastor', 'pastor'), c.updateChurchSettings);
 router.put('/profile', c.updateProfile);
 router.post('/change-password', c.changePassword);
 

@@ -7,19 +7,19 @@ import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 
 const ROLE_BADGE = {
-  super_admin: 'bg-red-100 text-red-700',
-  admin: 'bg-orange-100 text-orange-700',
-  pastor: 'bg-purple-100 text-purple-700',
-  staff: 'bg-brand-100 text-brand-700',
-  viewer: 'bg-gray-100 text-gray-500',
+  head_pastor: 'bg-red-100 text-red-700',
+  pastor: 'bg-orange-100 text-orange-700',
+  director: 'bg-purple-100 text-purple-700',
+  hod: 'bg-brand-100 text-brand-700',
+  member: 'bg-gray-100 text-gray-500',
 };
 
 const ROLE_DESC = {
-  super_admin: 'Full access to everything',
-  admin: 'Manage members, finance, events',
-  pastor: 'Manage people & departments',
-  staff: 'Record members, transactions, attendance',
-  viewer: 'Read-only access',
+  head_pastor: 'Full access to everything',
+  pastor: 'Manage members, finance, events',
+  director: 'Manage people & departments',
+  hod: 'Record members, transactions, attendance',
+  member: 'Read-only access',
 };
 
 export default function UserManagement() {
@@ -101,7 +101,7 @@ export default function UserManagement() {
           <h1 className="page-title">User Management</h1>
           <p className="text-gray-500 text-sm mt-1">Manage staff access and roles</p>
         </div>
-        <button onClick={() => { setForm({ role: 'staff' }); setModal('invite'); }} className="btn-primary">
+        <button onClick={() => { setForm({ role: 'hod' }); setModal('invite'); }} className="btn-primary">
           <Plus size={16} /> Invite User
         </button>
       </div>
@@ -180,8 +180,8 @@ export default function UserManagement() {
           <div><label className="label">Phone</label><input type="tel" className="input" value={form.phone||''} onChange={set('phone')} /></div>
           <div>
             <label className="label">Role *</label>
-            <select className="input" value={form.role||'staff'} onChange={set('role')}>
-              {['admin','pastor','staff','viewer'].map(r => (
+            <select className="input" value={form.role||'hod'} onChange={set('role')}>
+              {['pastor','director','hod','member'].map(r => (
                 <option key={r} value={r} className="capitalize">{r.replace('_',' ')} — {ROLE_DESC[r]}</option>
               ))}
             </select>
@@ -209,7 +209,7 @@ export default function UserManagement() {
           <div>
             <label className="label">Role</label>
             <select className="input" value={form.role||''} onChange={set('role')}>
-              {['admin','pastor','staff','viewer'].map(r => <option key={r} value={r} className="capitalize">{r.replace('_',' ')}</option>)}
+              {['pastor','director','hod','member'].map(r => <option key={r} value={r} className="capitalize">{r.replace('_',' ')}</option>)}
             </select>
           </div>
           <div>

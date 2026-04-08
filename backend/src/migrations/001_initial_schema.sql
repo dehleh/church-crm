@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   phone VARCHAR(30),
   avatar_url TEXT,
-  role VARCHAR(30) NOT NULL DEFAULT 'staff',   -- super_admin | admin | pastor | staff | viewer
+  role VARCHAR(30) NOT NULL DEFAULT 'hod',   -- head_pastor | pastor | director | hod | member
   is_active BOOLEAN DEFAULT true,
   last_login_at TIMESTAMPTZ,
   password_reset_token TEXT,

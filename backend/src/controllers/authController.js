@@ -18,7 +18,7 @@ const generateTokens = (userId, churchId, role) => {
   return { accessToken, refreshToken };
 };
 
-// POST /api/auth/register — onboard a new church + super_admin
+// POST /api/auth/register — onboard a new church + head_pastor
 const registerChurch = async (req, res) => {
   const {
     churchName, churchSlug, denomination,
@@ -32,7 +32,7 @@ const registerChurch = async (req, res) => {
       return res.status(409).json({ success: false, message: 'Church slug already taken' });
     }
 
-    // Check email uniqueness (global for super_admin registration)
+    // Check email uniqueness (global for head_pastor registration)
     const emailCheck = await query(
       'SELECT id FROM users WHERE email = $1', [adminEmail]
     );
@@ -67,7 +67,7 @@ const registerChurch = async (req, res) => {
       // Create admin user
       await client.query(
         `INSERT INTO users (id, church_id, branch_id, first_name, last_name, email, password_hash, phone, role)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'super_admin')`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'head_pastor')`,
         [userId, churchId, branchId, adminFirstName, adminLastName, adminEmail, passwordHash, adminPhone]
       );
 
@@ -80,7 +80,7 @@ const registerChurch = async (req, res) => {
         );
       }
 
-      const { accessToken, refreshToken } = generateTokens(userId, churchId, 'super_admin');
+      const { accessToken, refreshToken } = generateTokens(userId, churchId, 'head_pastor');
       await client.query('UPDATE users SET refresh_token = $1 WHERE id = $2', [refreshToken, userId]);
 
       await client.query('COMMIT');
@@ -93,7 +93,7 @@ const registerChurch = async (req, res) => {
           refreshToken,
           user: {
             id: userId, firstName: adminFirstName, lastName: adminLastName,
-            email: adminEmail, role: 'super_admin', churchId, churchName, churchSlug
+            email: adminEmail, role: 'head_pastor', churchId, churchName, churchSlug
           }
         }
       });

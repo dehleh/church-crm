@@ -4,6 +4,6 @@ const c = require('../controllers/budgetController');
 const { authenticate, authorize } = require('../middleware/auth');
 router.use(authenticate);
 router.get('/', c.getBudgets);
-router.post('/', authorize('super_admin','admin'), c.createBudget);
-router.put('/:id', authorize('super_admin','admin'), c.updateBudget);
+router.post('/', authorize('head_pastor','pastor'), c.createBudget);
+router.put('/:id', authorize('head_pastor','pastor'), c.updateBudget);
 module.exports = router;

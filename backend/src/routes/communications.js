@@ -45,7 +45,7 @@ router.get('/stats', c.getCommStats);
  *       201: { description: Draft created }
  */
 router.get('/', c.getCommunications);
-router.post('/', authorize('super_admin','admin','pastor','staff'), c.createCommunication);
+router.post('/', authorize('head_pastor','pastor','director','hod'), c.createCommunication);
 
 /**
  * @swagger
@@ -58,7 +58,7 @@ router.post('/', authorize('super_admin','admin','pastor','staff'), c.createComm
  *     responses:
  *       200: { description: Message sent }
  */
-router.post('/:id/send', authorize('super_admin','admin','pastor'), c.sendCommunication);
+router.post('/:id/send', authorize('head_pastor','pastor','director'), c.sendCommunication);
 
 /**
  * @swagger
@@ -71,6 +71,6 @@ router.post('/:id/send', authorize('super_admin','admin','pastor'), c.sendCommun
  *     responses:
  *       200: { description: Draft deleted }
  */
-router.delete('/:id', authorize('super_admin','admin'), c.deleteCommunication);
+router.delete('/:id', authorize('head_pastor','pastor'), c.deleteCommunication);
 
 module.exports = router;

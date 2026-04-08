@@ -7,7 +7,7 @@ router.use(authenticate);
 router.get('/stats', c.getFollowUpStats);
 router.get('/mine', c.getMyFollowUps);
 router.get('/', c.getFollowUps);
-router.post('/', authorize('super_admin', 'admin', 'pastor', 'staff'), c.createFollowUp);
-router.patch('/:id', authorize('super_admin', 'admin', 'pastor', 'staff'), c.updateFollowUp);
+router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), c.createFollowUp);
+router.patch('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), c.updateFollowUp);
 
 module.exports = router;

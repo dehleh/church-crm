@@ -5,9 +5,9 @@ const { authenticate, authorize } = require('../middleware/auth');
 
 router.use(authenticate);
 router.get('/', c.getDepartments);
-router.post('/', authorize('super_admin', 'admin', 'pastor'), c.createDepartment);
+router.post('/', authorize('head_pastor', 'pastor', 'director'), c.createDepartment);
 router.get('/:id/members', c.getDepartmentMembers);
-router.post('/:id/members', authorize('super_admin', 'admin', 'pastor', 'staff'), c.addMemberToDepartment);
-router.delete('/:id/members/:memberId', authorize('super_admin', 'admin', 'pastor'), c.removeMemberFromDepartment);
+router.post('/:id/members', authorize('head_pastor', 'pastor', 'director', 'hod'), c.addMemberToDepartment);
+router.delete('/:id/members/:memberId', authorize('head_pastor', 'pastor', 'director'), c.removeMemberFromDepartment);
 
 module.exports = router;

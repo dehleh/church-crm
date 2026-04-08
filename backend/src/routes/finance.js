@@ -52,7 +52,7 @@ router.get('/summary', c.getFinanceSummary);
  *       201: { description: Transaction created }
  */
 router.get('/transactions', c.getTransactions);
-router.post('/transactions', authorize('super_admin', 'admin', 'staff'), c.createTransaction);
+router.post('/transactions', authorize('head_pastor', 'pastor', 'hod'), c.createTransaction);
 
 /**
  * @swagger
@@ -69,7 +69,7 @@ router.post('/transactions', authorize('super_admin', 'admin', 'staff'), c.creat
  *       201: { description: Account created }
  */
 router.get('/accounts', c.getAccounts);
-router.post('/accounts', authorize('super_admin', 'admin'), c.createAccount);
+router.post('/accounts', authorize('head_pastor', 'pastor'), c.createAccount);
 
 /**
  * @swagger
@@ -81,6 +81,6 @@ router.post('/accounts', authorize('super_admin', 'admin'), c.createAccount);
  *       200: { description: Category list }
  */
 router.get('/categories', c.getCategories);
-router.post('/categories', authorize('super_admin', 'admin', 'staff'), c.createCategory);
+router.post('/categories', authorize('head_pastor', 'pastor', 'hod'), c.createCategory);
 
 module.exports = router;

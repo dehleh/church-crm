@@ -52,7 +52,7 @@ router.get('/stats', c.getMemberStats);
  *       201: { description: Member created }
  */
 router.get('/', c.getMembers);
-router.post('/', authorize('super_admin', 'admin', 'pastor', 'staff'), c.createMember);
+router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), c.createMember);
 
 /**
  * @swagger
@@ -81,7 +81,7 @@ router.post('/', authorize('super_admin', 'admin', 'pastor', 'staff'), c.createM
  *       200: { description: Member deactivated }
  */
 router.get('/:id', c.getMember);
-router.put('/:id', authorize('super_admin', 'admin', 'pastor', 'staff'), c.updateMember);
-router.delete('/:id', authorize('super_admin', 'admin'), c.deleteMember);
+router.put('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), c.updateMember);
+router.delete('/:id', authorize('head_pastor', 'pastor'), c.deleteMember);
 
 module.exports = router;

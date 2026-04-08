@@ -7,8 +7,8 @@ const { upload, uploadFor } = require('../middleware/upload');
 router.use(authenticate);
 router.get('/stats', c.getMediaStats);
 router.get('/', c.getMediaItems);
-router.post('/', authorize('super_admin', 'admin', 'staff'), c.createMediaItem);
-router.post('/upload', authorize('super_admin', 'admin', 'staff'), uploadFor('media'), upload.single('file'), c.uploadMediaFile);
-router.patch('/:id/publish', authorize('super_admin', 'admin'), c.publishMediaItem);
+router.post('/', authorize('head_pastor', 'pastor', 'hod'), c.createMediaItem);
+router.post('/upload', authorize('head_pastor', 'pastor', 'hod'), uploadFor('media'), upload.single('file'), c.uploadMediaFile);
+router.patch('/:id/publish', authorize('head_pastor', 'pastor'), c.publishMediaItem);
 
 module.exports = router;

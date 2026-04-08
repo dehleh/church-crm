@@ -6,7 +6,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 router.use(authenticate);
 router.get('/', c.getBranches);
 router.get('/:id', c.getBranch);
-router.post('/', authorize('super_admin', 'admin'), c.createBranch);
-router.put('/:id', authorize('super_admin', 'admin'), c.updateBranch);
+router.post('/', authorize('head_pastor', 'pastor'), c.createBranch);
+router.put('/:id', authorize('head_pastor', 'pastor'), c.updateBranch);
 
 module.exports = router;
