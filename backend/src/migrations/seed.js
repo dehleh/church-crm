@@ -17,7 +17,7 @@ const FIRST_NAMES_M = ['Emmanuel','David','Samuel','Joshua','Daniel','Michael','
 const FIRST_NAMES_F = ['Grace','Faith','Joy','Peace','Mercy','Blessing','Esther','Ruth','Deborah','Hannah','Sarah','Miriam','Lydia','Priscilla','Abigail'];
 const LAST_NAMES    = ['Okonkwo','Adeyemi','Nwachukwu','Babatunde','Eze','Okafor','Adeleke','Chukwu','Obi','Fashola','Emeka','Adesanya','Nwosu','Taiwo','Oluwaseun'];
 const OCCUPATIONS   = ['Teacher','Engineer','Doctor','Nurse','Accountant','Lawyer','Pastor','Business Owner','Civil Servant','Student','Trader','Banker'];
-const DENOMINATIONS = 'Pentecostal';
+const DENOMINATIONS = 'Baptist';
 
 async function seed() {
   console.log('🌱 Seeding ChurchOS demo data...\n');
@@ -27,38 +27,38 @@ async function seed() {
   await query(
     `INSERT INTO churches (id, name, slug, denomination, city, state, country, phone, email)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT DO NOTHING`,
-    [CHURCH_ID, 'Grace Cathedral Lagos', 'grace-cathedral-lagos', DENOMINATIONS,
-     'Lagos', 'Lagos', 'Nigeria', '+234 801 234 5678', 'info@gracecathedral.ng']
+    [CHURCH_ID, 'TBC (The Baptizing Church)', 'tbc-lekki-igbo-efon', DENOMINATIONS,
+     'Lagos', 'Lagos', 'Nigeria', '+234 801 234 5678', 'info@tbclekki.ng']
   );
 
   // ── Branches
   await query(
     `INSERT INTO branches (id, church_id, name, code, is_headquarters, city, state, pastor_name)
      VALUES ($1,$2,$3,$4,true,$5,$6,$7) ON CONFLICT DO NOTHING`,
-    [BRANCH_HQ, CHURCH_ID, 'Grace Cathedral HQ', 'HQ', 'Lagos', 'Lagos', 'Pastor Emmanuel Okafor']
+    [BRANCH_HQ, CHURCH_ID, 'TBC Lekki-Igbo-efon (HQ)', 'HQ', 'Lagos', 'Lagos', 'Pastor Emmanuel Okafor']
   );
   await query(
     `INSERT INTO branches (id, church_id, name, code, city, state, pastor_name)
      VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`,
-    [BRANCH_VI, CHURCH_ID, 'Grace Cathedral Victoria Island', 'VI', 'Lagos', 'Lagos', 'Pastor Sarah Adeyemi']
+    [BRANCH_VI, CHURCH_ID, 'TBC Victoria Island', 'VI', 'Lagos', 'Lagos', 'Pastor Sarah Adeyemi']
   );
 
   // ── Users
   await query(
     `INSERT INTO users (id, church_id, branch_id, first_name, last_name, email, password_hash, role, phone)
-     VALUES ($1,$2,$3,'Emmanuel','Okafor','admin@gracecathedral.ng',$4,'super_admin','+234 801 000 0001')
+     VALUES ($1,$2,$3,'Emmanuel','Okafor','admin@tbclekki.ng',$4,'super_admin','+234 801 000 0001')
      ON CONFLICT DO NOTHING`,
     [ADMIN_ID, CHURCH_ID, BRANCH_HQ, hash]
   );
   await query(
     `INSERT INTO users (id, church_id, branch_id, first_name, last_name, email, password_hash, role, phone)
-     VALUES ($1,$2,$3,'Sarah','Adeyemi','pastor@gracecathedral.ng',$4,'pastor','+234 801 000 0002')
+     VALUES ($1,$2,$3,'Sarah','Adeyemi','pastor@tbclekki.ng',$4,'pastor','+234 801 000 0002')
      ON CONFLICT DO NOTHING`,
     [PASTOR_ID, CHURCH_ID, BRANCH_VI, hash]
   );
   await query(
     `INSERT INTO users (id, church_id, branch_id, first_name, last_name, email, password_hash, role, phone)
-     VALUES ($1,$2,$3,'Daniel','Nwachukwu','staff@gracecathedral.ng',$4,'staff','+234 801 000 0003')
+     VALUES ($1,$2,$3,'Daniel','Nwachukwu','staff@tbclekki.ng',$4,'staff','+234 801 000 0003')
      ON CONFLICT DO NOTHING`,
     [STAFF_ID, CHURCH_ID, BRANCH_HQ, hash]
   );
@@ -350,13 +350,13 @@ async function seed() {
 
   console.log('✅ Seed complete!\n');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('  Church:  Grace Cathedral Lagos');
-  console.log('  Login:   admin@gracecathedral.ng');
+  console.log('  Church:  TBC (The Baptizing Church), Lekki-Igbo-efon');
+  console.log('  Login:   admin@tbclekki.ng');
   console.log('  Password: password123');
   console.log('');
   console.log('  Also try:');
-  console.log('  pastor@gracecathedral.ng / password123');
-  console.log('  staff@gracecathedral.ng  / password123');
+  console.log('  pastor@tbclekki.ng / password123');
+  console.log('  staff@tbclekki.ng  / password123');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 }
 

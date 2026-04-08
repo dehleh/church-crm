@@ -101,13 +101,13 @@ export default function Register() {
               <h2 className="font-display text-xl font-bold text-gray-900 mb-4">Church Information</h2>
               <div>
                 <label className="label">Church Name *</label>
-                <input className="input" placeholder="Grace Cathedral" value={form.churchName} onChange={set('churchName')} required />
+                <input className="input" placeholder="The Baptizing Church" value={form.churchName} onChange={set('churchName')} required />
               </div>
               <div>
                 <label className="label">Church URL Slug *</label>
                 <div className="flex">
                   <span className="inline-flex items-center px-3 bg-gray-50 border border-r-0 border-gray-200 rounded-l-lg text-gray-500 text-sm">churchos.app/</span>
-                  <input className={`input rounded-l-none ${errors.churchSlug ? 'border-red-400' : ''}`} placeholder="grace-cathedral" value={form.churchSlug} onChange={set('churchSlug')} />
+                  <input className={`input rounded-l-none ${errors.churchSlug ? 'border-red-400' : ''}`} placeholder="tbc-lekki" value={form.churchSlug} onChange={set('churchSlug')} />
                 </div>
                 {errors.churchSlug ? <p className="text-xs text-red-500 mt-1">{errors.churchSlug}</p> : <p className="text-xs text-gray-400 mt-1">Only lowercase letters, numbers, and hyphens</p>}
               </div>

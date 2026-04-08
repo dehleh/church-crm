@@ -102,10 +102,10 @@ cd backend && npm run seed
 ```
 
 This creates:
-- **Church:** Grace Cathedral Lagos
-- **Login:** `admin@gracecathedral.ng` / `password123`
-- **Also:** `pastor@gracecathedral.ng` / `password123`
-- **Also:** `staff@gracecathedral.ng` / `password123`
+- **Church:** TBC (The Baptizing Church), Lekki-Igbo-efon
+- **Login:** `admin@tbclekki.ng` / `password123`
+- **Also:** `pastor@tbclekki.ng` / `password123`
+- **Also:** `staff@tbclekki.ng` / `password123`
 
 Seeded with: 60 members, 20 first timers, 12 events, 6 months of transactions, departments, budgets, prayer requests, media items, and more.
 
