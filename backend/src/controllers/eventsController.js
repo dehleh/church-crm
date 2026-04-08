@@ -85,20 +85,25 @@ const recordAttendance = async (req, res) => {
     );
     if (!eventCheck.rows[0]) return res.status(404).json({ success: false, message: 'Event not found' });
 
-    const inserted = [];
+    // Batch insert with ON CONFLICT to avoid duplicates (no N+1)
+    const values = [];
+    const params = [];
+    let idx = 1;
     for (const memberId of memberIds) {
-      // Upsert — avoid duplicates
-      const existing = await query(
-        'SELECT id FROM attendance WHERE event_id = $1 AND member_id = $2', [eventId, memberId]
+      values.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`);
+      params.push(uuidv4(), req.churchId, eventId, memberId, checkInMethod);
+    }
+
+    let inserted = [];
+    if (values.length > 0) {
+      const { rows } = await query(
+        `INSERT INTO attendance (id, church_id, event_id, member_id, check_in_method)
+         VALUES ${values.join(', ')}
+         ON CONFLICT (event_id, member_id) DO NOTHING
+         RETURNING *`,
+        params
       );
-      if (!existing.rows[0]) {
-        const { rows } = await query(
-          `INSERT INTO attendance (id, church_id, event_id, member_id, check_in_method)
-           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-          [uuidv4(), req.churchId, eventId, memberId, checkInMethod]
-        );
-        inserted.push(rows[0]);
-      }
+      inserted = rows;
     }
 
     // Update actual attendance count

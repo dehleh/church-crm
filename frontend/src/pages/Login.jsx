@@ -27,8 +27,13 @@ export default function Login() {
     try {
       const { data } = await authAPI.login(form);
       login(data.data.user, data.data);
-      toast.success(`Welcome back, ${data.data.user.firstName}!`);
-      navigate('/dashboard');
+      if (data.data.forcePasswordChange) {
+        toast('Please change your temporary password', { icon: '🔑' });
+        navigate('/settings', { state: { changePassword: true } });
+      } else {
+        toast.success(`Welcome back, ${data.data.user.firstName}!`);
+        navigate('/dashboard');
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Login failed');
     } finally {

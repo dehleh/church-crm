@@ -2,6 +2,7 @@ const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { sendEmail } = require('../services/emailService');
 const { sendSMS } = require('../services/smsService');
+const sanitizeHtml = require('sanitize-html');
 const logger = require('../config/logger');
 
 const getCommunications = async (req, res) => {
@@ -63,7 +64,11 @@ const sendCommunication = async (req, res) => {
     try {
       if (c.channel === 'email') {
         const emails = recipients.map((r) => r.email).filter(Boolean);
-        if (emails.length) await sendEmail({ to: emails, subject: c.title, html: c.body });
+        const safeHtml = sanitizeHtml(c.body, {
+          allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2']),
+          allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, img: ['src', 'alt'] },
+        });
+        if (emails.length) await sendEmail({ to: emails, subject: c.title, html: safeHtml });
       } else if (c.channel === 'sms' || c.channel === 'whatsapp') {
         const phones = recipients.map((r) => r.phone).filter(Boolean);
         if (phones.length) await sendSMS({ to: phones, body: `${c.title}\n\n${c.body}` });

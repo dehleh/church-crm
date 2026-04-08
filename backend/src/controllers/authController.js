@@ -8,12 +8,12 @@ const generateTokens = (userId, churchId, role) => {
   const accessToken = jwt.sign(
     { userId, churchId, role },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
   );
   const refreshToken = jwt.sign(
     { userId, churchId },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d' }
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
   );
   return { accessToken, refreshToken };
 };
@@ -110,6 +110,9 @@ const registerChurch = async (req, res) => {
 };
 
 // POST /api/auth/login
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_MINUTES = 15;
+
 const login = async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -132,14 +135,40 @@ const login = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Church account suspended' });
     }
 
+    // Check account lockout
+    const failedAttempts = user.failed_login_attempts || 0;
+    if (failedAttempts >= MAX_LOGIN_ATTEMPTS && user.locked_until) {
+      const lockedUntil = new Date(user.locked_until);
+      if (lockedUntil > new Date()) {
+        const minutes = Math.ceil((lockedUntil - new Date()) / 60000);
+        return res.status(423).json({
+          success: false,
+          message: `Account locked due to too many failed attempts. Try again in ${minutes} minutes.`
+        });
+      }
+      // Lockout expired — reset
+      await query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [user.id]);
+    }
+
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
+      const newAttempts = failedAttempts + 1;
+      const lockUntil = newAttempts >= MAX_LOGIN_ATTEMPTS
+        ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000).toISOString()
+        : null;
+      await query(
+        'UPDATE users SET failed_login_attempts = $1, locked_until = $2 WHERE id = $3',
+        [newAttempts, lockUntil, user.id]
+      );
+      logger.warn('Failed login attempt', { email, attempts: newAttempts });
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
+    // Successful login — reset failed attempts
     const { accessToken, refreshToken } = generateTokens(user.id, user.church_id, user.role);
     await query(
-      'UPDATE users SET refresh_token = $1, last_login_at = NOW() WHERE id = $2',
+      `UPDATE users SET refresh_token = $1, last_login_at = NOW(),
+       failed_login_attempts = 0, locked_until = NULL WHERE id = $2`,
       [refreshToken, user.id]
     );
 
@@ -148,6 +177,7 @@ const login = async (req, res) => {
       data: {
         accessToken,
         refreshToken,
+        forcePasswordChange: user.force_password_change || false,
         user: {
           id: user.id,
           firstName: user.first_name,

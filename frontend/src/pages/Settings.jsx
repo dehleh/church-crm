@@ -231,7 +231,7 @@ export default function Settings() {
                   </div>
                   <div className="col-span-2">
                     <label className="label">Email</label>
-                    <input className="input" value={user?.email || ''} disabled className="input bg-gray-50 text-gray-400 cursor-not-allowed" />
+                    <input value={user?.email || ''} disabled className="input bg-gray-50 text-gray-400 cursor-not-allowed" />
                     <p className="text-xs text-gray-400 mt-1">Email cannot be changed. Contact your admin.</p>
                   </div>
                 </div>

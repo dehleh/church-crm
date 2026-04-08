@@ -3,6 +3,8 @@ const express = require('express');
 const router = express.Router();
 const c = require('../controllers/financeController');
 const { authenticate, authorize } = require('../middleware/auth');
+const { body } = require('express-validator');
+const { handleValidationErrors } = require('../middleware/errorHandler');
 
 router.use(authenticate);
 
@@ -52,7 +54,11 @@ router.get('/summary', c.getFinanceSummary);
  *       201: { description: Transaction created }
  */
 router.get('/transactions', c.getTransactions);
-router.post('/transactions', authorize('head_pastor', 'pastor', 'hod'), c.createTransaction);
+router.post('/transactions', authorize('head_pastor', 'pastor', 'hod'), [
+  body('transactionType').notEmpty().isIn(['income', 'expense']),
+  body('amount').isFloat({ gt: 0 }),
+  body('paymentMethod').optional().isIn(['cash', 'transfer', 'card', 'cheque', 'ussd']),
+], handleValidationErrors, c.createTransaction);
 
 /**
  * @swagger
@@ -69,7 +75,9 @@ router.post('/transactions', authorize('head_pastor', 'pastor', 'hod'), c.create
  *       201: { description: Account created }
  */
 router.get('/accounts', c.getAccounts);
-router.post('/accounts', authorize('head_pastor', 'pastor'), c.createAccount);
+router.post('/accounts', authorize('head_pastor', 'pastor'), [
+  body('name').notEmpty().trim().escape(),
+], handleValidationErrors, c.createAccount);
 
 /**
  * @swagger
@@ -81,6 +89,8 @@ router.post('/accounts', authorize('head_pastor', 'pastor'), c.createAccount);
  *       200: { description: Category list }
  */
 router.get('/categories', c.getCategories);
-router.post('/categories', authorize('head_pastor', 'pastor', 'hod'), c.createCategory);
+router.post('/categories', authorize('head_pastor', 'pastor', 'hod'), [
+  body('name').notEmpty().trim().escape(),
+], handleValidationErrors, c.createCategory);
 
 module.exports = router;

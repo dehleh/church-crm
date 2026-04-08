@@ -3,10 +3,11 @@ const logger = require('./logger');
 require('dotenv').config();
 
 // Support Railway's DATABASE_URL or individual env vars
+const isProduction = process.env.NODE_ENV === 'production';
 const poolConfig = process.env.DATABASE_URL
   ? {
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
+      ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: isProduction },
     }
   : {
       host: process.env.DB_HOST || 'localhost',
@@ -18,7 +19,7 @@ const poolConfig = process.env.DATABASE_URL
 
 const pool = new Pool({
   ...poolConfig,
-  max: 20,
+  max: parseInt(process.env.DB_POOL_MAX) || 30,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
@@ -38,4 +39,9 @@ const query = async (text, params) => {
 
 const getClient = () => pool.connect();
 
-module.exports = { query, getClient, pool };
+const healthCheck = async () => {
+  const res = await pool.query('SELECT 1');
+  return !!res;
+};
+
+module.exports = { query, getClient, pool, healthCheck };

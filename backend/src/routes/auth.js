@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../controllers/authController');
 const { body } = require('express-validator');
+const { handleValidationErrors } = require('../middleware/errorHandler');
 
 /**
  * @swagger
@@ -37,7 +38,7 @@ router.post('/register', [
   body('adminPassword').isLength({ min: 8 }),
   body('adminFirstName').notEmpty().trim(),
   body('adminLastName').notEmpty().trim(),
-], auth.registerChurch);
+], handleValidationErrors, auth.registerChurch);
 
 /**
  * @swagger
@@ -63,7 +64,7 @@ router.post('/register', [
 router.post('/login', [
   body('email').isEmail().normalizeEmail(),
   body('password').notEmpty(),
-], auth.login);
+], handleValidationErrors, auth.login);
 
 /**
  * @swagger

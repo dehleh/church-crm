@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const c = require('../controllers/membersController');
 const { authenticate, authorize } = require('../middleware/auth');
+const { body } = require('express-validator');
+const { handleValidationErrors } = require('../middleware/errorHandler');
 
 router.use(authenticate);
 
@@ -52,7 +54,13 @@ router.get('/stats', c.getMemberStats);
  *       201: { description: Member created }
  */
 router.get('/', c.getMembers);
-router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), c.createMember);
+router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), [
+  body('firstName').notEmpty().trim().escape(),
+  body('lastName').notEmpty().trim().escape(),
+  body('email').optional({ values: 'null' }).isEmail().normalizeEmail(),
+  body('phone').optional({ values: 'null' }).trim(),
+  body('gender').optional().isIn(['male', 'female']),
+], handleValidationErrors, c.createMember);
 
 /**
  * @swagger
@@ -81,7 +89,12 @@ router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), c.create
  *       200: { description: Member deactivated }
  */
 router.get('/:id', c.getMember);
-router.put('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), c.updateMember);
+router.put('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), [
+  body('firstName').optional().trim().escape(),
+  body('lastName').optional().trim().escape(),
+  body('email').optional({ values: 'null' }).isEmail().normalizeEmail(),
+  body('gender').optional().isIn(['male', 'female']),
+], handleValidationErrors, c.updateMember);
 router.delete('/:id', authorize('head_pastor', 'pastor'), c.deleteMember);
 
 module.exports = router;

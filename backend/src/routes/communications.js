@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const c = require('../controllers/communicationsController');
 const { authenticate, authorize } = require('../middleware/auth');
+const { body } = require('express-validator');
+const { handleValidationErrors } = require('../middleware/errorHandler');
 router.use(authenticate);
 
 /**
@@ -45,7 +47,12 @@ router.get('/stats', c.getCommStats);
  *       201: { description: Draft created }
  */
 router.get('/', c.getCommunications);
-router.post('/', authorize('head_pastor','pastor','director','hod'), c.createCommunication);
+router.post('/', authorize('head_pastor','pastor','director','hod'), [
+  body('title').notEmpty().trim().escape(),
+  body('body').notEmpty(),
+  body('channel').notEmpty().isIn(['email', 'sms', 'whatsapp', 'push', 'in_app']),
+  body('audience').optional().isIn(['all', 'members', 'department', 'branch', 'custom']),
+], handleValidationErrors, c.createCommunication);
 
 /**
  * @swagger

@@ -35,7 +35,12 @@ api.interceptors.response.use(
       }
     }
     if (err.response?.status !== 401) {
-      const msg = err.response?.data?.message || 'Something went wrong';
+      const data = err.response?.data;
+      let msg = data?.message || 'Something went wrong';
+      // Show field-level validation errors if present
+      if (data?.errors?.length) {
+        msg = data.errors.map(e => `${e.field}: ${e.message}`).join(', ');
+      }
       toast.error(msg);
     }
     return Promise.reject(err);
