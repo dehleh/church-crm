@@ -89,7 +89,7 @@ export default function Layout() {
         mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       )}>
         {/* Brand */}
-        <div className={clsx('flex items-center border-b border-gray-100 flex-shrink-0', collapsed ? 'p-3 justify-center' : 'p-4 gap-3')}>
+        <div className={clsx('flex items-center border-b border-gray-100 flex-shrink-0 cursor-pointer', collapsed ? 'p-3 justify-center' : 'p-4 gap-3')} onClick={() => navigate('/dashboard')}>
           <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center flex-shrink-0">
             <span className="text-white text-lg">⛪</span>
           </div>
