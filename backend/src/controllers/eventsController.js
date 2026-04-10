@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 
 // GET /api/events
 const getEvents = async (req, res) => {
-  const { page = 1, limit = 20, status, type, upcoming, branchId } = req.query;
+  const { page = 1, limit = 20, status, type, upcoming, branchId, search } = req.query;
   const offset = (page - 1) * limit;
 
   try {
@@ -11,6 +11,10 @@ const getEvents = async (req, res) => {
     let params = [req.churchId];
     let idx = 2;
 
+    if (search) {
+      conditions.push(`(e.title ILIKE $${idx} OR e.description ILIKE $${idx} OR e.location ILIKE $${idx})`);
+      params.push(`%${search}%`); idx++;
+    }
     if (status) { conditions.push(`e.status = $${idx++}`); params.push(status); }
     if (type) { conditions.push(`e.event_type = $${idx++}`); params.push(type); }
     if (branchId) { conditions.push(`e.branch_id = $${idx++}`); params.push(branchId); }

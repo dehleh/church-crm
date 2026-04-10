@@ -29,13 +29,13 @@ const getCommunications = async (req, res) => {
 };
 
 const createCommunication = async (req, res) => {
-  const { title, body, channel, audience, audienceFilter, scheduledAt, branchId } = req.body;
+  const { title, body, channel, audience, audienceFilter, scheduledAt, branchId, imageUrl } = req.body;
   try {
     const id = uuidv4();
     const { rows } = await query(
-      `INSERT INTO communications (id, church_id, branch_id, title, body, channel, audience, audience_filter, scheduled_at, created_by, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft') RETURNING *`,
-      [id, req.churchId, branchId||null, title, body, channel, audience||'all', audienceFilter||{}, scheduledAt||null, req.user.id]
+      `INSERT INTO communications (id, church_id, branch_id, title, body, channel, audience, audience_filter, scheduled_at, created_by, status, image_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft',$11) RETURNING *`,
+      [id, req.churchId, branchId||null, title, body, channel, audience||'all', audienceFilter||{}, scheduledAt||null, req.user.id, imageUrl||null]
     );
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }

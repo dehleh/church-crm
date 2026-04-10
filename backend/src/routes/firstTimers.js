@@ -11,9 +11,18 @@ router.get('/', c.getFirstTimers);
 router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), [
   body('firstName').notEmpty().trim().escape(),
   body('lastName').notEmpty().trim().escape(),
+  body('phone').notEmpty().trim(),
+  body('email').notEmpty().isEmail().normalizeEmail(),
+  body('gender').notEmpty().isIn(['male', 'female']),
+  body('visitDate').notEmpty(),
+  body('howDidYouHear').notEmpty().trim(),
+], handleValidationErrors, c.createFirstTimer);
+router.put('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), [
+  body('firstName').optional().notEmpty().trim().escape(),
+  body('lastName').optional().notEmpty().trim().escape(),
   body('phone').optional().trim(),
   body('email').optional({ values: 'null' }).isEmail().normalizeEmail(),
-], handleValidationErrors, c.createFirstTimer);
+], handleValidationErrors, c.updateFirstTimer);
 router.patch('/:id/follow-up', authorize('head_pastor', 'pastor', 'director', 'hod'), [
   body('status').notEmpty().trim(),
 ], handleValidationErrors, c.updateFollowUpStatus);

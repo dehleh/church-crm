@@ -8,11 +8,13 @@ const { handleValidationErrors } = require('../middleware/errorHandler');
 router.use(authenticate);
 router.get('/', c.getPrayerRequests);
 router.post('/', [
-  body('title').notEmpty().trim().escape(),
-  body('description').optional().trim(),
+  body('request').notEmpty().trim(),
+  body('category').optional().trim(),
+  body('requesterName').optional().trim().escape(),
+  body('isAnonymous').optional().isBoolean(),
 ], handleValidationErrors, c.createPrayerRequest);
 router.patch('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), [
-  body('status').notEmpty().isIn(['pending', 'praying', 'answered', 'closed']),
+  body('status').notEmpty().isIn(['open', 'praying', 'answered', 'closed']),
 ], handleValidationErrors, c.updatePrayerStatus);
 
 module.exports = router;

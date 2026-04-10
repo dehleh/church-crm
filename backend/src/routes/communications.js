@@ -4,7 +4,17 @@ const c = require('../controllers/communicationsController');
 const { authenticate, authorize } = require('../middleware/auth');
 const { body } = require('express-validator');
 const { handleValidationErrors } = require('../middleware/errorHandler');
+const { upload, uploadFor } = require('../middleware/upload');
 router.use(authenticate);
+
+// Image upload for communications
+router.post('/upload-image', authorize('head_pastor','pastor','director','hod'),
+  uploadFor('media'), upload.single('image'), (req, res) => {
+    if (!req.file) return res.status(400).json({ success: false, message: 'No image uploaded' });
+    const imageUrl = `/uploads/media/${req.file.filename}`;
+    return res.json({ success: true, data: { imageUrl } });
+  }
+);
 
 /**
  * @swagger

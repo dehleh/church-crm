@@ -67,6 +67,16 @@ const createFirstTimer = async (req, res) => {
         howDidYouHear || null, visitDate || new Date(), serviceAttended || null, prayerRequest || null
       ]
     );
+
+    // Also create a prayer request if one was provided
+    if (prayerRequest && prayerRequest.trim()) {
+      await query(
+        `INSERT INTO prayer_requests (id, church_id, branch_id, first_timer_id, requester_name, request, category, is_anonymous)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [uuidv4(), req.churchId, branchId || null, rows[0].id, `${firstName} ${lastName}`, prayerRequest, 'others', false]
+      );
+    }
+
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Server error' });
@@ -144,4 +154,36 @@ const getFirstTimerStats = async (req, res) => {
   }
 };
 
-module.exports = { getFirstTimers, createFirstTimer, updateFollowUpStatus, convertToMember, getFirstTimerStats };
+const updateFirstTimer = async (req, res) => {
+  const { id } = req.params;
+  const {
+    firstName, lastName, email, phone, address, gender, dateOfBirth,
+    howDidYouHear, visitDate, serviceAttended, prayerRequest, branchId
+  } = req.body;
+  try {
+    const { rows } = await query(
+      `UPDATE first_timers SET
+        first_name = COALESCE($3, first_name),
+        last_name = COALESCE($4, last_name),
+        email = COALESCE($5, email),
+        phone = COALESCE($6, phone),
+        address = COALESCE($7, address),
+        gender = COALESCE($8, gender),
+        date_of_birth = COALESCE($9, date_of_birth),
+        how_did_you_hear = COALESCE($10, how_did_you_hear),
+        visit_date = COALESCE($11, visit_date),
+        service_attended = COALESCE($12, service_attended),
+        prayer_request = COALESCE($13, prayer_request),
+        branch_id = COALESCE($14, branch_id)
+       WHERE id = $1 AND church_id = $2 RETURNING *`,
+      [id, req.churchId, firstName, lastName, email, phone, address, gender,
+       dateOfBirth || null, howDidYouHear, visitDate, serviceAttended, prayerRequest, branchId || null]
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'First timer not found' });
+    return res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+module.exports = { getFirstTimers, createFirstTimer, updateFirstTimer, updateFollowUpStatus, convertToMember, getFirstTimerStats };
