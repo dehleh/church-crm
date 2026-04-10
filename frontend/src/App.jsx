@@ -23,6 +23,8 @@ import Settings from './pages/Settings';
 import FollowUps from './pages/FollowUps';
 import Groups from './pages/Groups';
 import Assets from './pages/Assets';
+import Counseling from './pages/Counseling';
+import Welfare from './pages/Welfare';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -72,6 +74,8 @@ export default function App() {
             <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
             <Route path="follow-ups" element={<ErrorBoundary><FollowUps /></ErrorBoundary>} />
             <Route path="assets" element={<ErrorBoundary><Assets /></ErrorBoundary>} />
+            <Route path="counseling" element={<ErrorBoundary><Counseling /></ErrorBoundary>} />
+            <Route path="welfare" element={<ErrorBoundary><Welfare /></ErrorBoundary>} />
             <Route path="settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

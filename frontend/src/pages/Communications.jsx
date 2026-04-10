@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, Plus, Send, Trash2, Loader2, Mail, Phone, Bell } from 'lucide-react';
+import { MessageSquare, Plus, Send, Trash2, Loader2, Mail, Phone, Bell, ImagePlus, X } from 'lucide-react';
 import { communicationsAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
@@ -18,6 +18,7 @@ export default function Communications() {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -45,6 +46,19 @@ export default function Communications() {
       setModal(null); fetch();
     } catch { toast.error('Failed to save'); }
     finally { setSaving(false); }
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return toast.error('Only image files allowed');
+    setUploading(true);
+    try {
+      const res = await communicationsAPI.uploadImage(file);
+      setForm(f => ({ ...f, imageUrl: res.data.data.imageUrl }));
+      toast.success('Image uploaded!');
+    } catch { toast.error('Failed to upload image'); }
+    finally { setUploading(false); }
   };
 
   const handleSend = async (id) => {
@@ -188,6 +202,24 @@ export default function Communications() {
             )}
           </div>
           <div>
+            <label className="label">Attach Image (optional)</label>
+            {form.imageUrl ? (
+              <div className="relative inline-block">
+                <img src={form.imageUrl} alt="Attachment" className="w-32 h-32 object-cover rounded-lg border" />
+                <button type="button" onClick={() => setForm(f => ({ ...f, imageUrl: '' }))}
+                  className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600">
+                  <X size={12} />
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-brand-300 hover:bg-brand-50/50 transition-colors w-fit">
+                {uploading ? <Loader2 size={16} className="animate-spin text-brand-500" /> : <ImagePlus size={16} className="text-gray-400" />}
+                <span className="text-sm text-gray-500">{uploading ? 'Uploading…' : 'Choose image'}</span>
+                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
+              </label>
+            )}
+          </div>
+          <div>
             <label className="label">Schedule (optional)</label>
             <input type="datetime-local" className="input" value={form.scheduledAt||''} onChange={set('scheduledAt')} />
             <p className="text-xs text-gray-400 mt-1">Leave blank to send immediately when you click Send</p>
@@ -211,6 +243,9 @@ export default function Communications() {
               <span className="badge badge-gray capitalize">{selected.audience}</span>
             </div>
             {selected.sent_at && <p className="text-xs text-gray-400">Sent {format(new Date(selected.sent_at), 'MMM d, yyyy h:mm a')} · {selected.sent_count} recipients</p>}
+            {selected.image_url && (
+              <img src={selected.image_url} alt="Attachment" className="w-full max-h-64 object-contain rounded-lg border" />
+            )}
             <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
               {selected.body}
             </div>

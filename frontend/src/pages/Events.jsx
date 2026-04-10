@@ -19,6 +19,8 @@ export default function Events() {
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ total: 0, page: 1, totalPages: 1 });
   const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -27,14 +29,14 @@ export default function Events() {
   const fetchEvents = useCallback(async (page = 1) => {
     setLoading(true);
     try {
-      const params = { page, limit: 20, ...(statusFilter && { status: statusFilter }) };
+      const params = { page, limit: 20, ...(statusFilter && { status: statusFilter }), ...(typeFilter && { type: typeFilter }), ...(search && { search }) };
       const [res, statsRes] = await Promise.all([eventsAPI.list(params), eventsAPI.stats()]);
       setEvents(res.data.data);
       setPagination(res.data.pagination);
       setStats(statsRes.data.data);
     } catch { toast.error('Failed to load events'); }
     finally { setLoading(false); }
-  }, [statusFilter]);
+  }, [statusFilter, typeFilter, search]);
 
   useEffect(() => { fetchEvents(1); }, [fetchEvents]);
   useEffect(() => { branchesAPI.list().then(r => setBranches(r.data.data)).catch(() => {}); }, []);
@@ -81,6 +83,20 @@ export default function Events() {
       {/* Table */}
       <div className="table-wrapper">
         <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-3 bg-white">
+          <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input className="input pl-9 py-2 h-9 text-sm" placeholder="Search events…"
+              value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <select className="input h-9 text-sm w-auto py-2 pr-8" value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+            <option value="">All Types</option>
+            <option value="sunday_service">Sunday Service</option>
+            <option value="midweek">Midweek</option>
+            <option value="special">Special</option>
+            <option value="conference">Conference</option>
+            <option value="outreach">Outreach</option>
+            <option value="concert">Concert</option>
+          </select>
           <select className="input h-9 text-sm w-auto py-2 pr-8" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">All Statuses</option>
             <option value="upcoming">Upcoming</option>

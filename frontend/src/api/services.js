@@ -23,6 +23,7 @@ export const membersAPI = {
 export const firstTimersAPI = {
   list: (params) => api.get('/first-timers', { params }),
   create: (data) => api.post('/first-timers', data),
+  update: (id, data) => api.put(`/first-timers/${id}`, data),
   updateFollowUp: (id, data) => api.patch(`/first-timers/${id}/follow-up`, data),
   convert: (id) => api.post(`/first-timers/${id}/convert`),
   stats: () => api.get('/first-timers/stats'),
@@ -85,6 +86,11 @@ export const communicationsAPI = {
   send: (id) => api.post(`/communications/${id}/send`),
   delete: (id) => api.delete(`/communications/${id}`),
   stats: () => api.get('/communications/stats'),
+  uploadImage: (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    return api.post('/communications/upload-image', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
 };
 
 export const usersAPI = {
@@ -143,4 +149,20 @@ export const assetsAPI = {
   update: (id, data) => api.put(`/assets/${id}`, data),
   delete: (id) => api.delete(`/assets/${id}`),
   stats: () => api.get('/assets/stats'),
+};
+
+export const counselingAPI = {
+  list: (params) => api.get('/counseling', { params }),
+  create: (data) => api.post('/counseling', data),
+  update: (id, data) => api.patch(`/counseling/${id}`, data),
+  stats: () => api.get('/counseling/stats'),
+};
+
+export const welfareAPI = {
+  packages: () => api.get('/welfare/packages'),
+  createPackage: (data) => api.post('/welfare/packages', data),
+  applications: (params) => api.get('/welfare/applications', { params }),
+  createApplication: (data) => api.post('/welfare/applications', data),
+  reviewApplication: (id, data) => api.patch(`/welfare/applications/${id}`, data),
+  stats: () => api.get('/welfare/stats'),
 };

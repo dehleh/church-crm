@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { UserPlus, Plus, Search, Phone, Mail, ArrowRightCircle, Loader2, CheckCircle } from 'lucide-react';
+import { UserPlus, Plus, Search, Phone, Mail, ArrowRightCircle, Loader2, CheckCircle, Edit2 } from 'lucide-react';
 import { firstTimersAPI, branchesAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { email as validateEmail, phone as validatePhone } from '../utils/validation';
 
 const FOLLOW_UP_BADGE = {
   pending: 'badge-yellow', contacted: 'badge-blue',
   converted: 'badge-green', inactive: 'badge-gray',
+  visitor: 'badge-purple',
 };
 
 export default function FirstTimers() {
@@ -22,6 +24,7 @@ export default function FirstTimers() {
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
 
   const fetch = useCallback(async (page = 1) => {
     setLoading(true);
@@ -41,14 +44,43 @@ export default function FirstTimers() {
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
   const handleAdd = async () => {
-    if (!form.firstName || !form.lastName) return toast.error('Name required');
+    const errs = {};
+    if (!form.firstName?.trim()) errs.firstName = 'First name is required';
+    if (!form.lastName?.trim()) errs.lastName = 'Last name is required';
+    if (!form.phone?.trim()) errs.phone = 'Phone is required';
+    else { const phoneErr = validatePhone(form.phone); if (phoneErr) errs.phone = phoneErr; }
+    if (!form.email?.trim()) errs.email = 'Email is required';
+    else { const emailErr = validateEmail(form.email); if (emailErr) errs.email = emailErr; }
+    if (!form.gender) errs.gender = 'Gender is required';
+    if (!form.visitDate) errs.visitDate = 'Visit date is required';
+    if (!form.howDidYouHear) errs.howDidYouHear = 'This field is required';
+    setFormErrors(errs);
+    if (Object.keys(errs).length > 0) return toast.error('Please fill all required fields');
     setSaving(true);
     try {
-      await firstTimersAPI.create(form);
-      toast.success('First timer recorded!');
-      setModal(null); fetch(1);
+      if (modal === 'edit') {
+        await firstTimersAPI.update(selected.id, form);
+        toast.success('First timer updated!');
+      } else {
+        await firstTimersAPI.create(form);
+        toast.success('First timer recorded!');
+      }
+      setModal(null); fetch(modal === 'edit' ? pagination.page : 1);
     } catch { toast.error('Failed to save'); }
     finally { setSaving(false); }
+  };
+
+  const openEdit = (item) => {
+    setSelected(item);
+    setForm({
+      firstName: item.first_name, lastName: item.last_name,
+      phone: item.phone || '', email: item.email || '',
+      gender: item.gender || '', visitDate: item.visit_date ? item.visit_date.split('T')[0] : '',
+      howDidYouHear: item.how_did_you_hear || '', branchId: item.branch_id || '',
+      prayerRequest: item.prayer_request || '', address: item.address || '',
+    });
+    setFormErrors({});
+    setModal('edit');
   };
 
   const handleFollowUp = async () => {
@@ -82,7 +114,7 @@ export default function FirstTimers() {
           <h1 className="page-title">First Timers</h1>
           <p className="text-gray-500 text-sm mt-1">Track and follow up on new visitors</p>
         </div>
-        <button onClick={() => { setForm({ visitDate: format(new Date(), 'yyyy-MM-dd') }); setModal('add'); }} className="btn-primary">
+        <button onClick={() => { setForm({ visitDate: format(new Date(), 'yyyy-MM-dd') }); setFormErrors({}); setModal('add'); }} className="btn-primary">
           <Plus size={16} /> Record Visitor
         </button>
       </div>
@@ -113,6 +145,7 @@ export default function FirstTimers() {
           <select className="input h-9 text-sm w-auto py-2 pr-8" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">All Statuses</option>
             <option value="pending">Pending</option>
+            <option value="visitor">Visitor</option>
             <option value="contacted">Contacted</option>
             <option value="converted">Converted</option>
             <option value="inactive">Inactive</option>
@@ -125,7 +158,7 @@ export default function FirstTimers() {
           <div className="text-center py-16">
             <UserPlus size={40} className="mx-auto text-gray-300 mb-3" />
             <p className="text-gray-500 font-medium">No first timers recorded</p>
-            <button onClick={() => { setForm({ visitDate: format(new Date(), 'yyyy-MM-dd') }); setModal('add'); }} className="btn-primary mt-4 inline-flex"><Plus size={15} /> Record Visitor</button>
+            <button onClick={() => { setForm({ visitDate: format(new Date(), 'yyyy-MM-dd') }); setFormErrors({}); setModal('add'); }} className="btn-primary mt-4 inline-flex"><Plus size={15} /> Record Visitor</button>
           </div>
         ) : (
           <table className="crm-table">
@@ -173,6 +206,11 @@ export default function FirstTimers() {
                       {!item.converted_to_member && (
                         <>
                           <button
+                            onClick={() => openEdit(item)}
+                            className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors" title="Edit">
+                            <Edit2 size={14} />
+                          </button>
+                          <button
                             onClick={() => { setSelected(item); setForm({ followUpStatus: item.follow_up_status, followUpNotes: item.follow_up_notes }); setModal('followup'); }}
                             className="p-1.5 rounded hover:bg-brand-50 text-gray-400 hover:text-brand-600 transition-colors" title="Update Follow-up">
                             <ArrowRightCircle size={15} />
@@ -203,36 +241,39 @@ export default function FirstTimers() {
         )}
       </div>
 
-      {/* Add Modal */}
-      <Modal open={modal === 'add'} onClose={() => setModal(null)} title="Record First Timer"
-        footer={<><button onClick={() => setModal(null)} className="btn-secondary">Cancel</button><button onClick={handleAdd} disabled={saving} className="btn-primary">{saving ? <Loader2 size={15} className="animate-spin" /> : 'Save'}</button></>}>
+      {/* Add/Edit Modal */}
+      <Modal open={modal === 'add' || modal === 'edit'} onClose={() => setModal(null)} title={modal === 'edit' ? 'Edit First Timer' : 'Record First Timer'} size="lg"
+        footer={<><button onClick={() => setModal(null)} className="btn-secondary">Cancel</button><button onClick={handleAdd} disabled={saving} className="btn-primary">{saving ? <Loader2 size={15} className="animate-spin" /> : modal === 'edit' ? 'Save Changes' : 'Save'}</button></>}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">First Name *</label><input className="input" value={form.firstName || ''} onChange={set('firstName')} /></div>
-            <div><label className="label">Last Name *</label><input className="input" value={form.lastName || ''} onChange={set('lastName')} /></div>
+            <div><label className="label">First Name *</label><input className={`input ${formErrors.firstName ? 'border-red-400' : ''}`} value={form.firstName || ''} onChange={set('firstName')} />{formErrors.firstName && <p className="text-xs text-red-500 mt-1">{formErrors.firstName}</p>}</div>
+            <div><label className="label">Last Name *</label><input className={`input ${formErrors.lastName ? 'border-red-400' : ''}`} value={form.lastName || ''} onChange={set('lastName')} />{formErrors.lastName && <p className="text-xs text-red-500 mt-1">{formErrors.lastName}</p>}</div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Phone</label><input type="tel" className="input" value={form.phone || ''} onChange={set('phone')} /></div>
-            <div><label className="label">Email</label><input type="email" className="input" value={form.email || ''} onChange={set('email')} /></div>
+            <div><label className="label">Phone *</label><input type="tel" className={`input ${formErrors.phone ? 'border-red-400' : ''}`} value={form.phone || ''} onChange={set('phone')} placeholder="+234..." />{formErrors.phone && <p className="text-xs text-red-500 mt-1">{formErrors.phone}</p>}</div>
+            <div><label className="label">Email *</label><input type="email" className={`input ${formErrors.email ? 'border-red-400' : ''}`} value={form.email || ''} onChange={set('email')} />{formErrors.email && <p className="text-xs text-red-500 mt-1">{formErrors.email}</p>}</div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Gender</label>
-              <select className="input" value={form.gender || ''} onChange={set('gender')}>
+              <label className="label">Gender *</label>
+              <select className={`input ${formErrors.gender ? 'border-red-400' : ''}`} value={form.gender || ''} onChange={set('gender')}>
                 <option value="">Select</option><option value="male">Male</option><option value="female">Female</option>
               </select>
+              {formErrors.gender && <p className="text-xs text-red-500 mt-1">{formErrors.gender}</p>}
             </div>
-            <div><label className="label">Visit Date</label><input type="date" className="input" value={form.visitDate || ''} onChange={set('visitDate')} /></div>
+            <div><label className="label">Visit Date *</label><input type="date" className={`input ${formErrors.visitDate ? 'border-red-400' : ''}`} value={form.visitDate || ''} onChange={set('visitDate')} />{formErrors.visitDate && <p className="text-xs text-red-500 mt-1">{formErrors.visitDate}</p>}</div>
           </div>
           <div>
-            <label className="label">How did they hear about us?</label>
-            <select className="input" value={form.howDidYouHear || ''} onChange={set('howDidYouHear')}>
+            <label className="label">How did they hear about us? *</label>
+            <select className={`input ${formErrors.howDidYouHear ? 'border-red-400' : ''}`} value={form.howDidYouHear || ''} onChange={set('howDidYouHear')}>
               <option value="">Select</option>
               {['social_media','friend','walk_in','online_service','flyer','event','others'].map(v => (
                 <option key={v} value={v}>{v.replace(/_/g, ' ')}</option>
               ))}
             </select>
+            {formErrors.howDidYouHear && <p className="text-xs text-red-500 mt-1">{formErrors.howDidYouHear}</p>}
           </div>
+          <div><label className="label">Address</label><input className="input" value={form.address || ''} onChange={set('address')} /></div>
           <div>
             <label className="label">Branch</label>
             <select className="input" value={form.branchId || ''} onChange={set('branchId')}>
@@ -252,6 +293,7 @@ export default function FirstTimers() {
             <label className="label">Follow-up Status</label>
             <select className="input" value={form.followUpStatus || ''} onChange={set('followUpStatus')}>
               <option value="pending">Pending</option>
+              <option value="visitor">Visitor</option>
               <option value="contacted">Contacted</option>
               <option value="converted">Converted</option>
               <option value="inactive">Inactive</option>

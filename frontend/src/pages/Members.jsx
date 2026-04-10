@@ -5,42 +5,57 @@ import { membersAPI, branchesAPI, departmentsAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { email as validateEmail, phone as validatePhone } from '../utils/validation';
 
 const STATUS_BADGE = {
   active: 'badge-green', inactive: 'badge-gray',
   transferred: 'badge-blue', deceased: 'badge-red',
 };
 
-function MemberForm({ form, setForm, branches }) {
+function MemberForm({ form, setForm, branches, errors = {} }) {
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">First Name *</label><input className="input" required value={form.firstName || ''} onChange={set('firstName')} /></div>
-        <div><label className="label">Last Name *</label><input className="input" required value={form.lastName || ''} onChange={set('lastName')} /></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">Email</label><input type="email" className="input" value={form.email || ''} onChange={set('email')} /></div>
-        <div><label className="label">Phone</label><input type="tel" className="input" value={form.phone || ''} onChange={set('phone')} /></div>
+        <div><label className="label">First Name *</label><input className={`input ${errors.firstName ? 'border-red-400' : ''}`} required value={form.firstName || ''} onChange={set('firstName')} />{errors.firstName && <p className="text-xs text-red-500 mt-1">{errors.firstName}</p>}</div>
+        <div><label className="label">Last Name *</label><input className={`input ${errors.lastName ? 'border-red-400' : ''}`} required value={form.lastName || ''} onChange={set('lastName')} />{errors.lastName && <p className="text-xs text-red-500 mt-1">{errors.lastName}</p>}</div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label">Gender</label>
-          <select className="input" value={form.gender || ''} onChange={set('gender')}>
+          <label className="label">Email *</label>
+          <input type="email" className={`input ${errors.email ? 'border-red-400' : ''}`} value={form.email || ''} onChange={set('email')} />
+          {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
+        </div>
+        <div>
+          <label className="label">Phone *</label>
+          <input type="tel" className={`input ${errors.phone ? 'border-red-400' : ''}`} value={form.phone || ''} onChange={set('phone')} placeholder="+234..." />
+          {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Gender *</label>
+          <select className={`input ${errors.gender ? 'border-red-400' : ''}`} value={form.gender || ''} onChange={set('gender')}>
             <option value="">Select</option>
             <option value="male">Male</option>
             <option value="female">Female</option>
           </select>
+          {errors.gender && <p className="text-xs text-red-500 mt-1">{errors.gender}</p>}
         </div>
-        <div><label className="label">Date of Birth</label><input type="date" className="input" value={form.dateOfBirth || ''} onChange={set('dateOfBirth')} /></div>
+        <div><label className="label">Date of Birth *</label><input type="date" className={`input ${errors.dateOfBirth ? 'border-red-400' : ''}`} value={form.dateOfBirth || ''} onChange={set('dateOfBirth')} />{errors.dateOfBirth && <p className="text-xs text-red-500 mt-1">{errors.dateOfBirth}</p>}</div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label">Marital Status</label>
-          <select className="input" value={form.maritalStatus || ''} onChange={set('maritalStatus')}>
+          <label className="label">Marital Status *</label>
+          <select className={`input ${errors.maritalStatus ? 'border-red-400' : ''}`} value={form.maritalStatus || ''} onChange={set('maritalStatus')}>
             <option value="">Select</option>
-            {['single','married','divorced','widowed'].map(s => <option key={s} value={s} className="capitalize">{s}</option>)}
+            <option value="single">Single</option>
+            <option value="married">Married</option>
+            <option value="divorced">Divorced</option>
+            <option value="widowed">Widow</option>
+            <option value="widower">Widower</option>
           </select>
+          {errors.maritalStatus && <p className="text-xs text-red-500 mt-1">{errors.maritalStatus}</p>}
         </div>
         <div>
           <label className="label">Membership Class</label>
@@ -62,10 +77,10 @@ function MemberForm({ form, setForm, branches }) {
         </div>
         <div><label className="label">Join Date</label><input type="date" className="input" value={form.joinDate || ''} onChange={set('joinDate')} /></div>
       </div>
-      <div><label className="label">Address</label><input className="input" value={form.address || ''} onChange={set('address')} /></div>
+      <div><label className="label">Address *</label><input className={`input ${errors.address ? 'border-red-400' : ''}`} value={form.address || ''} onChange={set('address')} />{errors.address && <p className="text-xs text-red-500 mt-1">{errors.address}</p>}</div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Occupation</label><input className="input" value={form.occupation || ''} onChange={set('occupation')} /></div>
-        <div><label className="label">Employer</label><input className="input" value={form.employer || ''} onChange={set('employer')} /></div>
+        <div><label className="label">Company</label><input className="input" value={form.employer || ''} onChange={set('employer')} /></div>
       </div>
       <div className="grid grid-cols-3 gap-3">
         <div>
@@ -101,6 +116,7 @@ export default function Members() {
   const [selectedMember, setSelectedMember] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
 
   const fetchMembers = useCallback(async (page = 1) => {
     setLoading(true);
@@ -118,11 +134,23 @@ export default function Members() {
   useEffect(() => { branchesAPI.list().then(r => setBranches(r.data.data)).catch(() => {}); }, []);
 
   const navigate = useNavigate();
-  const openAdd = () => { setForm({}); setModal('add'); };
-  const openEdit = (m) => { setForm({ ...m, firstName: m.first_name, lastName: m.last_name, dateOfBirth: m.date_of_birth, maritalStatus: m.marital_status, membershipClass: m.membership_class, joinDate: m.join_date, waterBaptized: m.water_baptized, holyGhostBaptized: m.holy_ghost_baptized, branchId: m.branch_id }); setSelectedMember(m); setModal('edit'); };
+  const openAdd = () => { setForm({}); setFormErrors({}); setModal('add'); };
+  const openEdit = (m) => { setForm({ ...m, firstName: m.first_name, lastName: m.last_name, dateOfBirth: m.date_of_birth, maritalStatus: m.marital_status, membershipClass: m.membership_class, joinDate: m.join_date, waterBaptized: m.water_baptized, holyGhostBaptized: m.holy_ghost_baptized, branchId: m.branch_id }); setFormErrors({}); setSelectedMember(m); setModal('edit'); };
 
   const handleSave = async () => {
-    if (!form.firstName || !form.lastName) return toast.error('First and last name required');
+    const errs = {};
+    if (!form.firstName?.trim()) errs.firstName = 'First name is required';
+    if (!form.lastName?.trim()) errs.lastName = 'Last name is required';
+    if (!form.email?.trim()) errs.email = 'Email is required';
+    else { const emailErr = validateEmail(form.email); if (emailErr) errs.email = emailErr; }
+    if (!form.phone?.trim()) errs.phone = 'Phone is required';
+    else { const phoneErr = validatePhone(form.phone); if (phoneErr) errs.phone = phoneErr; }
+    if (!form.gender) errs.gender = 'Gender is required';
+    if (!form.dateOfBirth) errs.dateOfBirth = 'Date of birth is required';
+    if (!form.maritalStatus) errs.maritalStatus = 'Marital status is required';
+    if (!form.address?.trim()) errs.address = 'Address is required';
+    setFormErrors(errs);
+    if (Object.keys(errs).length > 0) return toast.error('Please fill all required fields');
     setSaving(true);
     try {
       if (modal === 'add') {
@@ -275,7 +303,7 @@ export default function Members() {
             {saving ? <Loader2 size={15} className="animate-spin" /> : modal === 'add' ? 'Add Member' : 'Save Changes'}
           </button>
         </>}>
-        <MemberForm form={form} setForm={setForm} branches={branches} />
+        <MemberForm form={form} setForm={setForm} branches={branches} errors={formErrors} />
       </Modal>
     </div>
   );

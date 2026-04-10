@@ -152,7 +152,7 @@ export default function FollowUps() {
           </div>
         ) : (
           <table className="crm-table">
-            <thead><tr><th>Person</th><th>Type</th><th>Status</th><th>Assigned To</th><th>Scheduled</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Person</th><th>Type</th><th>Status</th><th>Assigned To</th><th>Scheduled</th><th>Report</th><th>Actions</th></tr></thead>
             <tbody>
               {items.map(item => {
                 const TypeIcon = TYPE_ICON[item.follow_up_type] || Phone;
@@ -182,6 +182,9 @@ export default function FollowUps() {
                     <td className="text-sm text-gray-600">{item.assigned_to_name || 'Unassigned'}</td>
                     <td className="text-sm text-gray-500 whitespace-nowrap">
                       {item.scheduled_at ? format(parseISO(item.scheduled_at), 'MMM d, yyyy') : '—'}
+                    </td>
+                    <td className="max-w-[200px]">
+                      <p className="text-sm text-gray-600 line-clamp-2">{item.outcome || item.notes || '—'}</p>
                     </td>
                     <td>
                       <div className="flex items-center gap-1">

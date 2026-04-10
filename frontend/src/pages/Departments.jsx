@@ -6,7 +6,7 @@ import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 
 const CATEGORY_COLORS = {
-  ministry: 'bg-brand-50 text-brand-700', service: 'bg-emerald-50 text-emerald-700',
+  ministry: 'bg-brand-50 text-brand-700', unit: 'bg-emerald-50 text-emerald-700',
   admin: 'bg-gray-100 text-gray-600', media: 'bg-purple-50 text-purple-700',
   music: 'bg-amber-50 text-amber-700', welfare: 'bg-pink-50 text-pink-700',
 };
@@ -330,7 +330,7 @@ export default function Departments() {
             <label className="label">Category</label>
             <select className="input" value={form.category || ''} onChange={set('category')}>
               <option value="">Select category</option>
-              {['ministry','service','admin','media','music','welfare'].map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
+              {['ministry','unit','admin','media','music','welfare'].map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
             </select>
           </div>
           <div><label className="label">Meeting Schedule</label><input className="input" placeholder="Every Sunday, 8am" value={form.meetingSchedule || ''} onChange={set('meetingSchedule')} /></div>

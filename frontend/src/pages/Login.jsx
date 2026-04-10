@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../api/services';
 import toast from 'react-hot-toast';
@@ -13,9 +13,11 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [serverError, setServerError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setServerError('');
     const { valid, errors: errs } = validateForm(form, {
       email: [required('Email'), email],
       password: [required('Password')],
@@ -35,7 +37,8 @@ export default function Login() {
         navigate('/dashboard');
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Login failed');
+      const msg = err.response?.data?.message || 'Login failed. Please check your credentials and try again.';
+      setServerError(msg);
     } finally {
       setLoading(false);
     }
@@ -57,6 +60,13 @@ export default function Login() {
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <h2 className="font-display text-xl font-bold text-gray-900 mb-1">Sign in</h2>
           <p className="text-gray-500 text-sm mb-6">Enter your credentials to access your church dashboard</p>
+
+          {serverError && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 mb-2">
+              <AlertCircle size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-red-700">{serverError}</p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
