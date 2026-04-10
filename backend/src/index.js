@@ -1,4 +1,5 @@
 require('dotenv').config();
+// ChurchOS backend v1.4
 const { validateEnv } = require('./config/env');
 validateEnv();
 
