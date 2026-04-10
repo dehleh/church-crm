@@ -13,7 +13,7 @@ router.get('/:id', c.getAsset);
 
 router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), [
   body('name').notEmpty().trim().escape(),
-  body('category').optional().isIn(['furniture', 'musical_instrument', 'electronics', 'vehicle', 'building', 'equipment', 'general', 'other']),
+  body('category').optional().isIn(['furniture', 'musical_instrument', 'electronics', 'media', 'vehicle', 'building', 'equipment', 'general', 'other']),
   body('quantity').optional().isInt({ min: 1 }),
   body('condition').optional().isIn(['good', 'fair', 'poor', 'needs_repair', 'decommissioned']),
   body('status').optional().isIn(['active', 'in_use', 'in_storage', 'under_repair', 'disposed']),
@@ -23,7 +23,7 @@ router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), [
 
 router.put('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), [
   body('name').optional().trim().escape(),
-  body('category').optional().isIn(['furniture', 'musical_instrument', 'electronics', 'vehicle', 'building', 'equipment', 'general', 'other']),
+  body('category').optional().isIn(['furniture', 'musical_instrument', 'electronics', 'media', 'vehicle', 'building', 'equipment', 'general', 'other']),
   body('quantity').optional().isInt({ min: 1 }),
   body('condition').optional().isIn(['good', 'fair', 'poor', 'needs_repair', 'decommissioned']),
   body('status').optional().isIn(['active', 'in_use', 'in_storage', 'under_repair', 'disposed']),

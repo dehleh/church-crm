@@ -13,6 +13,7 @@ const CATEGORIES = [
   { value: 'furniture', label: 'Furniture', icon: '🪑' },
   { value: 'musical_instrument', label: 'Musical Instruments', icon: '🎸' },
   { value: 'electronics', label: 'Electronics', icon: '💻' },
+  { value: 'media', label: 'Media', icon: '🎬' },
   { value: 'vehicle', label: 'Vehicles', icon: '🚐' },
   { value: 'building', label: 'Buildings & Property', icon: '🏢' },
   { value: 'equipment', label: 'Equipment', icon: '⚙️' },
