@@ -5,7 +5,7 @@ import {
   Building2, GitBranch, Film, HeartHandshake, LogOut,
   ChevronLeft, ChevronRight, Bell, Menu,
   MessageSquare, ShieldCheck, BarChart2, PiggyBank, CheckSquare,
-  Settings, PhoneCall, Users2
+  Settings, PhoneCall, Users2, Package
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import GlobalSearch from '../ui/GlobalSearch';
@@ -28,6 +28,7 @@ const NAV = [
     { to: '/follow-ups',     icon: PhoneCall,      label: 'Follow-ups' },
     { to: '/prayer',         icon: HeartHandshake, label: 'Prayer' },
     { to: '/media',          icon: Film,           label: 'Media' },
+    { to: '/assets',         icon: Package,        label: 'Inventory' },
   ]},
   { group: 'Finance', items: [
     { to: '/finance', icon: DollarSign, label: 'Finance' },

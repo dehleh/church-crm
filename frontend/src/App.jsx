@@ -22,6 +22,7 @@ import Budgets from './pages/Budgets';
 import Settings from './pages/Settings';
 import FollowUps from './pages/FollowUps';
 import Groups from './pages/Groups';
+import Assets from './pages/Assets';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="users" element={<ErrorBoundary><UserManagement /></ErrorBoundary>} />
             <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
             <Route path="follow-ups" element={<ErrorBoundary><FollowUps /></ErrorBoundary>} />
+            <Route path="assets" element={<ErrorBoundary><Assets /></ErrorBoundary>} />
             <Route path="settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

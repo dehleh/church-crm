@@ -135,3 +135,12 @@ export const groupsAPI = {
   addMember: (id, data) => api.post(`/groups/${id}/members`, data),
   removeMember: (id, memberId) => api.delete(`/groups/${id}/members/${memberId}`),
 };
+
+export const assetsAPI = {
+  list: (params) => api.get('/assets', { params }),
+  get: (id) => api.get(`/assets/${id}`),
+  create: (data) => api.post('/assets', data),
+  update: (id, data) => api.put(`/assets/${id}`, data),
+  delete: (id) => api.delete(`/assets/${id}`),
+  stats: () => api.get('/assets/stats'),
+};
