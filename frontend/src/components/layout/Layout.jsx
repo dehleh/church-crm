@@ -1,11 +1,12 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   LayoutDashboard, Users, UserPlus, CalendarDays, DollarSign,
   Building2, GitBranch, Film, HeartHandshake, LogOut,
   ChevronLeft, ChevronRight, Bell, Menu,
   MessageSquare, ShieldCheck, BarChart2, PiggyBank, CheckSquare,
-  Settings, PhoneCall, Users2, Package, HandHeart, Heart
+  Settings, PhoneCall, Users2, Package, HandHeart, Heart,
+  User, KeyRound
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import GlobalSearch from '../ui/GlobalSearch';
@@ -53,6 +54,20 @@ export default function Layout() {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const notifRef = useRef(null);
+  const profileRef = useRef(null);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifications(false);
+      if (profileRef.current && !profileRef.current.contains(e.target)) setShowProfileMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -153,12 +168,60 @@ export default function Layout() {
           <div className="flex-1 flex items-center gap-3 hidden md:flex">
             <GlobalSearch />
           </div>
-          <button className="relative p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
-            <Bell size={18} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
-          <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-xs font-bold">
-            {getInitials(user?.firstName, user?.lastName)}
+          <div className="relative" ref={notifRef}>
+            <button
+              onClick={() => { setShowNotifications(v => !v); setShowProfileMenu(false); }}
+              className="relative p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+            >
+              <Bell size={18} />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+            {showNotifications && (
+              <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                  <span className="font-semibold text-sm text-gray-900">Notifications</span>
+                  <span className="text-xs text-brand-600 cursor-pointer hover:underline">Mark all read</span>
+                </div>
+                <div className="max-h-72 overflow-y-auto">
+                  <div className="px-4 py-8 text-center text-sm text-gray-400">No new notifications</div>
+                </div>
+                <div className="px-4 py-2.5 border-t border-gray-100 text-center">
+                  <button onClick={() => { setShowNotifications(false); navigate('/communications'); }} className="text-xs text-brand-600 hover:underline">View all communications</button>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="relative" ref={profileRef}>
+            <button
+              onClick={() => { setShowProfileMenu(v => !v); setShowNotifications(false); }}
+              className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-xs font-bold hover:ring-2 hover:ring-brand-200 transition-all cursor-pointer"
+            >
+              {getInitials(user?.firstName, user?.lastName)}
+            </button>
+            {showProfileMenu && (
+              <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <div className="text-sm font-semibold text-gray-900">{user?.firstName} {user?.lastName}</div>
+                  <div className="text-xs text-gray-400 capitalize">{user?.role?.replace('_', ' ')}</div>
+                </div>
+                <div className="py-1">
+                  <button onClick={() => { setShowProfileMenu(false); navigate('/settings'); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                    <User size={15} /> My Profile
+                  </button>
+                  <button onClick={() => { setShowProfileMenu(false); navigate('/settings'); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                    <KeyRound size={15} /> Change Password
+                  </button>
+                  <button onClick={() => { setShowProfileMenu(false); navigate('/settings'); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                    <Settings size={15} /> Settings
+                  </button>
+                </div>
+                <div className="border-t border-gray-100 py-1">
+                  <button onClick={handleLogout} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                    <LogOut size={15} /> Logout
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
