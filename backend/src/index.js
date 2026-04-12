@@ -114,6 +114,7 @@ app.use('/api/groups',         require('./routes/groups'));
 app.use('/api/assets',         require('./routes/assets'));
 app.use('/api/counseling',     require('./routes/counseling'));
 app.use('/api/welfare',        require('./routes/welfare'));
+app.use('/api/procurement',    require('./routes/procurement'));
 
 // Health check — with DB verification
 const { healthCheck } = require('./config/database');
