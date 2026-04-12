@@ -166,3 +166,13 @@ export const welfareAPI = {
   reviewApplication: (id, data) => api.patch(`/welfare/applications/${id}`, data),
   stats: () => api.get('/welfare/stats'),
 };
+
+export const procurementAPI = {
+  stats: () => api.get('/procurement/stats'),
+  requisitions: (params) => api.get('/procurement/requisitions', { params }),
+  createRequisition: (data) => api.post('/procurement/requisitions', data),
+  updateRequisition: (id, data) => api.patch(`/procurement/requisitions/${id}`, data),
+  purchaseRequests: (params) => api.get('/procurement/purchase-requests', { params }),
+  createPurchaseRequest: (data) => api.post('/procurement/purchase-requests', data),
+  reviewPurchaseRequest: (id, data) => api.patch(`/procurement/purchase-requests/${id}`, data),
+};

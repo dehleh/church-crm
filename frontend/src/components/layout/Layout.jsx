@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, Bell, Menu,
   MessageSquare, ShieldCheck, BarChart2, PiggyBank, CheckSquare,
   Settings, PhoneCall, Users2, Package, HandHeart, Heart,
-  User, KeyRound
+  User, KeyRound, ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import GlobalSearch from '../ui/GlobalSearch';
@@ -34,8 +34,9 @@ const NAV = [
     { to: '/assets',         icon: Package,        label: 'Inventory' },
   ]},
   { group: 'Finance', items: [
-    { to: '/finance', icon: DollarSign, label: 'Finance' },
-    { to: '/budgets', icon: PiggyBank,  label: 'Budgets' },
+    { to: '/finance',     icon: DollarSign,    label: 'Finance' },
+    { to: '/budgets',     icon: PiggyBank,     label: 'Budgets' },
+    { to: '/procurement', icon: ClipboardList, label: 'Procurement' },
   ]},
   { group: 'Admin', items: [
     { to: '/branches', icon: GitBranch,   label: 'Branches' },

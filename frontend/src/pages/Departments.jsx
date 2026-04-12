@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Building2, Plus, Users, ChevronRight, Loader2, ArrowLeft, UserPlus, X, Mail, Phone, Calendar, Search, UserMinus } from 'lucide-react';
+import { Building2, Plus, Users, ChevronRight, Loader2, ArrowLeft, UserPlus, X, Mail, Phone, Calendar, Search, UserMinus, Crown } from 'lucide-react';
 import { departmentsAPI, membersAPI } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
@@ -223,6 +223,11 @@ export default function Departments() {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [selectedDept, setSelectedDept] = useState(null);
+  const [allMembers, setAllMembers] = useState([]);
+
+  const fetchMembers = async () => {
+    try { const res = await membersAPI.list({ limit: 500 }); setAllMembers(res.data.data || []); } catch {}
+  };
 
   const fetchDepts = async () => {
     setLoading(true);
@@ -233,7 +238,7 @@ export default function Departments() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchDepts(); }, []);
+  useEffect(() => { fetchDepts(); fetchMembers(); }, []);
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -304,7 +309,13 @@ export default function Departments() {
                         </span>
                       )}
                     </div>
-                    <ChevronRight size={16} className="text-gray-400 group-hover:text-brand-600 transition-colors mt-0.5" />
+                    {dept.head_name ? (
+                      <span className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-full shrink-0">
+                        <Crown size={12} /> {dept.head_name}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-300 italic">No HOD</span>
+                    )}
                   </div>
                   {dept.description && <p className="text-sm text-gray-500 mb-3 line-clamp-2">{dept.description}</p>}
                   <div className="flex items-center justify-between pt-2 border-t border-gray-50">
@@ -312,7 +323,6 @@ export default function Departments() {
                       <Users size={14} />
                       <span>{dept.member_count || 0} members</span>
                     </div>
-                    {dept.head_name && <p className="text-xs text-gray-400">Head: {dept.head_name}</p>}
                   </div>
                   {dept.branch_name && <p className="text-xs text-gray-400 mt-1">{dept.branch_name}</p>}
                 </div>
@@ -331,6 +341,13 @@ export default function Departments() {
             <select className="input" value={form.category || ''} onChange={set('category')}>
               <option value="">Select category</option>
               {['ministry','unit','admin','media','music','welfare'].map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Head of Department (HOD)</label>
+            <select className="input" value={form.headMemberId || ''} onChange={set('headMemberId')}>
+              <option value="">Select HOD</option>
+              {allMembers.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
             </select>
           </div>
           <div><label className="label">Meeting Schedule</label><input className="input" placeholder="Every Sunday, 8am" value={form.meetingSchedule || ''} onChange={set('meetingSchedule')} /></div>
