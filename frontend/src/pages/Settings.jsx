@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Building2, User, Lock, Save, Loader2, CheckCircle } from 'lucide-react';
+import { Settings as SettingsIcon, Building2, User, Lock, Save, Loader2, CheckCircle, Mail, MessageCircle, Phone, Send, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 
 const TABS = [
-  { id: 'church',   label: 'Church Profile',  icon: Building2 },
-  { id: 'profile',  label: 'My Profile',       icon: User },
-  { id: 'password', label: 'Change Password',  icon: Lock },
+  { id: 'church',    label: 'Church Profile',  icon: Building2 },
+  { id: 'messaging', label: 'Messaging',        icon: Mail },
+  { id: 'profile',   label: 'My Profile',       icon: User },
+  { id: 'password',  label: 'Change Password',  icon: Lock },
 ];
 
 function TabButton({ tab, active, onClick }) {
@@ -28,6 +29,9 @@ export default function Settings() {
   const [churchStats, setChurchStats] = useState({});
   const [profile, setProfile] = useState({});
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [messaging, setMessaging] = useState({ email: {}, sms: {}, whatsapp: {} });
+  const [testRecipient, setTestRecipient] = useState({ email: '', sms: '', whatsapp: '' });
+  const [testing, setTesting] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -35,7 +39,8 @@ export default function Settings() {
     Promise.all([
       api.get('/settings'),
       api.get('/settings/stats'),
-    ]).then(([churchRes, statsRes]) => {
+      api.get('/settings/messaging').catch(() => ({ data: { data: { email: {}, sms: {}, whatsapp: {} } } })),
+    ]).then(([churchRes, statsRes, msgRes]) => {
       const c = churchRes.data.data;
       setChurch({
         name: c.name, address: c.address, city: c.city, state: c.state,
@@ -43,6 +48,7 @@ export default function Settings() {
         denomination: c.denomination, timezone: c.timezone, currency: c.currency,
       });
       setChurchStats(statsRes.data.data);
+      setMessaging(msgRes.data.data || { email: {}, sms: {}, whatsapp: {} });
     }).catch(() => toast.error('Failed to load settings'))
       .finally(() => setLoading(false));
 
@@ -93,6 +99,29 @@ export default function Settings() {
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to change password');
     } finally { setSaving(false); }
+  };
+
+  const setM = (section, key) => e => setMessaging(m => ({ ...m, [section]: { ...m[section], [key]: e.target.type === 'checkbox' ? e.target.checked : e.target.value } }));
+
+  const saveMessaging = async () => {
+    setSaving(true);
+    try {
+      await api.put('/settings/messaging', messaging);
+      toast.success('Messaging settings saved!');
+    } catch { toast.error('Failed to save messaging settings'); }
+    finally { setSaving(false); }
+  };
+
+  const handleTest = async (channel) => {
+    const recipient = testRecipient[channel];
+    if (!recipient) return toast.error(`Enter a ${channel === 'email' ? 'email address' : 'phone number'} to test`);
+    setTesting(channel);
+    try {
+      const res = await api.post('/settings/messaging/test', { channel, recipient });
+      toast.success(res.data.message || 'Test sent!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Test failed');
+    } finally { setTesting(''); }
   };
 
   const DENOMINATIONS = ['Pentecostal', 'Baptist', 'Anglican', 'Catholic', 'Methodist', 'Presbyterian', 'Evangelical', 'Non-denominational', 'Others'];
@@ -272,6 +301,170 @@ export default function Settings() {
                     {saving ? <Loader2 size={15} className="animate-spin" /> : <Lock size={15} />} Change Password
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'messaging' && (
+            <div className="space-y-5">
+              {/* Email Configuration */}
+              <div className="card">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600"><Mail size={20} /></div>
+                    <div>
+                      <h3 className="font-display font-bold text-gray-900">Email Notifications</h3>
+                      <p className="text-xs text-gray-400">SendGrid or SMTP for email delivery</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setMessaging(m => ({ ...m, email: { ...m.email, enabled: !m.email?.enabled } }))}
+                    className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${messaging.email?.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {messaging.email?.enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                    {messaging.email?.enabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="label">Provider</label>
+                    <select className="input" value={messaging.email?.provider || 'smtp'} onChange={setM('email', 'provider')}>
+                      <option value="smtp">SMTP (Nodemailer)</option>
+                      <option value="sendgrid">SendGrid</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">From Email</label>
+                      <input className="input" placeholder="noreply@mychurch.org" value={messaging.email?.fromEmail || ''} onChange={setM('email', 'fromEmail')} />
+                    </div>
+                    <div>
+                      <label className="label">From Name</label>
+                      <input className="input" placeholder="My Church" value={messaging.email?.fromName || ''} onChange={setM('email', 'fromName')} />
+                    </div>
+                  </div>
+                  {messaging.email?.provider === 'sendgrid' ? (
+                    <div>
+                      <label className="label">SendGrid API Key</label>
+                      <input type="password" className="input font-mono text-sm" placeholder="SG.xxxxxxxxxx" value={messaging.email?.sendgridApiKey || ''} onChange={setM('email', 'sendgridApiKey')} />
+                      <p className="text-xs text-gray-400 mt-1">Get your API key from <a href="https://app.sendgrid.com/settings/api_keys" target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline">SendGrid Dashboard</a></p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="label">SMTP Host</label>
+                        <input className="input" placeholder="smtp.gmail.com" value={messaging.email?.smtpHost || ''} onChange={setM('email', 'smtpHost')} />
+                      </div>
+                      <div>
+                        <label className="label">SMTP Port</label>
+                        <input className="input" placeholder="587" value={messaging.email?.smtpPort || ''} onChange={setM('email', 'smtpPort')} />
+                      </div>
+                      <div>
+                        <label className="label">SMTP Username</label>
+                        <input className="input" value={messaging.email?.smtpUser || ''} onChange={setM('email', 'smtpUser')} />
+                      </div>
+                      <div>
+                        <label className="label">SMTP Password</label>
+                        <input type="password" className="input" value={messaging.email?.smtpPass || ''} onChange={setM('email', 'smtpPass')} />
+                      </div>
+                    </div>
+                  )}
+                  {/* Test email */}
+                  <div className="flex items-end gap-2 pt-2 border-t border-gray-100">
+                    <div className="flex-1">
+                      <label className="label">Test Email</label>
+                      <input type="email" className="input" placeholder="test@example.com" value={testRecipient.email} onChange={e => setTestRecipient(r => ({ ...r, email: e.target.value }))} />
+                    </div>
+                    <button onClick={() => handleTest('email')} disabled={testing === 'email'} className="btn-secondary h-[42px] whitespace-nowrap">
+                      {testing === 'email' ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send Test
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* SMS Configuration */}
+              <div className="card">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-600"><Phone size={20} /></div>
+                    <div>
+                      <h3 className="font-display font-bold text-gray-900">SMS Notifications</h3>
+                      <p className="text-xs text-gray-400">Twilio for SMS message delivery</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setMessaging(m => ({ ...m, sms: { ...m.sms, enabled: !m.sms?.enabled } }))}
+                    className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${messaging.sms?.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {messaging.sms?.enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                    {messaging.sms?.enabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Twilio Account SID</label>
+                      <input className="input font-mono text-sm" placeholder="ACxxxxxxxxxxxxxxxx" value={messaging.sms?.twilioSid || ''} onChange={setM('sms', 'twilioSid')} />
+                    </div>
+                    <div>
+                      <label className="label">Twilio Auth Token</label>
+                      <input type="password" className="input font-mono text-sm" value={messaging.sms?.twilioAuthToken || ''} onChange={setM('sms', 'twilioAuthToken')} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label">Twilio Phone Number</label>
+                    <input className="input" placeholder="+2341234567890" value={messaging.sms?.twilioPhone || ''} onChange={setM('sms', 'twilioPhone')} />
+                    <p className="text-xs text-gray-400 mt-1">Get your credentials from <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline">Twilio Console</a></p>
+                  </div>
+                  <div className="flex items-end gap-2 pt-2 border-t border-gray-100">
+                    <div className="flex-1">
+                      <label className="label">Test SMS</label>
+                      <input type="tel" className="input" placeholder="+2348012345678" value={testRecipient.sms} onChange={e => setTestRecipient(r => ({ ...r, sms: e.target.value }))} />
+                    </div>
+                    <button onClick={() => handleTest('sms')} disabled={testing === 'sms'} className="btn-secondary h-[42px] whitespace-nowrap">
+                      {testing === 'sms' ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send Test
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* WhatsApp Configuration */}
+              <div className="card">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600"><MessageCircle size={20} /></div>
+                    <div>
+                      <h3 className="font-display font-bold text-gray-900">WhatsApp Notifications</h3>
+                      <p className="text-xs text-gray-400">Via Twilio WhatsApp Business API</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setMessaging(m => ({ ...m, whatsapp: { ...m.whatsapp, enabled: !m.whatsapp?.enabled } }))}
+                    className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${messaging.whatsapp?.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {messaging.whatsapp?.enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                    {messaging.whatsapp?.enabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-700">
+                    WhatsApp uses the same Twilio credentials configured above in SMS. Ensure your Twilio account has the WhatsApp sandbox or Business API enabled.
+                  </div>
+                  <div>
+                    <label className="label">WhatsApp Number</label>
+                    <input className="input" placeholder="+14155238886" value={messaging.whatsapp?.whatsappNumber || ''} onChange={setM('whatsapp', 'whatsappNumber')} />
+                    <p className="text-xs text-gray-400 mt-1">Your Twilio WhatsApp-enabled number or sandbox number</p>
+                  </div>
+                  <div className="flex items-end gap-2 pt-2 border-t border-gray-100">
+                    <div className="flex-1">
+                      <label className="label">Test WhatsApp</label>
+                      <input type="tel" className="input" placeholder="+2348012345678" value={testRecipient.whatsapp} onChange={e => setTestRecipient(r => ({ ...r, whatsapp: e.target.value }))} />
+                    </div>
+                    <button onClick={() => handleTest('whatsapp')} disabled={testing === 'whatsapp'} className="btn-secondary h-[42px] whitespace-nowrap">
+                      {testing === 'whatsapp' ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send Test
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button onClick={saveMessaging} disabled={saving} className="btn-primary">
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Messaging Settings
+                </button>
               </div>
             </div>
           )}

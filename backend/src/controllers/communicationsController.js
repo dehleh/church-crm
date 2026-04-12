@@ -1,7 +1,7 @@
 const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { sendEmail } = require('../services/emailService');
-const { sendSMS } = require('../services/smsService');
+const { sendSMS, sendWhatsApp } = require('../services/smsService');
 const sanitizeHtml = require('sanitize-html');
 const logger = require('../config/logger');
 
@@ -44,9 +44,13 @@ const createCommunication = async (req, res) => {
 const sendCommunication = async (req, res) => {
   const { id } = req.params;
   try {
-    const comm = await query('SELECT * FROM communications WHERE id=$1 AND church_id=$2', [id, req.churchId]);
+    const [comm, churchRes] = await Promise.all([
+      query('SELECT * FROM communications WHERE id=$1 AND church_id=$2', [id, req.churchId]),
+      query('SELECT settings FROM churches WHERE id=$1', [req.churchId]),
+    ]);
     if (!comm.rows[0]) return res.status(404).json({ success: false, message: 'Not found' });
     const c = comm.rows[0];
+    const churchSettings = churchRes.rows[0]?.settings?.messaging || {};
 
     // Gather recipients based on audience
     let recipients = [];
@@ -68,10 +72,13 @@ const sendCommunication = async (req, res) => {
           allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2']),
           allowedAttributes: { ...sanitizeHtml.defaults.allowedAttributes, img: ['src', 'alt'] },
         });
-        if (emails.length) await sendEmail({ to: emails, subject: c.title, html: safeHtml });
-      } else if (c.channel === 'sms' || c.channel === 'whatsapp') {
+        if (emails.length) await sendEmail({ to: emails, subject: c.title, html: safeHtml }, churchSettings);
+      } else if (c.channel === 'whatsapp') {
         const phones = recipients.map((r) => r.phone).filter(Boolean);
-        if (phones.length) await sendSMS({ to: phones, body: `${c.title}\n\n${c.body}` });
+        if (phones.length) await sendWhatsApp({ to: phones, body: `${c.title}\n\n${c.body}` }, churchSettings);
+      } else if (c.channel === 'sms') {
+        const phones = recipients.map((r) => r.phone).filter(Boolean);
+        if (phones.length) await sendSMS({ to: phones, body: `${c.title}\n\n${c.body}` }, churchSettings);
       }
     } catch (deliveryErr) {
       logger.error('Communication delivery error', { id, channel: c.channel, error: deliveryErr.message });

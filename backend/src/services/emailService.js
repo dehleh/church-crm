@@ -1,51 +1,86 @@
 const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 const logger = require('../config/logger');
 
-let transporter = null;
+let smtpTransporter = null;
 
-function getTransporter() {
-  if (transporter) return transporter;
+function getSmtpTransporter(cfg) {
+  const host = cfg?.smtpHost || process.env.SMTP_HOST;
+  const user = cfg?.smtpUser || process.env.SMTP_USER;
+  const pass = cfg?.smtpPass || process.env.SMTP_PASS;
+  const port = cfg?.smtpPort || process.env.SMTP_PORT || '587';
 
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
-    logger.warn('SMTP not configured — emails will be logged but not sent');
-    return null;
+  if (!host || !user) return null;
+
+  // If using env vars, cache the transporter
+  if (!cfg) {
+    if (smtpTransporter) return smtpTransporter;
+    smtpTransporter = nodemailer.createTransport({
+      host, port: parseInt(port, 10), secure: port === '465',
+      auth: { user, pass },
+    });
+    return smtpTransporter;
   }
 
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: process.env.SMTP_PORT === '465',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
+  // Per-church config — create fresh transporter
+  return nodemailer.createTransport({
+    host, port: parseInt(port, 10), secure: port === '465',
+    auth: { user, pass },
   });
-
-  return transporter;
 }
 
 /**
- * Send an email.
+ * Send an email via SMTP or SendGrid.
  * @param {{ to: string | string[], subject: string, html: string, text?: string }} options
+ * @param {object} [churchSettings] - messaging config from church settings JSONB
  */
-async function sendEmail({ to, subject, html, text }) {
-  const transport = getTransporter();
-  const recipients = Array.isArray(to) ? to.join(', ') : to;
+async function sendEmail({ to, subject, html, text }, churchSettings) {
+  const cfg = churchSettings?.email || {};
+  const provider = cfg.provider || (process.env.SENDGRID_API_KEY ? 'sendgrid' : 'smtp');
+  const fromEmail = cfg.fromEmail || process.env.SMTP_FROM || 'ChurchOS <noreply@churchos.app>';
+  const recipients = Array.isArray(to) ? to : [to];
 
+  // ── SendGrid ──
+  if (provider === 'sendgrid') {
+    const apiKey = cfg.sendgridApiKey || process.env.SENDGRID_API_KEY;
+    if (!apiKey) {
+      logger.info('SendGrid (dry run — no API key)', { to: recipients, subject });
+      return { accepted: recipients, messageId: 'dry-run' };
+    }
+    sgMail.setApiKey(apiKey);
+    const msg = {
+      to: recipients,
+      from: fromEmail,
+      subject,
+      html,
+      text: text || html.replace(/<[^>]+>/g, ''),
+    };
+    try {
+      const [response] = await sgMail.send(msg, recipients.length > 1);
+      logger.info('Email sent via SendGrid', { statusCode: response.statusCode, to: recipients.length, subject });
+      return { accepted: recipients, messageId: response.headers?.['x-message-id'] || 'sendgrid' };
+    } catch (err) {
+      logger.error('SendGrid error', { error: err.message });
+      throw err;
+    }
+  }
+
+  // ── SMTP (nodemailer) ──
+  const transport = getSmtpTransporter(cfg.provider === 'smtp' ? cfg : null);
   if (!transport) {
-    logger.info('Email (dry run)', { to: recipients, subject });
-    return { accepted: [recipients], messageId: 'dry-run' };
+    logger.info('Email (dry run — SMTP not configured)', { to: recipients.join(', '), subject });
+    return { accepted: recipients, messageId: 'dry-run' };
   }
 
   const info = await transport.sendMail({
-    from: process.env.SMTP_FROM || 'ChurchOS <noreply@churchos.app>',
-    to: recipients,
+    from: fromEmail,
+    to: recipients.join(', '),
     subject,
     html,
     text: text || html.replace(/<[^>]+>/g, ''),
   });
 
-  logger.info('Email sent', { messageId: info.messageId, to: recipients, subject });
+  logger.info('Email sent via SMTP', { messageId: info.messageId, to: recipients.length, subject });
   return info;
 }
 

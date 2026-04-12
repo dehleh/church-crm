@@ -288,7 +288,7 @@ export default function Finance() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Category</label>
+              <label className="label">Category <span className="text-gray-400 font-normal text-xs ml-1">type to add new</span></label>
               <div className="relative" ref={catRef}>
                 <input
                   type="text"

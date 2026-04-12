@@ -127,6 +127,9 @@ export const settingsAPI = {
   updateChurch: (data) => api.put('/settings/church', data),
   updateProfile: (data) => api.put('/settings/profile', data),
   changePassword: (data) => api.post('/settings/change-password', data),
+  getMessaging: () => api.get('/settings/messaging'),
+  updateMessaging: (data) => api.put('/settings/messaging', data),
+  testMessaging: (data) => api.post('/settings/messaging/test', data),
 };
 
 export const searchAPI = {
