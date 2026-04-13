@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ClipboardList, Plus, FileText, Ticket, Loader2, Send, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { ClipboardList, Plus, FileText, Ticket, Loader2, Send, CheckCircle, XCircle, Clock, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import { procurementAPI, departmentsAPI } from '../api/services';
 import { useAuth } from '../context/AuthContext';
+import CsvImportModal from '../components/ui/CsvImportModal';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { format } from 'date-fns';
@@ -28,6 +29,7 @@ export default function Procurement() {
   const [requisitions, setRequisitions] = useState([]);
   const [purchaseRequests, setPurchaseRequests] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [importType, setImportType] = useState(null); // 'requisitions' | 'purchaseRequests' | null
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -175,6 +177,7 @@ export default function Procurement() {
           <p className="text-sm text-gray-500 mt-1">Requisitions & purchase requests</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => setImportType(tab === 'requisitions' ? 'requisitions' : 'purchaseRequests')} className="btn-secondary flex items-center gap-1.5"><FileSpreadsheet size={16} /> Import CSV</button>
           <button onClick={() => { setReqForm({ title: '', description: '', requisitionMonth: isCurrentMonth(), departmentId: '', notes: '', items: [{ name: '', quantity: 1, unitPrice: '' }] }); setModal('addReq'); }} className="btn-secondary flex items-center gap-2"><FileText size={16} /> New Requisition</button>
           <button onClick={() => { setPrForm({ title: '', description: '', vendorName: '', priority: 'normal', items: [{ name: '', quantity: 1, unitPrice: '' }] }); setModal('addPR'); }} className="btn-primary flex items-center gap-2"><Ticket size={16} /> Raise Purchase Request</button>
         </div>
@@ -446,6 +449,21 @@ export default function Procurement() {
           </div>
         </div>
       )}
+
+      <CsvImportModal
+        open={importType === 'requisitions'}
+        onClose={() => setImportType(null)}
+        onComplete={() => fetchAll()}
+        entityType="requisitions"
+        importFn={procurementAPI.importRequisitions}
+      />
+      <CsvImportModal
+        open={importType === 'purchaseRequests'}
+        onClose={() => setImportType(null)}
+        onComplete={() => fetchAll()}
+        entityType="purchaseRequests"
+        importFn={procurementAPI.importPurchaseRequests}
+      />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { DollarSign, Plus, TrendingUp, TrendingDown, Wallet, Loader2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { DollarSign, Plus, TrendingUp, TrendingDown, Wallet, Loader2, ArrowUpRight, ArrowDownRight, FileSpreadsheet } from 'lucide-react';
 import { financeAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
+import CsvImportModal from '../components/ui/CsvImportModal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -28,6 +29,7 @@ export default function Finance() {
   const [catSearch, setCatSearch] = useState('');
   const [catDropdownOpen, setCatDropdownOpen] = useState(false);
   const [creatingCat, setCreatingCat] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const catRef = useRef(null);
 
   useEffect(() => {
@@ -126,6 +128,9 @@ export default function Finance() {
             <option value="month">This Month</option>
             <option value="year">This Year</option>
           </select>
+          <button onClick={() => setShowImport(true)} className="btn-secondary flex items-center gap-1.5">
+            <FileSpreadsheet size={16} /> Import CSV
+          </button>
           <button onClick={() => { setForm({ transactionDate: format(new Date(), 'yyyy-MM-dd') }); setCatSearch(''); setModal('add'); }} className="btn-primary">
             <Plus size={16} /> Record Transaction
           </button>
@@ -346,6 +351,14 @@ export default function Finance() {
           <div><label className="label">Notes</label><textarea className="input min-h-[70px]" value={form.notes || ''} onChange={set('notes')} /></div>
         </div>
       </Modal>
+
+      <CsvImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        onComplete={() => { fetchSummary(); fetchTransactions(1); }}
+        entityType="transactions"
+        importFn={financeAPI.importTransactions}
+      />
     </div>
   );
 }

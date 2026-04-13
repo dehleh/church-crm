@@ -93,4 +93,8 @@ router.post('/categories', authorize('head_pastor', 'pastor', 'hod'), [
   body('name').notEmpty().trim().escape(),
 ], handleValidationErrors, c.createCategory);
 
+// CSV Import
+const csv = require('../controllers/csvImportController');
+router.post('/transactions/import', authorize('head_pastor', 'pastor', 'hod'), csv.importTransactions);
+
 module.exports = router;

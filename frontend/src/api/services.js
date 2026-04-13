@@ -18,6 +18,7 @@ export const membersAPI = {
   update: (id, data) => api.put(`/members/${id}`, data),
   delete: (id) => api.delete(`/members/${id}`),
   stats: () => api.get('/members/stats'),
+  importCsv: (data) => api.post('/members/import', data),
 };
 
 export const firstTimersAPI = {
@@ -27,6 +28,7 @@ export const firstTimersAPI = {
   updateFollowUp: (id, data) => api.patch(`/first-timers/${id}/follow-up`, data),
   convert: (id) => api.post(`/first-timers/${id}/convert`),
   stats: () => api.get('/first-timers/stats'),
+  importCsv: (data) => api.post('/first-timers/import', data),
 };
 
 export const eventsAPI = {
@@ -45,6 +47,7 @@ export const financeAPI = {
   createAccount: (data) => api.post('/finance/accounts', data),
   categories: () => api.get('/finance/categories'),
   createCategory: (data) => api.post('/finance/categories', data),
+  importTransactions: (data) => api.post('/finance/transactions/import', data),
 };
 
 export const departmentsAPI = {
@@ -178,4 +181,6 @@ export const procurementAPI = {
   purchaseRequests: (params) => api.get('/procurement/purchase-requests', { params }),
   createPurchaseRequest: (data) => api.post('/procurement/purchase-requests', data),
   reviewPurchaseRequest: (id, data) => api.patch(`/procurement/purchase-requests/${id}`, data),
+  importRequisitions: (data) => api.post('/procurement/requisitions/import', data),
+  importPurchaseRequests: (data) => api.post('/procurement/purchase-requests/import', data),
 };

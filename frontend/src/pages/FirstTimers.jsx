@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { UserPlus, Plus, Search, Phone, Mail, ArrowRightCircle, Loader2, CheckCircle, Edit2 } from 'lucide-react';
+import { UserPlus, Plus, Search, Phone, Mail, ArrowRightCircle, Loader2, CheckCircle, Edit2, FileSpreadsheet } from 'lucide-react';
 import { firstTimersAPI, branchesAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
+import CsvImportModal from '../components/ui/CsvImportModal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { email as validateEmail, phone as validatePhone } from '../utils/validation';
@@ -25,6 +26,7 @@ export default function FirstTimers() {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState({});
+  const [showImport, setShowImport] = useState(false);
 
   const fetch = useCallback(async (page = 1) => {
     setLoading(true);
@@ -114,9 +116,14 @@ export default function FirstTimers() {
           <h1 className="page-title">First Timers</h1>
           <p className="text-gray-500 text-sm mt-1">Track and follow up on new visitors</p>
         </div>
-        <button onClick={() => { setForm({ visitDate: format(new Date(), 'yyyy-MM-dd') }); setFormErrors({}); setModal('add'); }} className="btn-primary">
-          <Plus size={16} /> Record Visitor
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowImport(true)} className="btn-secondary flex items-center gap-1.5">
+            <FileSpreadsheet size={16} /> Import CSV
+          </button>
+          <button onClick={() => { setForm({ visitDate: format(new Date(), 'yyyy-MM-dd') }); setFormErrors({}); setModal('add'); }} className="btn-primary">
+            <Plus size={16} /> Record Visitor
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -302,6 +309,14 @@ export default function FirstTimers() {
           <div><label className="label">Notes</label><textarea className="input min-h-[100px]" placeholder="Add notes about your follow-up interaction…" value={form.followUpNotes || ''} onChange={set('followUpNotes')} /></div>
         </div>
       </Modal>
+
+      <CsvImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        onComplete={() => fetch(1)}
+        entityType="firstTimers"
+        importFn={firstTimersAPI.importCsv}
+      />
     </div>
   );
 }

@@ -32,4 +32,9 @@ router.patch('/purchase-requests/:id', authorize('head_pastor', 'pastor', 'direc
   body('status').optional().isIn(['pending', 'reviewed', 'approved', 'purchased', 'rejected']),
 ], handleValidationErrors, c.reviewPurchaseRequest);
 
+// CSV Import
+const csv = require('../controllers/csvImportController');
+router.post('/requisitions/import', csv.importRequisitions);
+router.post('/purchase-requests/import', csv.importPurchaseRequests);
+
 module.exports = router;

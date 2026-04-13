@@ -28,4 +28,8 @@ router.patch('/:id/follow-up', authorize('head_pastor', 'pastor', 'director', 'h
 ], handleValidationErrors, c.updateFollowUpStatus);
 router.post('/:id/convert', authorize('head_pastor', 'pastor', 'director'), c.convertToMember);
 
+// CSV Import
+const csv = require('../controllers/csvImportController');
+router.post('/import', authorize('head_pastor', 'pastor', 'director', 'hod'), csv.importFirstTimers);
+
 module.exports = router;

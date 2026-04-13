@@ -97,4 +97,8 @@ router.put('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), [
 ], handleValidationErrors, c.updateMember);
 router.delete('/:id', authorize('head_pastor', 'pastor'), c.deleteMember);
 
+// CSV Import
+const csv = require('../controllers/csvImportController');
+router.post('/import', authorize('head_pastor', 'pastor', 'director', 'hod'), csv.importMembers);
+
 module.exports = router;

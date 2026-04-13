@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit2, Trash2, Loader2, ExternalLink } from 'lucide-react';
+import { Users, Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit2, Trash2, Loader2, ExternalLink, FileSpreadsheet } from 'lucide-react';
 import { membersAPI, branchesAPI, departmentsAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
+import CsvImportModal from '../components/ui/CsvImportModal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { email as validateEmail, phone as validatePhone } from '../utils/validation';
@@ -113,6 +114,7 @@ export default function Members() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [modal, setModal] = useState(null); // null | 'add' | 'edit' | 'view'
+  const [showImport, setShowImport] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -185,9 +187,14 @@ export default function Members() {
           <h1 className="page-title">Members</h1>
           <p className="text-gray-500 text-sm mt-1">{(stats.active || 0).toLocaleString()} active members</p>
         </div>
-        <button onClick={openAdd} className="btn-primary">
-          <Plus size={16} /> Add Member
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowImport(true)} className="btn-secondary flex items-center gap-1.5">
+            <FileSpreadsheet size={16} /> Import CSV
+          </button>
+          <button onClick={openAdd} className="btn-primary">
+            <Plus size={16} /> Add Member
+          </button>
+        </div>
       </div>
 
       {/* Mini stats */}
@@ -305,6 +312,14 @@ export default function Members() {
         </>}>
         <MemberForm form={form} setForm={setForm} branches={branches} errors={formErrors} />
       </Modal>
+
+      <CsvImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        onComplete={() => fetch(1)}
+        entityType="members"
+        importFn={membersAPI.importCsv}
+      />
     </div>
   );
 }
