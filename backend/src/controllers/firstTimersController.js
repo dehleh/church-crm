@@ -1,5 +1,6 @@
 const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
+const { createFirstTimerRecord } = require('../services/intakeService');
 
 const getFirstTimers = async (req, res) => {
   const { page = 1, limit = 20, search, followUpStatus, branchId } = req.query;
@@ -50,36 +51,11 @@ const getFirstTimers = async (req, res) => {
 };
 
 const createFirstTimer = async (req, res) => {
-  const {
-    firstName, lastName, email, phone, address, gender, dateOfBirth,
-    howDidYouHear, visitDate, serviceAttended, prayerRequest, branchId
-  } = req.body;
-
   try {
-    const { rows } = await query(
-      `INSERT INTO first_timers (
-        id, church_id, branch_id, first_name, last_name, email, phone, address,
-        gender, date_of_birth, how_did_you_hear, visit_date, service_attended, prayer_request
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-      [
-        uuidv4(), req.churchId, branchId || null, firstName, lastName, email || null,
-        phone || null, address || null, gender || null, dateOfBirth || null,
-        howDidYouHear || null, visitDate || new Date(), serviceAttended || null, prayerRequest || null
-      ]
-    );
-
-    // Also create a prayer request if one was provided
-    if (prayerRequest && prayerRequest.trim()) {
-      await query(
-        `INSERT INTO prayer_requests (id, church_id, branch_id, first_timer_id, requester_name, request, category, is_anonymous)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [uuidv4(), req.churchId, branchId || null, rows[0].id, `${firstName} ${lastName}`, prayerRequest, 'others', false]
-      );
-    }
-
-    return res.status(201).json({ success: true, data: rows[0] });
+    const record = await createFirstTimerRecord({ churchId: req.churchId, data: req.body });
+    return res.status(201).json({ success: true, data: record });
   } catch (err) {
-    return res.status(500).json({ success: false, message: 'Server error' });
+    return res.status(err.status || 500).json({ success: false, message: err.status ? err.message : 'Server error' });
   }
 };
 

@@ -64,7 +64,7 @@ export default function Reports() {
             <td className="text-sm text-gray-500">{r.email||'—'}</td>
             <td className="text-sm text-gray-500">{r.phone||'—'}</td>
             <td className="capitalize text-sm text-gray-500">{r.gender||'—'}</td>
-            <td><span className={`badge capitalize ${r.membership_status==='active'?'badge-green':'badge-gray'}`}>{r.membership_status}</span></td>
+            <td><span className={`badge capitalize ${r.membership_status==='active'?'badge-green':r.membership_status==='pending_review'?'badge-yellow':'badge-gray'}`}>{r.membership_status}</span></td>
             <td className="text-sm text-gray-500">{r.branch_name||'—'}</td>
             <td className="text-sm text-gray-500">{r.join_date ? format(new Date(r.join_date),'MMM d, yyyy') : '—'}</td>
           </tr>

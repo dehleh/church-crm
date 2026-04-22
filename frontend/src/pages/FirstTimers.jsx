@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
-import { UserPlus, Plus, Search, Phone, Mail, ArrowRightCircle, Loader2, CheckCircle, Edit2, FileSpreadsheet } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { UserPlus, Plus, Search, Phone, Mail, ArrowRightCircle, Loader2, CheckCircle, Edit2, FileSpreadsheet, QrCode } from 'lucide-react';
 import { firstTimersAPI, branchesAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import CsvImportModal from '../components/ui/CsvImportModal';
+import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { email as validateEmail, phone as validatePhone } from '../utils/validation';
+import { useAuth } from '../context/AuthContext';
 
 const FOLLOW_UP_BADGE = {
   pending: 'badge-yellow', contacted: 'badge-blue',
@@ -14,6 +16,7 @@ const FOLLOW_UP_BADGE = {
 };
 
 export default function FirstTimers() {
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [stats, setStats] = useState({});
   const [branches, setBranches] = useState([]);
@@ -27,6 +30,13 @@ export default function FirstTimers() {
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const [showImport, setShowImport] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+
+  const churchSlug = user?.church_slug || user?.churchSlug;
+  const publicFirstTimerFormUrl = useMemo(() => {
+    if (!churchSlug || typeof window === 'undefined') return '';
+    return `${window.location.origin}/connect/${churchSlug}/first-timer`;
+  }, [churchSlug]);
 
   const fetch = useCallback(async (page = 1) => {
     setLoading(true);
@@ -117,6 +127,11 @@ export default function FirstTimers() {
           <p className="text-gray-500 text-sm mt-1">Track and follow up on new visitors</p>
         </div>
         <div className="flex gap-2">
+          {publicFirstTimerFormUrl && (
+            <button onClick={() => setShowShare(true)} className="btn-secondary flex items-center gap-1.5">
+              <QrCode size={16} /> Visitor Form
+            </button>
+          )}
           <button onClick={() => setShowImport(true)} className="btn-secondary flex items-center gap-1.5">
             <FileSpreadsheet size={16} /> Import CSV
           </button>
@@ -316,6 +331,14 @@ export default function FirstTimers() {
         onComplete={() => fetch(1)}
         entityType="firstTimers"
         importFn={firstTimersAPI.importCsv}
+      />
+
+      <PublicIntakeShareModal
+        open={showShare}
+        onClose={() => setShowShare(false)}
+        title="First Timer Form"
+        description="Share this QR code or link with first-timers so they can fill their details themselves and appear on the First Timers page."
+        url={publicFirstTimerFormUrl}
       />
     </div>
   );

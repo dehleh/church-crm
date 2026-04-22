@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarDays, Plus, Search, Users, Clock, MapPin, Video, Loader2, CheckSquare } from 'lucide-react';
+import { CalendarDays, Plus, Search, Users, Clock, MapPin, Video, Loader2, CheckSquare, QrCode } from 'lucide-react';
 import { eventsAPI, branchesAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
+import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
 import toast from 'react-hot-toast';
 import { format, parseISO } from 'date-fns';
+import { useAuth } from '../context/AuthContext';
 
 const TYPE_BADGE = {
   sunday_service: 'badge-blue', midweek: 'badge-purple', special: 'badge-yellow',
@@ -13,6 +15,7 @@ const TYPE_BADGE = {
 const STATUS_BADGE = { upcoming: 'badge-blue', ongoing: 'badge-yellow', completed: 'badge-green', cancelled: 'badge-red' };
 
 export default function Events() {
+  const { user } = useAuth();
   const [events, setEvents] = useState([]);
   const [stats, setStats] = useState({});
   const [branches, setBranches] = useState([]);
@@ -24,7 +27,14 @@ export default function Events() {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [shareEvent, setShareEvent] = useState(null);
   const navigate = useNavigate();
+
+  const churchSlug = user?.church_slug || user?.churchSlug;
+  const publicCheckInUrl = useMemo(() => {
+    if (!churchSlug || !shareEvent || typeof window === 'undefined') return '';
+    return `${window.location.origin}/connect/${churchSlug}/events/${shareEvent.id}/check-in`;
+  }, [churchSlug, shareEvent]);
 
   const fetchEvents = useCallback(async (page = 1) => {
     setLoading(true);
@@ -159,12 +169,19 @@ export default function Events() {
                   </td>
                   <td><span className={`badge capitalize ${STATUS_BADGE[ev.status] || 'badge-gray'}`}>{ev.status}</span></td>
                   <td>
-                    <button
-                      onClick={() => navigate(`/events/${ev.id}/attendance`)}
-                      className="flex items-center gap-1 text-xs text-brand-600 hover:underline font-medium whitespace-nowrap"
-                    >
-                      <CheckSquare size={13} /> Mark
-                    </button>
+                    <div className="flex items-center gap-3 whitespace-nowrap">
+                      {churchSlug && (
+                        <button onClick={() => setShareEvent(ev)} className="flex items-center gap-1 text-xs text-amber-600 hover:underline font-medium">
+                          <QrCode size={13} /> QR Check-in
+                        </button>
+                      )}
+                      <button
+                        onClick={() => navigate(`/events/${ev.id}/attendance`)}
+                        className="flex items-center gap-1 text-xs text-brand-600 hover:underline font-medium"
+                      >
+                        <CheckSquare size={13} /> Mark
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -223,6 +240,14 @@ export default function Events() {
           <div><label className="label">Description</label><textarea className="input min-h-[80px]" value={form.description || ''} onChange={set('description')} /></div>
         </div>
       </Modal>
+
+      <PublicIntakeShareModal
+        open={!!shareEvent}
+        onClose={() => setShareEvent(null)}
+        title={shareEvent ? `Check-In QR: ${shareEvent.title}` : 'Check-In QR'}
+        description="Share this QR code at the event entrance so members can self check-in using their member ID and phone number."
+        url={publicCheckInUrl}
+      />
     </div>
   );
 }

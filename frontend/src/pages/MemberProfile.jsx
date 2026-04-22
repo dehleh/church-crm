@@ -114,7 +114,7 @@ export default function MemberProfile() {
               </button>
             </div>
             <div className="flex flex-wrap gap-3 mt-3">
-              <span className={`badge capitalize ${member.membership_status === 'active' ? 'badge-green' : 'badge-gray'}`}>{member.membership_status}</span>
+              <span className={`badge capitalize ${member.membership_status === 'active' ? 'badge-green' : member.membership_status === 'pending_review' ? 'badge-yellow' : 'badge-gray'}`}>{member.membership_status}</span>
               <span className="badge badge-blue capitalize">{member.membership_class} member</span>
               {member.branch_name && <span className="badge badge-gray">{member.branch_name}</span>}
               {age && <span className="badge badge-gray">{age} years old</span>}

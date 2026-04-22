@@ -94,6 +94,7 @@ app.use('/api/', (req, res, next) => {
 
 // ── Routes ───────────────────────────────────────────────────
 app.use('/api/auth',         require('./routes/auth'));
+app.use('/api/public',       require('./routes/public'));
 app.use('/api/dashboard',    require('./routes/dashboard'));
 app.use('/api/members',      require('./routes/members'));
 app.use('/api/first-timers', require('./routes/firstTimers'));

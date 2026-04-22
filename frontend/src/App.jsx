@@ -26,6 +26,10 @@ import Assets from './pages/Assets';
 import Counseling from './pages/Counseling';
 import Welfare from './pages/Welfare';
 import Procurement from './pages/Procurement';
+import PublicFirstTimerForm from './pages/PublicFirstTimerForm';
+import PublicMemberForm from './pages/PublicMemberForm';
+import PublicPrayerForm from './pages/PublicPrayerForm';
+import PublicEventCheckIn from './pages/PublicEventCheckIn';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -54,6 +58,10 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+          <Route path="/connect/:churchSlug/first-timer" element={<ErrorBoundary><PublicFirstTimerForm /></ErrorBoundary>} />
+          <Route path="/connect/:churchSlug/member" element={<ErrorBoundary><PublicMemberForm /></ErrorBoundary>} />
+          <Route path="/connect/:churchSlug/prayer" element={<ErrorBoundary><PublicPrayerForm /></ErrorBoundary>} />
+          <Route path="/connect/:churchSlug/events/:eventId/check-in" element={<ErrorBoundary><PublicEventCheckIn /></ErrorBoundary>} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />

@@ -1,14 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
-import { HeartHandshake, Plus, Search, Loader2, MessageSquare } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { HeartHandshake, Plus, Search, Loader2, MessageSquare, QrCode } from 'lucide-react';
 import { prayerAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
+import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { useAuth } from '../context/AuthContext';
 
 const STATUS_BADGE = { open: 'badge-yellow', praying: 'badge-blue', answered: 'badge-green', closed: 'badge-gray' };
 const CATEGORY_BADGE = { healing: 'badge-red', finances: 'badge-yellow', family: 'badge-peach', salvation: 'badge-purple', others: 'badge-gray' };
 
 export default function Prayer() {
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ total: 0, page: 1, totalPages: 1 });
@@ -17,6 +20,13 @@ export default function Prayer() {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+
+  const churchSlug = user?.church_slug || user?.churchSlug;
+  const publicPrayerFormUrl = useMemo(() => {
+    if (!churchSlug || typeof window === 'undefined') return '';
+    return `${window.location.origin}/connect/${churchSlug}/prayer`;
+  }, [churchSlug]);
 
   const fetch = useCallback(async (page = 1) => {
     setLoading(true);
@@ -55,7 +65,10 @@ export default function Prayer() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-start justify-between mb-6">
         <div><h1 className="page-title">Prayer Requests</h1><p className="text-gray-500 text-sm mt-1">Intercede for your congregation</p></div>
-        <button onClick={() => { setForm({}); setModal('add'); }} className="btn-primary"><Plus size={16} /> Add Request</button>
+        <div className="flex gap-2">
+          {publicPrayerFormUrl && <button onClick={() => setShowShare(true)} className="btn-secondary"><QrCode size={16} /> Prayer Form</button>}
+          <button onClick={() => { setForm({}); setModal('add'); }} className="btn-primary"><Plus size={16} /> Add Request</button>
+        </div>
       </div>
 
       <div className="table-wrapper">
@@ -143,6 +156,14 @@ export default function Prayer() {
           </div>
         </div>
       </Modal>
+
+      <PublicIntakeShareModal
+        open={showShare}
+        onClose={() => setShowShare(false)}
+        title="Prayer Request Form"
+        description="Share this QR code or link so people can submit prayer requests directly into the Prayer Requests page."
+        url={publicPrayerFormUrl}
+      />
     </div>
   );
 }

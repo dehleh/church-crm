@@ -1,6 +1,7 @@
 const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
+const { createMemberRecord } = require('../services/intakeService');
 
 // GET /api/members
 const getMembers = async (req, res) => {
@@ -79,43 +80,12 @@ const getMember = async (req, res) => {
 
 // POST /api/members
 const createMember = async (req, res) => {
-  const churchId = req.churchId;
-  const {
-    firstName, lastName, middleName, email, phone, phoneAlt,
-    dateOfBirth, gender, maritalStatus, address, city, state, country,
-    occupation, employer, membershipClass, joinDate, baptismDate,
-    waterBaptized, holyGhostBaptized, salvationDate, branchId,
-    nextOfKinName, nextOfKinPhone, nextOfKinRelationship, notes
-  } = req.body;
-
   try {
-    // Generate member number
-    const countRes = await query('SELECT COUNT(*) FROM members WHERE church_id = $1', [churchId]);
-    const memberNumber = `MBR-${String(parseInt(countRes.rows[0].count) + 1).padStart(5, '0')}`;
-
-    const id = uuidv4();
-    const { rows } = await query(
-      `INSERT INTO members (
-        id, church_id, branch_id, member_number, first_name, last_name, middle_name,
-        email, phone, phone_alt, date_of_birth, gender, marital_status, address, city, state, country,
-        occupation, employer, membership_class, join_date, baptism_date,
-        water_baptized, holy_ghost_baptized, salvation_date,
-        next_of_kin_name, next_of_kin_phone, next_of_kin_relationship, notes
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
-      RETURNING *`,
-      [
-        id, churchId, branchId || null, memberNumber, firstName, lastName, middleName || null,
-        email || null, phone || null, phoneAlt || null, dateOfBirth || null, gender || null,
-        maritalStatus || null, address || null, city || null, state || null, country || null,
-        occupation || null, employer || null, membershipClass || 'full', joinDate || null, baptismDate || null,
-        waterBaptized || false, holyGhostBaptized || false, salvationDate || null,
-        nextOfKinName || null, nextOfKinPhone || null, nextOfKinRelationship || null, notes || null
-      ]
-    );
-    return res.status(201).json({ success: true, data: rows[0] });
+    const record = await createMemberRecord({ churchId: req.churchId, data: req.body });
+    return res.status(201).json({ success: true, data: record });
   } catch (err) {
     logger.error(err.message, { error: err.message });
-    return res.status(500).json({ success: false, message: 'Server error' });
+    return res.status(err.status || 500).json({ success: false, message: err.status ? err.message : 'Server error' });
   }
 };
 
@@ -161,6 +131,7 @@ const getMemberStats = async (req, res) => {
     const { rows } = await query(
       `SELECT
         COUNT(*) FILTER (WHERE membership_status = 'active') as active,
+        COUNT(*) FILTER (WHERE membership_status = 'pending_review') as pending_review,
         COUNT(*) FILTER (WHERE membership_status = 'inactive') as inactive,
         COUNT(*) FILTER (WHERE membership_class = 'child') as children,
         COUNT(*) FILTER (WHERE membership_class = 'youth') as youth,

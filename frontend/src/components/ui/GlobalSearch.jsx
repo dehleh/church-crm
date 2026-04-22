@@ -143,7 +143,7 @@ export default function GlobalSearch() {
                         <p className="text-sm font-medium text-gray-900">{item.first_name} {item.last_name}</p>
                         <p className="text-xs text-gray-400">{item.member_number} · {item.phone || item.email || ''}</p>
                       </div>
-                      <span className={`badge text-xs flex-shrink-0 ${item.membership_status === 'active' ? 'badge-green' : 'badge-gray'}`}>{item.membership_status}</span>
+                      <span className={`badge text-xs flex-shrink-0 ${item.membership_status === 'active' ? 'badge-green' : item.membership_status === 'pending_review' ? 'badge-yellow' : 'badge-gray'}`}>{item.membership_status}</span>
                     </div>
                   )}
                 />

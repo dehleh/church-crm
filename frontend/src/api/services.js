@@ -1,4 +1,11 @@
+import axios from 'axios';
 import api from './client';
+
+const publicApi = axios.create({
+  baseURL: '/api/public',
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 30000,
+});
 
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
@@ -183,4 +190,13 @@ export const procurementAPI = {
   reviewPurchaseRequest: (id, data) => api.patch(`/procurement/purchase-requests/${id}`, data),
   importRequisitions: (data) => api.post('/procurement/requisitions/import', data),
   importPurchaseRequests: (data) => api.post('/procurement/purchase-requests/import', data),
+};
+
+export const publicIntakeAPI = {
+  getContext: (churchSlug) => publicApi.get(`/churches/${churchSlug}/intake`),
+  getEventCheckIn: (churchSlug, eventId) => publicApi.get(`/churches/${churchSlug}/events/${eventId}/check-in`),
+  submitFirstTimer: (churchSlug, data) => publicApi.post(`/churches/${churchSlug}/first-timers`, data),
+  submitMember: (churchSlug, data) => publicApi.post(`/churches/${churchSlug}/members`, data),
+  submitPrayerRequest: (churchSlug, data) => publicApi.post(`/churches/${churchSlug}/prayer-requests`, data),
+  submitEventCheckIn: (churchSlug, eventId, data) => publicApi.post(`/churches/${churchSlug}/events/${eventId}/check-in`, data),
 };

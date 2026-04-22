@@ -1,16 +1,18 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit2, Trash2, Loader2, ExternalLink, FileSpreadsheet } from 'lucide-react';
+import { Users, Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit2, Trash2, Loader2, ExternalLink, FileSpreadsheet, QrCode, CheckCircle2 } from 'lucide-react';
 import { membersAPI, branchesAPI, departmentsAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import CsvImportModal from '../components/ui/CsvImportModal';
+import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { email as validateEmail, phone as validatePhone } from '../utils/validation';
+import { useAuth } from '../context/AuthContext';
 
 const STATUS_BADGE = {
   active: 'badge-green', inactive: 'badge-gray',
-  transferred: 'badge-blue', deceased: 'badge-red',
+  transferred: 'badge-blue', deceased: 'badge-red', pending_review: 'badge-yellow',
 };
 
 function MemberForm({ form, setForm, branches, errors = {} }) {
@@ -106,6 +108,7 @@ function MemberForm({ form, setForm, branches, errors = {} }) {
 }
 
 export default function Members() {
+  const { user } = useAuth();
   const [members, setMembers] = useState([]);
   const [stats, setStats] = useState({});
   const [branches, setBranches] = useState([]);
@@ -115,6 +118,7 @@ export default function Members() {
   const [statusFilter, setStatusFilter] = useState('');
   const [modal, setModal] = useState(null); // null | 'add' | 'edit' | 'view'
   const [showImport, setShowImport] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -134,6 +138,12 @@ export default function Members() {
 
   useEffect(() => { fetchMembers(1); }, [fetchMembers]);
   useEffect(() => { branchesAPI.list().then(r => setBranches(r.data.data)).catch(() => {}); }, []);
+
+  const churchSlug = user?.church_slug || user?.churchSlug;
+  const publicMemberFormUrl = useMemo(() => {
+    if (!churchSlug || typeof window === 'undefined') return '';
+    return `${window.location.origin}/connect/${churchSlug}/member`;
+  }, [churchSlug]);
 
   const navigate = useNavigate();
   const openAdd = () => { setForm({}); setFormErrors({}); setModal('add'); };
@@ -177,6 +187,16 @@ export default function Members() {
     } catch { toast.error('Failed to deactivate member'); }
   };
 
+  const handleApprove = async (id) => {
+    try {
+      await membersAPI.update(id, { membershipStatus: 'active' });
+      toast.success('Member approved');
+      fetchMembers(pagination.page);
+    } catch {
+      toast.error('Failed to approve member');
+    }
+  };
+
   const getInitials = (fn, ln) => `${fn?.[0] || ''}${ln?.[0] || ''}`.toUpperCase();
 
   return (
@@ -188,6 +208,11 @@ export default function Members() {
           <p className="text-gray-500 text-sm mt-1">{(stats.active || 0).toLocaleString()} active members</p>
         </div>
         <div className="flex gap-2">
+          {publicMemberFormUrl && (
+            <button onClick={() => setShowShare(true)} className="btn-secondary flex items-center gap-1.5">
+              <QrCode size={16} /> Member Form
+            </button>
+          )}
           <button onClick={() => setShowImport(true)} className="btn-secondary flex items-center gap-1.5">
             <FileSpreadsheet size={16} /> Import CSV
           </button>
@@ -201,6 +226,7 @@ export default function Members() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
           { label: 'Active', value: stats.active, color: 'text-emerald-600 bg-emerald-50' },
+          { label: 'Pending Review', value: stats.pending_review, color: 'text-amber-600 bg-amber-50' },
           { label: 'New This Month', value: stats.new_this_month, color: 'text-brand-600 bg-brand-50' },
           { label: 'Male', value: stats.male, color: 'text-blue-600 bg-blue-50' },
           { label: 'Female', value: stats.female, color: 'text-pink-600 bg-pink-50' },
@@ -224,6 +250,7 @@ export default function Members() {
           <select className="input h-9 text-sm w-auto py-2 pr-8" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">All Statuses</option>
             <option value="active">Active</option>
+            <option value="pending_review">Pending Review</option>
             <option value="inactive">Inactive</option>
             <option value="transferred">Transferred</option>
           </select>
@@ -277,6 +304,11 @@ export default function Members() {
                   <td className="text-sm text-gray-500">{m.join_date ? format(new Date(m.join_date), 'MMM d, yyyy') : '—'}</td>
                   <td>
                     <div className="flex items-center gap-1">
+                      {m.membership_status === 'pending_review' && (
+                        <button onClick={() => handleApprove(m.id)} className="p-1.5 rounded hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition-colors" title="Approve member">
+                          <CheckCircle2 size={14} />
+                        </button>
+                      )}
                       <button onClick={() => navigate(`/members/${m.id}`)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors" title="View profile"><ExternalLink size={14} /></button>
                       <button onClick={() => openEdit(m)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-brand-600 transition-colors"><Edit2 size={14} /></button>
                       <button onClick={() => handleDelete(m.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
@@ -316,9 +348,17 @@ export default function Members() {
       <CsvImportModal
         open={showImport}
         onClose={() => setShowImport(false)}
-        onComplete={() => fetch(1)}
+        onComplete={() => fetchMembers(1)}
         entityType="members"
         importFn={membersAPI.importCsv}
+      />
+
+      <PublicIntakeShareModal
+        open={showShare}
+        onClose={() => setShowShare(false)}
+        title="Member Registration Form"
+        description="Share this QR code or link with members so they can submit their details directly into the Members page."
+        url={publicMemberFormUrl}
       />
     </div>
   );
