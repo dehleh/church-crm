@@ -198,5 +198,6 @@ export const publicIntakeAPI = {
   submitFirstTimer: (churchSlug, data) => publicApi.post(`/churches/${churchSlug}/first-timers`, data),
   submitMember: (churchSlug, data) => publicApi.post(`/churches/${churchSlug}/members`, data),
   submitPrayerRequest: (churchSlug, data) => publicApi.post(`/churches/${churchSlug}/prayer-requests`, data),
+  submitWelfareApplication: (churchSlug, data) => publicApi.post(`/churches/${churchSlug}/welfare-applications`, data),
   submitEventCheckIn: (churchSlug, eventId, data) => publicApi.post(`/churches/${churchSlug}/events/${eventId}/check-in`, data),
 };

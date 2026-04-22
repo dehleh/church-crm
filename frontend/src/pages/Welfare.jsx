@@ -1,14 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Heart, Plus, Package, ClipboardList, CheckCircle, XCircle, DollarSign } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Heart, Plus, Package, ClipboardList, CheckCircle, XCircle, DollarSign, QrCode } from 'lucide-react';
 import { welfareAPI, membersAPI } from '../api/services';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import { useAuth } from '../context/AuthContext';
+import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
 
 const PACKAGE_TYPES = ['financial', 'material', 'medical', 'educational', 'other'];
 const APP_STATUSES = ['pending', 'under_review', 'approved', 'disbursed', 'rejected'];
 const STATUS_COLORS = { pending: 'bg-yellow-100 text-yellow-700', under_review: 'bg-blue-100 text-blue-700', approved: 'bg-green-100 text-green-700', disbursed: 'bg-emerald-100 text-emerald-700', rejected: 'bg-red-100 text-red-700' };
 
 export default function Welfare() {
+  const { user } = useAuth();
   const [tab, setTab] = useState('applications'); // 'applications' | 'packages'
   const [packages, setPackages] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -21,6 +24,7 @@ export default function Welfare() {
   const [pkgFilter, setPkgFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({});
+  const [showShare, setShowShare] = useState(false);
 
   const [pkgForm, setPkgForm] = useState({ name: '', description: '', packageType: 'financial' });
   const [appForm, setAppForm] = useState({ packageId: '', memberId: '', applicantName: '', reason: '', amountRequested: '' });
@@ -52,6 +56,12 @@ export default function Welfare() {
 
   useEffect(() => { fetchPackages(); fetchStats(); fetchMembers(); }, []);
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
+
+  const churchSlug = user?.church_slug || user?.churchSlug;
+  const publicWelfareFormUrl = useMemo(() => {
+    if (!churchSlug || typeof window === 'undefined') return '';
+    return `${window.location.origin}/connect/${churchSlug}/welfare`;
+  }, [churchSlug]);
 
   const handleAddPackage = async () => {
     if (!pkgForm.name) return toast.error('Name is required');
@@ -113,6 +123,9 @@ export default function Welfare() {
           <p className="text-sm text-gray-500 mt-1">Manage welfare packages and applications</p>
         </div>
         <div className="flex gap-2">
+          {publicWelfareFormUrl && (
+            <button onClick={() => setShowShare(true)} className="btn-secondary flex items-center gap-2"><QrCode size={16} /> Welfare Form</button>
+          )}
           <button onClick={() => { setPkgForm({ name: '', description: '', packageType: 'financial' }); setModal('addPkg'); }} className="btn-secondary flex items-center gap-2"><Package size={16} /> New Package</button>
           <button onClick={() => { setAppForm({ packageId: '', memberId: '', applicantName: '', reason: '', amountRequested: '' }); setModal('apply'); }} className="btn-primary flex items-center gap-2"><Plus size={18} /> New Application</button>
         </div>
@@ -326,6 +339,14 @@ export default function Welfare() {
           </div>
         </div>
       )}
+
+      <PublicIntakeShareModal
+        open={showShare}
+        onClose={() => setShowShare(false)}
+        title="Welfare Application Form"
+        description="Share this QR code or link so people can submit welfare requests directly into the Welfare page for review."
+        url={publicWelfareFormUrl}
+      />
     </div>
   );
 }

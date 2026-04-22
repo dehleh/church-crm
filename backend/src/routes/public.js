@@ -36,6 +36,13 @@ router.post('/churches/:slug/prayer-requests', [
   body('isAnonymous').optional().isBoolean(),
 ], handleValidationErrors, c.submitPrayerRequest);
 
+router.post('/churches/:slug/welfare-applications', [
+  body('packageId').notEmpty().isUUID(),
+  body('applicantName').notEmpty().trim().escape(),
+  body('reason').notEmpty().trim(),
+  body('amountRequested').optional({ values: 'falsy' }).isFloat({ min: 0 }),
+], handleValidationErrors, c.submitWelfareApplication);
+
 router.post('/churches/:slug/events/:eventId/check-in', [
   body('memberNumber').notEmpty().trim().escape(),
   body('phone').notEmpty().trim(),

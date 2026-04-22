@@ -33,6 +33,14 @@ const getIntakeContext = async (req, res) => {
       [church.id]
     );
 
+    const { rows: welfarePackages } = await query(
+      `SELECT id, name, description, package_type
+       FROM welfare_packages
+       WHERE church_id = $1 AND is_active = true
+       ORDER BY name ASC`,
+      [church.id]
+    );
+
     return res.json({
       success: true,
       data: {
@@ -45,6 +53,7 @@ const getIntakeContext = async (req, res) => {
           country: church.country,
         },
         branches,
+        welfarePackages,
       }
     });
   } catch (err) {
@@ -119,6 +128,50 @@ const submitPrayerRequest = async (req, res) => {
     });
   } catch (err) {
     logger.error('submitPrayerRequest error', { error: err.message });
+    return res.status(err.status || 500).json({ success: false, message: err.status ? err.message : 'Server error' });
+  }
+};
+
+const submitWelfareApplication = async (req, res) => {
+  try {
+    const church = await getChurchBySlug(req.params.slug);
+    if (!church) {
+      return res.status(404).json({ success: false, message: 'Church not found' });
+    }
+
+    const { rows: packageRows } = await query(
+      `SELECT id, name
+       FROM welfare_packages
+       WHERE id = $1 AND church_id = $2 AND is_active = true`,
+      [req.body.packageId, church.id]
+    );
+    const welfarePackage = packageRows[0];
+    if (!welfarePackage) {
+      return res.status(404).json({ success: false, message: 'Welfare package not found' });
+    }
+
+    const { rows } = await query(
+      `INSERT INTO welfare_applications (
+        id, church_id, package_id, applicant_name, reason, amount_requested
+      ) VALUES ($1,$2,$3,$4,$5,$6)
+      RETURNING *`,
+      [
+        uuidv4(),
+        church.id,
+        welfarePackage.id,
+        req.body.applicantName,
+        req.body.reason,
+        req.body.amountRequested || null,
+      ]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: `Your welfare application for ${welfarePackage.name} has been submitted.`,
+      data: rows[0],
+    });
+  } catch (err) {
+    logger.error('submitWelfareApplication error', { error: err.message });
     return res.status(err.status || 500).json({ success: false, message: err.status ? err.message : 'Server error' });
   }
 };
@@ -233,5 +286,6 @@ module.exports = {
   submitFirstTimer,
   submitMember,
   submitPrayerRequest,
+  submitWelfareApplication,
   submitEventCheckIn,
 };
