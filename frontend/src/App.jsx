@@ -6,6 +6,7 @@ import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
+const Landing = lazy(() => import('./pages/Landing'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Members = lazy(() => import('./pages/Members'));
 const MemberProfile = lazy(() => import('./pages/MemberProfile'));
@@ -79,6 +80,13 @@ function PublicRoute({ children }) {
   return user ? <Navigate to="/dashboard" replace /> : children;
 }
 
+function RootRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user) return <Navigate to="/dashboard" replace />;
+  return <L><Landing /></L>;
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -91,8 +99,8 @@ export default function App() {
           <Route path="/connect/:churchSlug/prayer" element={<L><PublicPrayerForm /></L>} />
           <Route path="/connect/:churchSlug/welfare" element={<L><PublicWelfareForm /></L>} />
           <Route path="/connect/:churchSlug/events/:eventId/check-in" element={<L><PublicEventCheckIn /></L>} />
-          <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<RootRoute />} />
+          <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route path="dashboard" element={<L><Dashboard /></L>} />
             <Route path="members" element={<L><Members /></L>} />
             <Route path="members/:id" element={<L><MemberProfile /></L>} />
@@ -118,7 +126,7 @@ export default function App() {
             <Route path="platform" element={<SuperAdminRoute><L><PlatformAdmin /></L></SuperAdminRoute>} />
             <Route path="settings" element={<L><Settings /></L>} />
           </Route>
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     </AuthProvider>
     </ErrorBoundary>
