@@ -257,23 +257,25 @@ export default function Landing() {
       </Section>
 
       {/* HOW */}
-      <Section id="how" className="py-20 bg-gray-50 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 rounded-3xl">
-        <div className="text-center max-w-2xl mx-auto mb-14">
-          <div className="inline-block px-3 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-semibold mb-4">HOW IT WORKS</div>
-          <h2 className="text-3xl sm:text-4xl font-display font-bold">Up and running in a day</h2>
-        </div>
-        <div className="grid md:grid-cols-3 gap-8">
-          {STEPS.map((s) => (
-            <div key={s.n} className="bg-white rounded-2xl p-8 border border-gray-100">
-              <div className="w-12 h-12 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-lg mb-4">
-                {s.n}
+      <section id="how" className="bg-gray-50 py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <div className="inline-block px-3 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-semibold mb-4">HOW IT WORKS</div>
+            <h2 className="text-3xl sm:text-4xl font-display font-bold">Up and running in a day</h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            {STEPS.map((s) => (
+              <div key={s.n} className="bg-white rounded-2xl p-8 border border-gray-100">
+                <div className="w-12 h-12 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-lg mb-4">
+                  {s.n}
+                </div>
+                <h3 className="font-semibold text-xl mb-2">{s.title}</h3>
+                <p className="text-gray-600">{s.desc}</p>
               </div>
-              <h3 className="font-semibold text-xl mb-2">{s.title}</h3>
-              <p className="text-gray-600">{s.desc}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </Section>
+      </section>
 
       {/* PRICING */}
       <Section id="pricing" className="py-20">
