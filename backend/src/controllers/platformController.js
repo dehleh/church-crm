@@ -1,4 +1,7 @@
-const { query } = require('../config/database');
+const { query, getClient } = require('../config/database');
+const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const logger = require('../config/logger');
 
 const audit = async (actorUserId, action, targetChurchId, details = {}) => {
@@ -175,10 +178,91 @@ const getAuditLog = async (req, res) => {
   }
 };
 
+// POST /api/platform/churches  — provision a new church + head_pastor user
+// Body: { churchName, churchSlug, denomination?, adminFirstName, adminLastName, adminEmail, adminPhone?, adminPassword? }
+// If adminPassword omitted, a strong temp password is generated and returned ONCE.
+const createChurch = async (req, res) => {
+  const {
+    churchName, churchSlug, denomination,
+    adminFirstName, adminLastName, adminEmail, adminPhone,
+    adminPassword,
+  } = req.body;
+
+  // Generate temp password if not provided (16 url-safe chars)
+  const generatedPassword = adminPassword
+    ? null
+    : crypto.randomBytes(12).toString('base64url');
+  const passwordToHash = adminPassword || generatedPassword;
+
+  const client = await getClient();
+  try {
+    // Uniqueness checks
+    const slugCheck = await client.query('SELECT id FROM churches WHERE slug = $1', [churchSlug]);
+    if (slugCheck.rows.length) {
+      client.release();
+      return res.status(409).json({ success: false, message: 'Church slug already taken' });
+    }
+    const emailCheck = await client.query('SELECT id FROM users WHERE email = $1', [adminEmail.toLowerCase()]);
+    if (emailCheck.rows.length) {
+      client.release();
+      return res.status(409).json({ success: false, message: 'Email already registered' });
+    }
+
+    const passwordHash = await bcrypt.hash(passwordToHash, 12);
+    const churchId = uuidv4();
+    const branchId = uuidv4();
+    const userId = uuidv4();
+
+    await client.query('BEGIN');
+    await client.query(
+      `INSERT INTO churches (id, name, slug, denomination) VALUES ($1, $2, $3, $4)`,
+      [churchId, churchName, churchSlug, denomination || null]
+    );
+    await client.query(
+      `INSERT INTO branches (id, church_id, name, is_headquarters) VALUES ($1, $2, $3, true)`,
+      [branchId, churchId, `${churchName} HQ`]
+    );
+    await client.query(
+      `INSERT INTO users (id, church_id, branch_id, first_name, last_name, email, password_hash, phone, role)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'head_pastor')`,
+      [userId, churchId, branchId, adminFirstName, adminLastName, adminEmail.toLowerCase(), passwordHash, adminPhone || null]
+    );
+    for (const cat of ['Tithe', 'Offering', 'Building Fund', 'Welfare', 'Missions']) {
+      await client.query(
+        `INSERT INTO giving_categories (id, church_id, name) VALUES ($1, $2, $3)`,
+        [uuidv4(), churchId, cat]
+      );
+    }
+    await client.query('COMMIT');
+
+    await audit(req.user.id, 'create_church', churchId, {
+      name: churchName, slug: churchSlug, adminEmail: adminEmail.toLowerCase(),
+      passwordGenerated: !!generatedPassword,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        church: { id: churchId, name: churchName, slug: churchSlug, denomination: denomination || null },
+        admin: { id: userId, firstName: adminFirstName, lastName: adminLastName, email: adminEmail.toLowerCase(), role: 'head_pastor' },
+        // Returned only once at creation time so super-admin can share with the customer
+        temporaryPassword: generatedPassword,
+      },
+    });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+    logger.error('platform create church failed', { err: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   getPlatformStats,
   listChurches,
   getChurch,
+  createChurch,
   suspendChurch,
   activateChurch,
   deleteChurch,

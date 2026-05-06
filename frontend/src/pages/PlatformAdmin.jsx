@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Building2, Users, ShieldAlert, ShieldCheck, Trash2,
-  Search, Loader2, BarChart3, Eye, RefreshCw
+  Search, Loader2, BarChart3, Eye, RefreshCw, Plus, Copy, CheckCircle2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { platformAPI } from '../api/services';
@@ -18,6 +18,14 @@ export default function PlatformAdmin() {
   const [busyId, setBusyId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    churchName: '', churchSlug: '', denomination: '',
+    adminFirstName: '', adminLastName: '', adminEmail: '', adminPhone: '',
+    setOwnPassword: false, adminPassword: '',
+  });
+  const [creating, setCreating] = useState(false);
+  const [createResult, setCreateResult] = useState(null);
 
   const loadAll = async () => {
     setLoading(true);
@@ -77,6 +85,51 @@ export default function PlatformAdmin() {
     } catch { toast.error('Failed to load'); }
   };
 
+  const slugify = (s) => s.toLowerCase().trim()
+    .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').slice(0, 50);
+
+  const setF = (k) => (e) => {
+    const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setCreateForm((f) => {
+      const next = { ...f, [k]: v };
+      if (k === 'churchName' && !f.churchSlug) next.churchSlug = slugify(v);
+      return next;
+    });
+  };
+
+  const submitCreate = async (e) => {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      const payload = {
+        churchName: createForm.churchName.trim(),
+        churchSlug: createForm.churchSlug.trim().toLowerCase(),
+        denomination: createForm.denomination.trim() || undefined,
+        adminFirstName: createForm.adminFirstName.trim(),
+        adminLastName: createForm.adminLastName.trim(),
+        adminEmail: createForm.adminEmail.trim(),
+        adminPhone: createForm.adminPhone.trim() || undefined,
+        ...(createForm.setOwnPassword && createForm.adminPassword
+          ? { adminPassword: createForm.adminPassword }
+          : {}),
+      };
+      const { data } = await platformAPI.createChurch(payload);
+      setCreateResult(data.data);
+      setCreateOpen(false);
+      setCreateForm({
+        churchName: '', churchSlug: '', denomination: '',
+        adminFirstName: '', adminLastName: '', adminEmail: '', adminPhone: '',
+        setOwnPassword: false, adminPassword: '',
+      });
+      loadAll();
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.response?.data?.errors?.[0]?.msg || 'Failed to create church';
+      toast.error(msg);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -84,9 +137,14 @@ export default function PlatformAdmin() {
           <h1 className="font-display text-2xl font-bold text-gray-900">Platform Admin</h1>
           <p className="text-sm text-gray-500">Manage all onboarded churches</p>
         </div>
+        <div className="flex items-center gap-2">
         <button onClick={loadAll} className="btn-outline gap-2">
           <RefreshCw size={16}/> Refresh
         </button>
+        <button onClick={() => setCreateOpen(true)} className="btn-primary gap-2">
+          <Plus size={16}/> New Church
+        </button>
+        </div>
       </div>
 
       {/* Stat cards */}
@@ -219,6 +277,101 @@ export default function PlatformAdmin() {
                 {busyId===confirmDelete.id && <Loader2 className="animate-spin" size={14}/>}
                 Delete permanently
               </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Create church modal */}
+      <Modal open={createOpen} onClose={() => !creating && setCreateOpen(false)} title="Provision new church">
+        <form onSubmit={submitCreate} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="label">Church name *</label>
+              <input className="input" value={createForm.churchName} onChange={setF('churchName')} required />
+            </div>
+            <div>
+              <label className="label">Slug * <span className="text-gray-400">(URL-safe)</span></label>
+              <input className="input" value={createForm.churchSlug} onChange={setF('churchSlug')} required
+                pattern="[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?" />
+            </div>
+          </div>
+          <div>
+            <label className="label">Denomination</label>
+            <input className="input" value={createForm.denomination} onChange={setF('denomination')} />
+          </div>
+          <div className="pt-2 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Head pastor / admin account</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="label">First name *</label>
+                <input className="input" value={createForm.adminFirstName} onChange={setF('adminFirstName')} required />
+              </div>
+              <div>
+                <label className="label">Last name *</label>
+                <input className="input" value={createForm.adminLastName} onChange={setF('adminLastName')} required />
+              </div>
+              <div>
+                <label className="label">Email *</label>
+                <input type="email" className="input" value={createForm.adminEmail} onChange={setF('adminEmail')} required />
+              </div>
+              <div>
+                <label className="label">Phone</label>
+                <input className="input" value={createForm.adminPhone} onChange={setF('adminPhone')} />
+              </div>
+            </div>
+          </div>
+          <div className="pt-2 border-t border-gray-100 space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={createForm.setOwnPassword} onChange={setF('setOwnPassword')} />
+              <span>Set a password manually (otherwise a strong temporary password is generated and shown once)</span>
+            </label>
+            {createForm.setOwnPassword && (
+              <input type="text" className="input" placeholder="Min 8 characters"
+                minLength={8} value={createForm.adminPassword} onChange={setF('adminPassword')} required />
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setCreateOpen(false)} disabled={creating} className="btn-outline">Cancel</button>
+            <button type="submit" disabled={creating} className="btn-primary gap-2">
+              {creating && <Loader2 size={14} className="animate-spin"/>}
+              Provision church
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Created result */}
+      <Modal open={!!createResult} onClose={() => setCreateResult(null)} title="Church created">
+        {createResult && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-green-700">
+              <CheckCircle2 size={20}/>
+              <span className="font-semibold">{createResult.church.name} is live.</span>
+            </div>
+            <div className="text-sm space-y-1">
+              <Row k="Login URL" v={`${window.location.origin}/login`} />
+              <Row k="Admin email" v={createResult.admin.email} />
+              <Row k="Slug" v={createResult.church.slug} />
+            </div>
+            {createResult.temporaryPassword && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                <p className="text-xs font-semibold text-amber-800">
+                  TEMPORARY PASSWORD — shown once. Share it securely with the customer; ask them to change it on first login.
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 px-3 py-2 bg-white rounded border border-amber-300 font-mono text-sm break-all">
+                    {createResult.temporaryPassword}
+                  </code>
+                  <button type="button" className="btn-outline gap-1"
+                    onClick={() => { navigator.clipboard.writeText(createResult.temporaryPassword); toast.success('Copied'); }}>
+                    <Copy size={14}/> Copy
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end">
+              <button onClick={() => setCreateResult(null)} className="btn-primary">Done</button>
             </div>
           </div>
         )}

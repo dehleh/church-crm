@@ -195,6 +195,7 @@ export const procurementAPI = {
 export const platformAPI = {
   stats: () => api.get('/platform/stats'),
   listChurches: (params) => api.get('/platform/churches', { params }),
+  createChurch: (data) => api.post('/platform/churches', data),
   getChurch: (id) => api.get(`/platform/churches/${id}`),
   suspendChurch: (id, data) => api.patch(`/platform/churches/${id}/suspend`, data),
   activateChurch: (id) => api.patch(`/platform/churches/${id}/activate`),
