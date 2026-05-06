@@ -88,6 +88,7 @@ export default function FirstTimers() {
       firstName: item.first_name, lastName: item.last_name,
       phone: item.phone || '', email: item.email || '',
       gender: item.gender || '', visitDate: item.visit_date ? item.visit_date.split('T')[0] : '',
+      dateOfBirth: item.date_of_birth ? item.date_of_birth.split('T')[0] : '',
       howDidYouHear: item.how_did_you_hear || '', branchId: item.branch_id || '',
       prayerRequest: item.prayer_request || '', address: item.address || '',
     });
@@ -285,6 +286,7 @@ export default function FirstTimers() {
             </div>
             <div><label className="label">Visit Date *</label><input type="date" className={`input ${formErrors.visitDate ? 'border-red-400' : ''}`} value={form.visitDate || ''} onChange={set('visitDate')} />{formErrors.visitDate && <p className="text-xs text-red-500 mt-1">{formErrors.visitDate}</p>}</div>
           </div>
+          <div><label className="label">Date of Birth</label><input type="date" max={new Date().toISOString().slice(0,10)} className="input" value={form.dateOfBirth || ''} onChange={set('dateOfBirth')} /></div>
           <div>
             <label className="label">How did they hear about us? *</label>
             <select className={`input ${formErrors.howDidYouHear ? 'border-red-400' : ''}`} value={form.howDidYouHear || ''} onChange={set('howDidYouHear')}>

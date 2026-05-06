@@ -19,6 +19,7 @@ export default function PublicFirstTimerForm() {
     email: '',
     gender: '',
     visitDate: new Date().toISOString().slice(0, 10),
+    dateOfBirth: '',
     howDidYouHear: '',
     address: '',
     branchId: '',
@@ -93,7 +94,7 @@ export default function PublicFirstTimerForm() {
             <div className="text-center py-10 space-y-3">
               <h2 className="text-2xl font-display font-bold text-gray-900">Submission received</h2>
               <p className="text-gray-600">Thank you for worshipping with us. Our team can now follow up with you from ChurchOS.</p>
-              <button onClick={() => { setSubmitted(false); setForm({ firstName: '', lastName: '', phone: '', email: '', gender: '', visitDate: new Date().toISOString().slice(0, 10), howDidYouHear: '', address: '', branchId: '', prayerRequest: '', serviceAttended: '' }); }} className="btn-secondary">Submit another response</button>
+              <button onClick={() => { setSubmitted(false); setForm({ firstName: '', lastName: '', phone: '', email: '', gender: '', visitDate: new Date().toISOString().slice(0, 10), dateOfBirth: '', howDidYouHear: '', address: '', branchId: '', prayerRequest: '', serviceAttended: '' }); }} className="btn-secondary">Submit another response</button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -115,6 +116,10 @@ export default function PublicFirstTimerForm() {
                   </select>
                 </div>
                 <div><label className="label">Visit Date *</label><input type="date" className="input" value={form.visitDate} onChange={set('visitDate')} /></div>
+              </div>
+              <div>
+                <label className="label">Date of Birth</label>
+                <input type="date" max={new Date().toISOString().slice(0,10)} className="input" value={form.dateOfBirth} onChange={set('dateOfBirth')} />
               </div>
               <div>
                 <label className="label">How did you hear about us? *</label>
