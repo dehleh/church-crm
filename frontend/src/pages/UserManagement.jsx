@@ -11,7 +11,9 @@ const ROLE_BADGE = {
   pastor: 'bg-orange-100 text-orange-700',
   director: 'bg-purple-100 text-purple-700',
   hod: 'bg-brand-100 text-brand-700',
-  member: 'bg-gray-100 text-gray-500',
+  branch_pastor: 'bg-blue-100 text-blue-700',
+  branch_admin: 'bg-cyan-100 text-cyan-700',
+  member: 'bg-gray-100 text-gray-700',
 };
 
 const ROLE_DESC = {
@@ -19,6 +21,8 @@ const ROLE_DESC = {
   pastor: 'Manage members, finance, events',
   director: 'Manage people & departments',
   hod: 'Record members, transactions, attendance',
+  branch_pastor: 'Pastor scoped to a single branch',
+  branch_admin: 'Manage one branch (members, events, finance)',
   member: 'Read-only access',
 };
 
@@ -181,7 +185,7 @@ export default function UserManagement() {
           <div>
             <label className="label">Role *</label>
             <select className="input" value={form.role||'hod'} onChange={set('role')}>
-              {['pastor','director','hod','member'].map(r => (
+              {['pastor','director','hod','branch_pastor','branch_admin','member'].map(r => (
                 <option key={r} value={r} className="capitalize">{r.replace('_',' ')} — {ROLE_DESC[r]}</option>
               ))}
             </select>
@@ -209,7 +213,7 @@ export default function UserManagement() {
           <div>
             <label className="label">Role</label>
             <select className="input" value={form.role||''} onChange={set('role')}>
-              {['pastor','director','hod','member'].map(r => <option key={r} value={r} className="capitalize">{r.replace('_',' ')}</option>)}
+              {['pastor','director','hod','branch_pastor','branch_admin','member'].map(r => <option key={r} value={r} className="capitalize">{r.replace('_',' ')}</option>)}
             </select>
           </div>
           <div>

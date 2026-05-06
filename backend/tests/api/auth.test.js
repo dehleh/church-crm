@@ -18,7 +18,8 @@ jest.mock('../../src/config/database', () => {
   return {
     query: mockQuery,
     getClient: jest.fn().mockResolvedValue(mockClient),
-    pool: { on: jest.fn() },
+    healthCheck: jest.fn().mockResolvedValue(true),
+    pool: { on: jest.fn(), end: jest.fn().mockResolvedValue() },
     __mockQuery: mockQuery,
     __mockClient: mockClient,
   };

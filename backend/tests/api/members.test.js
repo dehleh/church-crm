@@ -12,7 +12,8 @@ jest.mock('../../src/config/database', () => {
   return {
     query: mockQuery,
     getClient: jest.fn().mockResolvedValue({ query: jest.fn(), release: jest.fn() }),
-    pool: { on: jest.fn() },
+    healthCheck: jest.fn().mockResolvedValue(true),
+    pool: { on: jest.fn(), end: jest.fn().mockResolvedValue() },
     __mockQuery: mockQuery,
   };
 });
@@ -34,7 +35,8 @@ describe('Members API', () => {
   beforeEach(() => jest.clearAllMocks());
 
   const mockUser = {
-    id: 'user-1', church_id: 'church-1', role: 'super_admin',
+    id: 'user-1', church_id: 'church-1', role: 'head_pastor',
+    is_super_admin: true,
     is_active: true, church_active: true, first_name: 'Admin', last_name: 'User',
     church_name: 'Test', church_slug: 'test',
   };
