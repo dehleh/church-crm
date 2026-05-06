@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { contactAPI } from '../api/services';
 import {
   Users, Calendar, DollarSign, MessageSquare, Heart, BarChart3,
   Building2, ShieldCheck, Zap, Globe, ArrowRight, Check, Menu, X,
@@ -88,14 +89,24 @@ function Section({ id, className = '', children }) {
 export default function Landing() {
   const [open, setOpen] = useState(false);
   const [contact, setContact] = useState({ name: '', email: '', church: '', message: '' });
+  const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
 
-  const submitContact = (e) => {
+  const submitContact = async (e) => {
     e.preventDefault();
-    const subject = encodeURIComponent(`ChurchOS inquiry from ${contact.name} (${contact.church || 'no church'})`);
-    const body = encodeURIComponent(`From: ${contact.name} <${contact.email}>\nChurch: ${contact.church}\n\n${contact.message}`);
-    window.location.href = `mailto:hello@churchos.app?subject=${subject}&body=${body}`;
-    setSent(true);
+    setError('');
+    setSubmitting(true);
+    try {
+      await contactAPI.submit({ ...contact, source: 'landing' });
+      setSent(true);
+      setContact({ name: '', email: '', church: '', message: '' });
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.response?.data?.errors?.[0]?.msg || 'Something went wrong. Please try again.';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -392,32 +403,48 @@ export default function Landing() {
             </div>
           </div>
           <form onSubmit={submitContact} className="rounded-2xl border border-gray-200 p-6 sm:p-8 bg-white shadow-sm space-y-4">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Your name</label>
-                <input required value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })}
-                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
+            {sent ? (
+              <div className="text-center py-8">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-7 h-7" />
+                </div>
+                <h3 className="font-semibold text-xl mb-2">Message sent!</h3>
+                <p className="text-gray-600">Thanks — we'll be in touch within 4 business hours.</p>
+                <button type="button" onClick={() => setSent(false)} className="mt-6 text-sm text-brand-600 font-medium hover:underline">
+                  Send another message
+                </button>
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">Email</label>
-                <input required type="email" value={contact.email} onChange={(e) => setContact({ ...contact, email: e.target.value })}
-                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700">Church name</label>
-              <input value={contact.church} onChange={(e) => setContact({ ...contact, church: e.target.value })}
-                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700">Message</label>
-              <textarea required rows={5} value={contact.message} onChange={(e) => setContact({ ...contact, message: e.target.value })}
-                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
-            </div>
-            <button type="submit" className="w-full px-6 py-3 rounded-lg bg-brand-600 text-white font-semibold hover:bg-brand-700">
-              {sent ? 'Opening your email…' : 'Send message'}
-            </button>
-            <p className="text-xs text-gray-500 text-center">We'll get back to you within 4 business hours.</p>
+            ) : (
+              <>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Your name</label>
+                    <input required value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })}
+                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Email</label>
+                    <input required type="email" value={contact.email} onChange={(e) => setContact({ ...contact, email: e.target.value })}
+                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Church name</label>
+                  <input value={contact.church} onChange={(e) => setContact({ ...contact, church: e.target.value })}
+                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Message</label>
+                  <textarea required rows={5} value={contact.message} onChange={(e) => setContact({ ...contact, message: e.target.value })}
+                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" />
+                </div>
+                {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>}
+                <button type="submit" disabled={submitting} className="w-full px-6 py-3 rounded-lg bg-brand-600 text-white font-semibold hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed">
+                  {submitting ? 'Sending…' : 'Send message'}
+                </button>
+                <p className="text-xs text-gray-500 text-center">We'll get back to you within 4 business hours.</p>
+              </>
+            )}
           </form>
         </div>
       </Section>

@@ -211,3 +211,15 @@ export const publicIntakeAPI = {
   submitWelfareApplication: (churchSlug, data) => publicApi.post(`/churches/${churchSlug}/welfare-applications`, data),
   submitEventCheckIn: (churchSlug, eventId, data) => publicApi.post(`/churches/${churchSlug}/events/${eventId}/check-in`, data),
 };
+
+const contactAxios = axios.create({
+  baseURL: '/api/contact',
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 15000,
+});
+
+export const contactAPI = {
+  submit: (data) => contactAxios.post('/', data),
+  list: (params) => api.get('/contact', { params }),
+  update: (id, data) => api.patch(`/contact/${id}`, data),
+};

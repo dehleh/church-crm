@@ -137,6 +137,7 @@ app.use('/api/counseling',     require('./routes/counseling'));
 app.use('/api/welfare',        require('./routes/welfare'));
 app.use('/api/procurement',    require('./routes/procurement'));
 app.use('/api/platform',       require('./routes/platform'));
+app.use('/api/contact',        require('./routes/contact'));
 
 // Health check — with DB verification
 const { healthCheck } = require('./config/database');

@@ -29,6 +29,7 @@ const OPTIONAL_DEFAULTS = {
   SENTRY_DSN: '',
   SENTRY_TRACES_SAMPLE_RATE: '0.1',
   LOG_DRAIN_URL: '',
+  CONTACT_NOTIFY_EMAIL: '',
 };
 
 function validateEnv() {
