@@ -55,7 +55,11 @@ export default function MemberProfile() {
   const handleEditSave = async () => {
     setSaving(true);
     try {
-      await membersAPI.update(id, form);
+      // Coerce empty strings to null so postgres date/enum columns accept the update.
+      const payload = Object.fromEntries(
+        Object.entries(form).map(([k, v]) => [k, v === '' ? null : v])
+      );
+      await membersAPI.update(id, payload);
       toast.success('Member updated!');
       setEditModal(false);
       fetchMember();
@@ -109,7 +113,7 @@ export default function MemberProfile() {
                 </h1>
                 <p className="text-gray-500 text-sm mt-0.5 font-mono">{member.member_number}</p>
               </div>
-              <button onClick={() => { setForm({ firstName: member.first_name, lastName: member.last_name, middleName: member.middle_name, email: member.email, phone: member.phone, gender: member.gender, occupation: member.occupation, address: member.address, notes: member.notes }); setEditModal(true); }} className="btn-secondary btn-sm">
+              <button onClick={() => { setForm({ firstName: member.first_name, lastName: member.last_name, middleName: member.middle_name, email: member.email, phone: member.phone, gender: member.gender, dateOfBirth: member.date_of_birth ? String(member.date_of_birth).slice(0, 10) : '', occupation: member.occupation, address: member.address, notes: member.notes }); setEditModal(true); }} className="btn-secondary btn-sm">
                 <Edit2 size={14} /> Edit
               </button>
             </div>
@@ -235,6 +239,20 @@ export default function MemberProfile() {
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">Email</label><input type="email" className="input" value={form.email||''} onChange={e=>setForm(f=>({...f,email:e.target.value}))} /></div>
             <div><label className="label">Phone</label><input type="tel" className="input" value={form.phone||''} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Date of Birth</label>
+              <input type="date" max={new Date().toISOString().split('T')[0]} className="input" value={form.dateOfBirth||''} onChange={e=>setForm(f=>({...f,dateOfBirth:e.target.value}))} />
+            </div>
+            <div>
+              <label className="label">Gender</label>
+              <select className="input" value={form.gender||''} onChange={e=>setForm(f=>({...f,gender:e.target.value}))}>
+                <option value="">Select</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
           </div>
           <div><label className="label">Occupation</label><input className="input" value={form.occupation||''} onChange={e=>setForm(f=>({...f,occupation:e.target.value}))} /></div>
           <div><label className="label">Address</label><input className="input" value={form.address||''} onChange={e=>setForm(f=>({...f,address:e.target.value}))} /></div>
