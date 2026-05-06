@@ -96,6 +96,7 @@ export const communicationsAPI = {
   send: (id) => api.post(`/communications/${id}/send`),
   delete: (id) => api.delete(`/communications/${id}`),
   stats: () => api.get('/communications/stats'),
+  previewAudience: (data) => api.post('/communications/preview-audience', data),
   uploadImage: (file) => {
     const formData = new FormData();
     formData.append('image', file);

@@ -113,7 +113,7 @@ export default function MemberProfile() {
                 </h1>
                 <p className="text-gray-500 text-sm mt-0.5 font-mono">{member.member_number}</p>
               </div>
-              <button onClick={() => { setForm({ firstName: member.first_name, lastName: member.last_name, middleName: member.middle_name, email: member.email, phone: member.phone, gender: member.gender, dateOfBirth: member.date_of_birth ? String(member.date_of_birth).slice(0, 10) : '', occupation: member.occupation, address: member.address, notes: member.notes }); setEditModal(true); }} className="btn-secondary btn-sm">
+              <button onClick={() => { setForm({ firstName: member.first_name, lastName: member.last_name, middleName: member.middle_name, email: member.email, phone: member.phone, gender: member.gender, dateOfBirth: member.date_of_birth ? String(member.date_of_birth).slice(0, 10) : '', maritalStatus: member.marital_status, weddingAnniversaryDate: member.wedding_anniversary_date ? String(member.wedding_anniversary_date).slice(0, 10) : '', numChildren: member.num_children ?? 0, occupation: member.occupation, address: member.address, notes: member.notes }); setEditModal(true); }} className="btn-secondary btn-sm">
                 <Edit2 size={14} /> Edit
               </button>
             </div>
@@ -255,6 +255,26 @@ export default function MemberProfile() {
             </div>
           </div>
           <div><label className="label">Occupation</label><input className="input" value={form.occupation||''} onChange={e=>setForm(f=>({...f,occupation:e.target.value}))} /></div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="label">Marital Status</label>
+              <select className="input" value={form.maritalStatus||''} onChange={e=>setForm(f=>({...f,maritalStatus:e.target.value}))}>
+                <option value="">Select</option>
+                <option value="single">Single</option>
+                <option value="married">Married</option>
+                <option value="widowed">Widowed</option>
+                <option value="divorced">Divorced</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Wedding Anniversary</label>
+              <input type="date" className="input" value={form.weddingAnniversaryDate||''} onChange={e=>setForm(f=>({...f,weddingAnniversaryDate:e.target.value}))} />
+            </div>
+            <div>
+              <label className="label"># Children</label>
+              <input type="number" min={0} className="input" value={form.numChildren ?? 0} onChange={e=>setForm(f=>({...f,numChildren: e.target.value === '' ? 0 : Number(e.target.value)}))} />
+            </div>
+          </div>
           <div><label className="label">Address</label><input className="input" value={form.address||''} onChange={e=>setForm(f=>({...f,address:e.target.value}))} /></div>
           <div><label className="label">Notes</label><textarea className="input min-h-[70px]" value={form.notes||''} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} /></div>
         </div>

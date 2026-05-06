@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, Plus, Send, Trash2, Loader2, Mail, Phone, Bell, ImagePlus, X } from 'lucide-react';
-import { communicationsAPI } from '../api/services';
+import { MessageSquare, Plus, Send, Trash2, Loader2, Mail, Phone, Bell, ImagePlus, X, Users } from 'lucide-react';
+import { communicationsAPI, departmentsAPI, groupsAPI, branchesAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -8,6 +8,21 @@ import { format } from 'date-fns';
 const CHANNEL_ICON = { email: Mail, sms: Phone, whatsapp: Phone, push: Bell, in_app: Bell };
 const CHANNEL_BADGE = { email: 'badge-blue', sms: 'badge-green', whatsapp: 'badge-green', push: 'badge-purple', in_app: 'badge-gray' };
 const STATUS_BADGE = { draft: 'badge-gray', scheduled: 'badge-yellow', sent: 'badge-green', failed: 'badge-red' };
+
+const AUDIENCE_OPTIONS = [
+  { value: 'all',            label: 'All active members' },
+  { value: 'first_timers',   label: 'First timers' },
+  { value: 'male_members',   label: 'All male members' },
+  { value: 'female_members', label: 'All female members' },
+  { value: 'parents',        label: 'Parents (married or with children)' },
+  { value: 'department',     label: 'Members of a department' },
+  { value: 'group',          label: 'Members of a group' },
+  { value: 'branch',         label: 'Members of a branch' },
+  { value: 'birthday',       label: 'Birthday on a specific date' },
+  { value: 'anniversary',    label: 'Wedding anniversary on a specific date' },
+];
+
+const AUDIENCE_LABEL = Object.fromEntries(AUDIENCE_OPTIONS.map(o => [o.value, o.label]));
 
 export default function Communications() {
   const [items, setItems] = useState([]);
@@ -19,6 +34,13 @@ export default function Communications() {
   const [saving, setSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [uploading, setUploading] = useState(false);
+
+  // Lookups for audience selectors
+  const [departments, setDepartments] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [audiencePreview, setAudiencePreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -34,6 +56,40 @@ export default function Communications() {
   }, [statusFilter]);
 
   useEffect(() => { fetch(); }, [fetch]);
+
+  // Load lookups once for the compose modal
+  useEffect(() => {
+    (async () => {
+      try {
+        const [d, g, b] = await Promise.all([
+          departmentsAPI.list().catch(() => ({ data: { data: [] } })),
+          groupsAPI.list().catch(() => ({ data: { data: [] } })),
+          branchesAPI.list().catch(() => ({ data: { data: [] } })),
+        ]);
+        setDepartments(d.data.data || []);
+        setGroups(g.data.data || []);
+        setBranches(b.data.data || []);
+      } catch { /* silent */ }
+    })();
+  }, []);
+
+  // Live audience count whenever audience or filter changes
+  useEffect(() => {
+    if (modal !== 'compose') return;
+    const audience = form.audience || 'all';
+    const filter = form.audienceFilter || {};
+    // Skip preview if a needed selector is missing
+    if (audience === 'department' && !filter.departmentId) { setAudiencePreview(null); return; }
+    if (audience === 'group' && !filter.groupId) { setAudiencePreview(null); return; }
+    if (audience === 'branch' && !filter.branchId) { setAudiencePreview(null); return; }
+    let cancelled = false;
+    setPreviewLoading(true);
+    communicationsAPI.previewAudience({ audience, audienceFilter: filter })
+      .then(res => { if (!cancelled) setAudiencePreview(res.data.data); })
+      .catch(() => { if (!cancelled) setAudiencePreview(null); })
+      .finally(() => { if (!cancelled) setPreviewLoading(false); });
+    return () => { cancelled = true; };
+  }, [modal, form.audience, form.audienceFilter]);
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -142,7 +198,7 @@ export default function Communications() {
                         <Icon size={10} /> {item.channel}
                       </span>
                     </td>
-                    <td><span className="text-sm text-gray-600 capitalize">{item.audience?.replace('_', ' ')}</span></td>
+                    <td><span className="text-sm text-gray-600 capitalize">{AUDIENCE_LABEL[item.audience] || item.audience?.replace('_', ' ')}</span></td>
                     <td><span className={`badge capitalize ${STATUS_BADGE[item.status] || 'badge-gray'}`}>{item.status}</span></td>
                     <td className="text-sm text-gray-600">{item.sent_count > 0 ? `${item.sent_count.toLocaleString()} recipients` : '—'}</td>
                     <td className="text-sm text-gray-500 whitespace-nowrap">{format(new Date(item.created_at), 'MMM d, yyyy')}</td>
@@ -183,16 +239,66 @@ export default function Communications() {
                 <option value="whatsapp">💬 WhatsApp</option>
                 <option value="in_app">🔔 In-App</option>
               </select>
+              <p className="text-xs text-gray-400 mt-1">SMS &amp; WhatsApp require provider keys in Settings.</p>
             </div>
             <div>
               <label className="label">Audience</label>
-              <select className="input" value={form.audience||'all'} onChange={set('audience')}>
-                <option value="all">All Members</option>
-                <option value="members">Active Members</option>
-                <option value="department">By Department</option>
-                <option value="branch">By Branch</option>
+              <select className="input" value={form.audience||'all'} onChange={e => setForm(f => ({ ...f, audience: e.target.value, audienceFilter: {} }))}>
+                {AUDIENCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* Audience filter selectors */}
+          {form.audience === 'department' && (
+            <div>
+              <label className="label">Department *</label>
+              <select className="input" value={form.audienceFilter?.departmentId||''} onChange={e => setForm(f => ({ ...f, audienceFilter: { ...(f.audienceFilter||{}), departmentId: e.target.value } }))}>
+                <option value="">Select department</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+          )}
+          {form.audience === 'group' && (
+            <div>
+              <label className="label">Group *</label>
+              <select className="input" value={form.audienceFilter?.groupId||''} onChange={e => setForm(f => ({ ...f, audienceFilter: { ...(f.audienceFilter||{}), groupId: e.target.value } }))}>
+                <option value="">Select group</option>
+                {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </div>
+          )}
+          {form.audience === 'branch' && (
+            <div>
+              <label className="label">Branch *</label>
+              <select className="input" value={form.audienceFilter?.branchId||''} onChange={e => setForm(f => ({ ...f, audienceFilter: { ...(f.audienceFilter||{}), branchId: e.target.value } }))}>
+                <option value="">Select branch</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+          )}
+          {(form.audience === 'birthday' || form.audience === 'anniversary') && (
+            <div>
+              <label className="label">Date {form.audience === 'birthday' ? '(birthday)' : '(anniversary)'} </label>
+              <input type="date" className="input" value={form.audienceFilter?.date||''} onChange={e => setForm(f => ({ ...f, audienceFilter: { ...(f.audienceFilter||{}), date: e.target.value } }))} />
+              <p className="text-xs text-gray-400 mt-1">Only the month and day are used. Leave blank to target today.</p>
+            </div>
+          )}
+
+          {/* Live audience preview */}
+          <div className="flex items-center gap-2 text-xs bg-brand-50/60 border border-brand-100 text-brand-700 rounded-lg px-3 py-2">
+            <Users size={14} />
+            {previewLoading ? (
+              <span>Calculating recipients…</span>
+            ) : audiencePreview ? (
+              <span>
+                <strong>{audiencePreview.total.toLocaleString()}</strong> recipient{audiencePreview.total === 1 ? '' : 's'}
+                {form.channel === 'email' && <> · {audiencePreview.reachable.email} have email</>}
+                {(form.channel === 'sms' || form.channel === 'whatsapp') && <> · {audiencePreview.reachable.phone} have phone</>}
+              </span>
+            ) : (
+              <span className="text-gray-500">Pick the audience options above to preview the recipient count.</span>
+            )}
           </div>
           <div>
             <label className="label">Message Body *</label>

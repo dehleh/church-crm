@@ -35,10 +35,113 @@ const createCommunication = async (req, res) => {
     const { rows } = await query(
       `INSERT INTO communications (id, church_id, branch_id, title, body, channel, audience, audience_filter, scheduled_at, created_by, status, image_url)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft',$11) RETURNING *`,
-      [id, req.churchId, branchId||null, title, body, channel, audience||'all', audienceFilter||{}, scheduledAt||null, req.user.id, imageUrl||null]
+      [id, req.churchId, branchId||null, title, body, channel, audience||'all', audienceFilter ? JSON.stringify(audienceFilter) : '{}', scheduledAt||null, req.user.id, imageUrl||null]
     );
     return res.status(201).json({ success: true, data: rows[0] });
-  } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) { logger.error('createCommunication failed', { error: err.message }); return res.status(500).json({ success: false, message: 'Server error' }); }
+};
+
+// Resolve communication audience -> [{ email, phone, first_name, last_name }]
+const resolveAudience = async (churchId, audience, filter = {}) => {
+  const f = filter || {};
+  const today = new Date().toISOString().slice(5, 10); // MM-DD
+  switch (audience) {
+    case 'first_timers': {
+      const r = await query(
+        `SELECT email, phone, first_name, last_name FROM first_timers WHERE church_id=$1`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'male_members': {
+      const r = await query(
+        `SELECT email, phone, first_name, last_name FROM members
+         WHERE church_id=$1 AND membership_status='active' AND gender='male'`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'female_members': {
+      const r = await query(
+        `SELECT email, phone, first_name, last_name FROM members
+         WHERE church_id=$1 AND membership_status='active' AND gender='female'`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'parents': {
+      const r = await query(
+        `SELECT email, phone, first_name, last_name FROM members
+         WHERE church_id=$1 AND membership_status='active'
+           AND (COALESCE(num_children,0) > 0 OR marital_status='married')`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'department': {
+      if (!f.departmentId) return [];
+      const r = await query(
+        `SELECT m.email, m.phone, m.first_name, m.last_name
+         FROM members m
+         JOIN member_departments md ON md.member_id=m.id AND md.is_active=true
+         WHERE m.church_id=$1 AND m.membership_status='active' AND md.department_id=$2`,
+        [churchId, f.departmentId]
+      );
+      return r.rows;
+    }
+    case 'group': {
+      if (!f.groupId) return [];
+      const r = await query(
+        `SELECT m.email, m.phone, m.first_name, m.last_name
+         FROM members m
+         JOIN member_groups mg ON mg.member_id=m.id
+         WHERE m.church_id=$1 AND m.membership_status='active' AND mg.group_id=$2`,
+        [churchId, f.groupId]
+      );
+      return r.rows;
+    }
+    case 'branch': {
+      if (!f.branchId) return [];
+      const r = await query(
+        `SELECT email, phone, first_name, last_name FROM members
+         WHERE church_id=$1 AND membership_status='active' AND branch_id=$2`,
+        [churchId, f.branchId]
+      );
+      return r.rows;
+    }
+    case 'birthday': {
+      const md = (f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date)) ? f.date.slice(5, 10) : today;
+      const r = await query(
+        `SELECT email, phone, first_name, last_name FROM members
+         WHERE church_id=$1 AND membership_status='active'
+           AND date_of_birth IS NOT NULL
+           AND to_char(date_of_birth, 'MM-DD') = $2`,
+        [churchId, md]
+      );
+      return r.rows;
+    }
+    case 'anniversary': {
+      const md = (f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date)) ? f.date.slice(5, 10) : today;
+      const r = await query(
+        `SELECT email, phone, first_name, last_name FROM members
+         WHERE church_id=$1 AND membership_status='active'
+           AND wedding_anniversary_date IS NOT NULL
+           AND to_char(wedding_anniversary_date, 'MM-DD') = $2`,
+        [churchId, md]
+      );
+      return r.rows;
+    }
+    case 'all':
+    case 'members':
+    default: {
+      const r = await query(
+        `SELECT email, phone, first_name, last_name FROM members
+         WHERE church_id=$1 AND membership_status='active'`,
+        [churchId]
+      );
+      return r.rows;
+    }
+  }
 };
 
 const sendCommunication = async (req, res) => {
@@ -52,17 +155,13 @@ const sendCommunication = async (req, res) => {
     const c = comm.rows[0];
     const churchSettings = churchRes.rows[0]?.settings?.messaging || {};
 
-    // Gather recipients based on audience
-    let recipients = [];
-    if (c.audience === 'all' || c.audience === 'members') {
-      const r = await query(
-        'SELECT email, phone FROM members WHERE church_id=$1 AND membership_status=$2',
-        [req.churchId, 'active']
-      );
-      recipients = r.rows;
-    }
+    // Gather recipients based on audience + audience_filter
+    const recipients = await resolveAudience(req.churchId, c.audience, c.audience_filter || {});
 
     const recipientCount = recipients.length;
+    if (recipientCount === 0) {
+      return res.status(400).json({ success: false, message: 'No recipients matched the selected audience' });
+    }
 
     // Dispatch via the appropriate channel
     try {
@@ -112,4 +211,4 @@ const getCommStats = async (req, res) => {
   } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
 };
 
-module.exports = { getCommunications, createCommunication, sendCommunication, deleteCommunication, getCommStats };
+module.exports = { getCommunications, createCommunication, sendCommunication, deleteCommunication, getCommStats, resolveAudience };

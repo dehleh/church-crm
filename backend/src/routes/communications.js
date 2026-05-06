@@ -61,8 +61,23 @@ router.post('/', authorize('head_pastor','pastor','director','hod'), [
   body('title').notEmpty().trim().escape(),
   body('body').notEmpty(),
   body('channel').notEmpty().isIn(['email', 'sms', 'whatsapp', 'push', 'in_app']),
-  body('audience').optional().isIn(['all', 'members', 'department', 'branch', 'custom']),
+  body('audience').optional().isIn(['all', 'members', 'first_timers', 'male_members', 'female_members', 'parents', 'department', 'group', 'branch', 'birthday', 'anniversary', 'custom']),
 ], handleValidationErrors, c.createCommunication);
+
+// Preview audience size before sending
+router.post('/preview-audience', async (req, res) => {
+  try {
+    const { audience, audienceFilter } = req.body || {};
+    const recipients = await c.resolveAudience(req.churchId, audience || 'all', audienceFilter || {});
+    const reachable = {
+      email: recipients.filter(r => r.email).length,
+      phone: recipients.filter(r => r.phone).length,
+    };
+    return res.json({ success: true, data: { total: recipients.length, reachable } });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Failed to compute audience' });
+  }
+});
 
 /**
  * @swagger
