@@ -204,6 +204,10 @@ export const platformAPI = {
   auditLog: (params) => api.get('/platform/audit-log', { params }),
 };
 
+export const jobsAPI = {
+  get: (id) => api.get(`/jobs/${id}`),
+};
+
 export const publicIntakeAPI = {
   getContext: (churchSlug) => publicApi.get(`/churches/${churchSlug}/intake`),
   getEventCheckIn: (churchSlug, eventId) => publicApi.get(`/churches/${churchSlug}/events/${eventId}/check-in`),

@@ -1,6 +1,21 @@
 import { useState, useRef } from 'react';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, X, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { jobsAPI } from '../../api/services';
+
+const pollJob = async (jobId, { onProgress, intervalMs = 1000, timeoutMs = 10 * 60 * 1000 } = {}) => {
+  const start = Date.now();
+  /* eslint-disable no-await-in-loop */
+  while (Date.now() - start < timeoutMs) {
+    const { data } = await jobsAPI.get(jobId);
+    const job = data.data;
+    if (onProgress) onProgress(job);
+    if (job.status === 'completed') return job.result;
+    if (job.status === 'failed') throw new Error(job.error || 'Import job failed');
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error('Import timed out');
+};
 
 // Simple CSV parser — handles quoted fields, commas inside quotes, newlines
 function parseCSVText(text) {
@@ -136,6 +151,7 @@ export default function CsvImportModal({ open, onClose, onComplete, entityType, 
   const [csvData, setCsvData] = useState([]);
   const [columnMap, setColumnMap] = useState({});
   const [result, setResult] = useState(null);
+  const [progress, setProgress] = useState(0);
   const fileRef = useRef();
 
   const template = TEMPLATES[entityType];
@@ -147,6 +163,7 @@ export default function CsvImportModal({ open, onClose, onComplete, entityType, 
     setCsvData([]);
     setColumnMap({});
     setResult(null);
+    setProgress(0);
   };
 
   const handleClose = () => {
@@ -219,16 +236,29 @@ export default function CsvImportModal({ open, onClose, onComplete, entityType, 
 
   const doImport = async () => {
     setStep('importing');
+    setProgress(0);
     try {
       const rows = mapRowsToObjects(csvHeaders, csvData, columnMap);
       const { data } = await importFn({ rows });
-      setResult(data.data || data);
-      setStep('done');
-      if (data.data?.imported > 0 || data.imported > 0) {
-        onComplete?.();
+      const payload = data.data || data;
+
+      // New async flow: backend returned a jobId (HTTP 202). Poll for completion.
+      if (payload && payload.jobId) {
+        const finalResult = await pollJob(payload.jobId, {
+          onProgress: (j) => setProgress(j.progress || 0),
+        });
+        setResult(finalResult);
+        setStep('done');
+        if (finalResult?.imported > 0) onComplete?.();
+        return;
       }
+
+      // Legacy synchronous response
+      setResult(payload);
+      setStep('done');
+      if (payload?.imported > 0) onComplete?.();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Import failed');
+      toast.error(err?.response?.data?.message || err.message || 'Import failed');
       setStep('preview');
     }
   };
@@ -385,6 +415,13 @@ export default function CsvImportModal({ open, onClose, onComplete, entityType, 
             <div className="flex flex-col items-center py-12 gap-4">
               <div className="w-10 h-10 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
               <p className="text-gray-600 font-medium">Importing {csvData.length} rows...</p>
+              <div className="w-full max-w-md">
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-brand-600 transition-all" style={{ width: `${progress}%` }} />
+                </div>
+                <p className="text-xs text-gray-500 mt-2 text-center">{progress}%</p>
+              </div>
+              <p className="text-xs text-gray-400">You can keep this window open — the job is running in the background.</p>
             </div>
           )}
 

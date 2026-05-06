@@ -79,8 +79,8 @@ app.use(cors({
   credentials: true
 }));
 app.use(morgan(isProduction ? 'combined' : 'dev', { stream: logger.stream }));
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.resolve(process.env.UPLOAD_DIR || 'uploads')));
@@ -138,6 +138,13 @@ app.use('/api/welfare',        require('./routes/welfare'));
 app.use('/api/procurement',    require('./routes/procurement'));
 app.use('/api/platform',       require('./routes/platform'));
 app.use('/api/contact',        require('./routes/contact'));
+app.use('/api/jobs',           require('./routes/jobs'));
+
+// Initialize background job queue (BullMQ if REDIS_URL set, in-process otherwise).
+// Importing csvImportController here also registers the CSV processors.
+const { initQueue } = require('./queue');
+require('./controllers/csvImportController');
+initQueue();
 
 // Health check — with DB verification
 const { healthCheck } = require('./config/database');

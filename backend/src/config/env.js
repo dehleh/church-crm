@@ -30,6 +30,8 @@ const OPTIONAL_DEFAULTS = {
   SENTRY_TRACES_SAMPLE_RATE: '0.1',
   LOG_DRAIN_URL: '',
   CONTACT_NOTIFY_EMAIL: '',
+  REDIS_URL: '',
+  QUEUE_CONCURRENCY: '4',
 };
 
 function validateEnv() {
