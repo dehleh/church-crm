@@ -1,37 +1,55 @@
+import { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Members from './pages/Members';
-import MemberProfile from './pages/MemberProfile';
-import FirstTimers from './pages/FirstTimers';
-import Events from './pages/Events';
-import Attendance from './pages/Attendance';
-import Finance from './pages/Finance';
-import Departments from './pages/Departments';
-import Branches from './pages/Branches';
-import Media from './pages/Media';
-import Prayer from './pages/Prayer';
-import Communications from './pages/Communications';
-import UserManagement from './pages/UserManagement';
-import Reports from './pages/Reports';
-import Budgets from './pages/Budgets';
-import Settings from './pages/Settings';
-import FollowUps from './pages/FollowUps';
-import Groups from './pages/Groups';
-import Assets from './pages/Assets';
-import Counseling from './pages/Counseling';
-import Welfare from './pages/Welfare';
-import Procurement from './pages/Procurement';
-import PlatformAdmin from './pages/PlatformAdmin';
-import PublicFirstTimerForm from './pages/PublicFirstTimerForm';
-import PublicMemberForm from './pages/PublicMemberForm';
-import PublicPrayerForm from './pages/PublicPrayerForm';
-import PublicWelfareForm from './pages/PublicWelfareForm';
-import PublicEventCheckIn from './pages/PublicEventCheckIn';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Members = lazy(() => import('./pages/Members'));
+const MemberProfile = lazy(() => import('./pages/MemberProfile'));
+const FirstTimers = lazy(() => import('./pages/FirstTimers'));
+const Events = lazy(() => import('./pages/Events'));
+const Attendance = lazy(() => import('./pages/Attendance'));
+const Finance = lazy(() => import('./pages/Finance'));
+const Departments = lazy(() => import('./pages/Departments'));
+const Branches = lazy(() => import('./pages/Branches'));
+const Media = lazy(() => import('./pages/Media'));
+const Prayer = lazy(() => import('./pages/Prayer'));
+const Communications = lazy(() => import('./pages/Communications'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const Reports = lazy(() => import('./pages/Reports'));
+const Budgets = lazy(() => import('./pages/Budgets'));
+const Settings = lazy(() => import('./pages/Settings'));
+const FollowUps = lazy(() => import('./pages/FollowUps'));
+const Groups = lazy(() => import('./pages/Groups'));
+const Assets = lazy(() => import('./pages/Assets'));
+const Counseling = lazy(() => import('./pages/Counseling'));
+const Welfare = lazy(() => import('./pages/Welfare'));
+const Procurement = lazy(() => import('./pages/Procurement'));
+const PlatformAdmin = lazy(() => import('./pages/PlatformAdmin'));
+const PublicFirstTimerForm = lazy(() => import('./pages/PublicFirstTimerForm'));
+const PublicMemberForm = lazy(() => import('./pages/PublicMemberForm'));
+const PublicPrayerForm = lazy(() => import('./pages/PublicPrayerForm'));
+const PublicWelfareForm = lazy(() => import('./pages/PublicWelfareForm'));
+const PublicEventCheckIn = lazy(() => import('./pages/PublicEventCheckIn'));
+
+function PageLoader() {
+  return (
+    <div className="min-h-[40vh] flex items-center justify-center">
+      <div className="w-6 h-6 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin"></div>
+    </div>
+  );
+}
+
+function L({ children }) {
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<PageLoader />}>{children}</Suspense>
+    </ErrorBoundary>
+  );
+}
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -68,37 +86,37 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-          <Route path="/connect/:churchSlug/first-timer" element={<ErrorBoundary><PublicFirstTimerForm /></ErrorBoundary>} />
-          <Route path="/connect/:churchSlug/member" element={<ErrorBoundary><PublicMemberForm /></ErrorBoundary>} />
-          <Route path="/connect/:churchSlug/prayer" element={<ErrorBoundary><PublicPrayerForm /></ErrorBoundary>} />
-          <Route path="/connect/:churchSlug/welfare" element={<ErrorBoundary><PublicWelfareForm /></ErrorBoundary>} />
-          <Route path="/connect/:churchSlug/events/:eventId/check-in" element={<ErrorBoundary><PublicEventCheckIn /></ErrorBoundary>} />
+          <Route path="/connect/:churchSlug/first-timer" element={<L><PublicFirstTimerForm /></L>} />
+          <Route path="/connect/:churchSlug/member" element={<L><PublicMemberForm /></L>} />
+          <Route path="/connect/:churchSlug/prayer" element={<L><PublicPrayerForm /></L>} />
+          <Route path="/connect/:churchSlug/welfare" element={<L><PublicWelfareForm /></L>} />
+          <Route path="/connect/:churchSlug/events/:eventId/check-in" element={<L><PublicEventCheckIn /></L>} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
-            <Route path="members" element={<ErrorBoundary><Members /></ErrorBoundary>} />
-            <Route path="members/:id" element={<ErrorBoundary><MemberProfile /></ErrorBoundary>} />
-            <Route path="first-timers" element={<ErrorBoundary><FirstTimers /></ErrorBoundary>} />
-            <Route path="events" element={<ErrorBoundary><Events /></ErrorBoundary>} />
-            <Route path="events/:eventId/attendance" element={<ErrorBoundary><Attendance /></ErrorBoundary>} />
-            <Route path="attendance" element={<ErrorBoundary><Attendance /></ErrorBoundary>} />
-            <Route path="finance" element={<ErrorBoundary><Finance /></ErrorBoundary>} />
-            <Route path="budgets" element={<ErrorBoundary><Budgets /></ErrorBoundary>} />
-            <Route path="departments" element={<ErrorBoundary><Departments /></ErrorBoundary>} />
-            <Route path="groups" element={<ErrorBoundary><Groups /></ErrorBoundary>} />
-            <Route path="branches" element={<ErrorBoundary><Branches /></ErrorBoundary>} />
-            <Route path="media" element={<ErrorBoundary><Media /></ErrorBoundary>} />
-            <Route path="prayer" element={<ErrorBoundary><Prayer /></ErrorBoundary>} />
-            <Route path="communications" element={<ErrorBoundary><Communications /></ErrorBoundary>} />
-            <Route path="users" element={<ErrorBoundary><UserManagement /></ErrorBoundary>} />
-            <Route path="reports" element={<ErrorBoundary><Reports /></ErrorBoundary>} />
-            <Route path="follow-ups" element={<ErrorBoundary><FollowUps /></ErrorBoundary>} />
-            <Route path="assets" element={<ErrorBoundary><Assets /></ErrorBoundary>} />
-            <Route path="counseling" element={<ErrorBoundary><Counseling /></ErrorBoundary>} />
-            <Route path="welfare" element={<ErrorBoundary><Welfare /></ErrorBoundary>} />
-            <Route path="procurement" element={<ErrorBoundary><Procurement /></ErrorBoundary>} />
-            <Route path="platform" element={<SuperAdminRoute><ErrorBoundary><PlatformAdmin /></ErrorBoundary></SuperAdminRoute>} />
-            <Route path="settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
+            <Route path="dashboard" element={<L><Dashboard /></L>} />
+            <Route path="members" element={<L><Members /></L>} />
+            <Route path="members/:id" element={<L><MemberProfile /></L>} />
+            <Route path="first-timers" element={<L><FirstTimers /></L>} />
+            <Route path="events" element={<L><Events /></L>} />
+            <Route path="events/:eventId/attendance" element={<L><Attendance /></L>} />
+            <Route path="attendance" element={<L><Attendance /></L>} />
+            <Route path="finance" element={<L><Finance /></L>} />
+            <Route path="budgets" element={<L><Budgets /></L>} />
+            <Route path="departments" element={<L><Departments /></L>} />
+            <Route path="groups" element={<L><Groups /></L>} />
+            <Route path="branches" element={<L><Branches /></L>} />
+            <Route path="media" element={<L><Media /></L>} />
+            <Route path="prayer" element={<L><Prayer /></L>} />
+            <Route path="communications" element={<L><Communications /></L>} />
+            <Route path="users" element={<L><UserManagement /></L>} />
+            <Route path="reports" element={<L><Reports /></L>} />
+            <Route path="follow-ups" element={<L><FollowUps /></L>} />
+            <Route path="assets" element={<L><Assets /></L>} />
+            <Route path="counseling" element={<L><Counseling /></L>} />
+            <Route path="welfare" element={<L><Welfare /></L>} />
+            <Route path="procurement" element={<L><Procurement /></L>} />
+            <Route path="platform" element={<SuperAdminRoute><L><PlatformAdmin /></L></SuperAdminRoute>} />
+            <Route path="settings" element={<L><Settings /></L>} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

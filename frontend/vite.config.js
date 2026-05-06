@@ -13,6 +13,19 @@ export default defineConfig({
       '/api': { target: 'http://localhost:5000', changeOrigin: true }
     }
   },
+  build: {
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'charts': ['recharts'],
+          'icons': ['lucide-react'],
+          'utils': ['axios', 'react-hot-toast', 'qrcode'],
+        }
+      }
+    }
+  },
   test: {
     globals: true,
     environment: 'jsdom',
