@@ -26,6 +26,9 @@ const OPTIONAL_DEFAULTS = {
   TWILIO_PHONE: '',
   UPLOAD_DIR: 'uploads',
   MAX_FILE_SIZE_MB: '50',
+  SENTRY_DSN: '',
+  SENTRY_TRACES_SAMPLE_RATE: '0.1',
+  LOG_DRAIN_URL: '',
 };
 
 function validateEnv() {

@@ -184,6 +184,7 @@ const login = async (req, res) => {
           lastName: user.last_name,
           email: user.email,
           role: user.role,
+          isSuperAdmin: user.is_super_admin || false,
           churchId: user.church_id,
           churchName: user.church_name,
           churchSlug: user.church_slug,

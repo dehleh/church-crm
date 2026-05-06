@@ -23,12 +23,24 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'User not found or inactive' });
     }
 
-    if (!rows[0].church_active) {
+    // Super admins bypass church-suspended check (they manage tenants)
+    if (!rows[0].church_active && !rows[0].is_super_admin) {
       return res.status(403).json({ success: false, message: 'Church account is suspended' });
     }
 
     req.user = rows[0];
     req.churchId = rows[0].church_id;
+    // Branch context: explicit query param overrides; branch-scoped roles are pinned.
+    const q = req.query || {};
+    const branchScopedRoles = ['branch_admin', 'branch_pastor'];
+    if (branchScopedRoles.includes(rows[0].role)) {
+      req.branchId = rows[0].branch_id || null;
+      if (q.branchId && q.branchId !== req.branchId) {
+        return res.status(403).json({ success: false, message: 'Branch scope violation' });
+      }
+    } else {
+      req.branchId = q.branchId || null;
+    }
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
@@ -40,6 +52,7 @@ const authenticate = async (req, res, next) => {
 
 const authorize = (...roles) => {
   return (req, res, next) => {
+    if (req.user?.is_super_admin) return next();
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
@@ -50,12 +63,20 @@ const authorize = (...roles) => {
   };
 };
 
+const requireSuperAdmin = (req, res, next) => {
+  if (!req.user?.is_super_admin) {
+    return res.status(403).json({ success: false, message: 'Super admin only' });
+  }
+  next();
+};
+
 // Ensure user can only access their own church's data
 const tenantGuard = (req, res, next) => {
+  if (req.user?.is_super_admin) return next();
   if (req.params.churchId && req.params.churchId !== req.churchId) {
     return res.status(403).json({ success: false, message: 'Access denied' });
   }
   next();
 };
 
-module.exports = { authenticate, authorize, tenantGuard };
+module.exports = { authenticate, authorize, requireSuperAdmin, tenantGuard };

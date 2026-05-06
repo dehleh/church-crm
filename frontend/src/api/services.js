@@ -192,6 +192,16 @@ export const procurementAPI = {
   importPurchaseRequests: (data) => api.post('/procurement/purchase-requests/import', data),
 };
 
+export const platformAPI = {
+  stats: () => api.get('/platform/stats'),
+  listChurches: (params) => api.get('/platform/churches', { params }),
+  getChurch: (id) => api.get(`/platform/churches/${id}`),
+  suspendChurch: (id, data) => api.patch(`/platform/churches/${id}/suspend`, data),
+  activateChurch: (id) => api.patch(`/platform/churches/${id}/activate`),
+  deleteChurch: (id) => api.delete(`/platform/churches/${id}`),
+  auditLog: (params) => api.get('/platform/audit-log', { params }),
+};
+
 export const publicIntakeAPI = {
   getContext: (churchSlug) => publicApi.get(`/churches/${churchSlug}/intake`),
   getEventCheckIn: (churchSlug, eventId) => publicApi.get(`/churches/${churchSlug}/events/${eventId}/check-in`),

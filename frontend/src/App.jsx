@@ -26,6 +26,7 @@ import Assets from './pages/Assets';
 import Counseling from './pages/Counseling';
 import Welfare from './pages/Welfare';
 import Procurement from './pages/Procurement';
+import PlatformAdmin from './pages/PlatformAdmin';
 import PublicFirstTimerForm from './pages/PublicFirstTimerForm';
 import PublicMemberForm from './pages/PublicMemberForm';
 import PublicPrayerForm from './pages/PublicPrayerForm';
@@ -44,6 +45,14 @@ function PrivateRoute({ children }) {
     </div>
   );
   return user ? children : <Navigate to="/login" replace />;
+}
+
+function SuperAdminRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.isSuperAdmin) return <Navigate to="/dashboard" replace />;
+  return children;
 }
 
 function PublicRoute({ children }) {
@@ -88,6 +97,7 @@ export default function App() {
             <Route path="counseling" element={<ErrorBoundary><Counseling /></ErrorBoundary>} />
             <Route path="welfare" element={<ErrorBoundary><Welfare /></ErrorBoundary>} />
             <Route path="procurement" element={<ErrorBoundary><Procurement /></ErrorBoundary>} />
+            <Route path="platform" element={<SuperAdminRoute><ErrorBoundary><PlatformAdmin /></ErrorBoundary></SuperAdminRoute>} />
             <Route path="settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

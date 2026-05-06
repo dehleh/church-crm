@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, Bell, Menu,
   MessageSquare, ShieldCheck, BarChart2, PiggyBank, CheckSquare,
   Settings, PhoneCall, Users2, Package, HandHeart, Heart,
-  User, KeyRound, ClipboardList
+  User, KeyRound, ClipboardList, Globe
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import GlobalSearch from '../ui/GlobalSearch';
@@ -43,6 +43,9 @@ const NAV = [
     { to: '/users',    icon: ShieldCheck, label: 'Users' },
     { to: '/reports',  icon: BarChart2,   label: 'Reports' },
     { to: '/settings', icon: Settings,    label: 'Settings' },
+  ]},
+  { group: 'Platform', superAdminOnly: true, items: [
+    { to: '/platform', icon: Globe, label: 'Platform Admin', superAdminOnly: true },
   ]},
 ];
 
@@ -104,7 +107,7 @@ export default function Layout() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
-          {NAV.map(group => (
+          {NAV.filter(g => !g.superAdminOnly || user?.isSuperAdmin).map(group => (
             <div key={group.group} className="mb-1">
               {!collapsed && (
                 <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">

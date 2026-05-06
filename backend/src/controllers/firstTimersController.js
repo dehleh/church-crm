@@ -1,4 +1,4 @@
-const { query } = require('../config/database');
+const { query, getClient } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { createFirstTimerRecord } = require('../services/intakeService');
 
@@ -80,19 +80,28 @@ const updateFollowUpStatus = async (req, res) => {
 
 const convertToMember = async (req, res) => {
   const { id } = req.params;
+  const client = await getClient();
   try {
-    const { rows: ftRows } = await query(
-      'SELECT * FROM first_timers WHERE id = $1 AND church_id = $2',
+    await client.query('BEGIN');
+    const { rows: ftRows } = await client.query(
+      'SELECT * FROM first_timers WHERE id = $1 AND church_id = $2 FOR UPDATE',
       [id, req.churchId]
     );
-    if (!ftRows[0]) return res.status(404).json({ success: false, message: 'First timer not found' });
-
+    if (!ftRows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'First timer not found' });
+    }
     const ft = ftRows[0];
-    const countRes = await query('SELECT COUNT(*) FROM members WHERE church_id = $1', [req.churchId]);
+    if (ft.converted_to_member) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, message: 'Already converted' });
+    }
+
+    const countRes = await client.query('SELECT COUNT(*) FROM members WHERE church_id = $1', [req.churchId]);
     const memberNumber = `MBR-${String(parseInt(countRes.rows[0].count) + 1).padStart(5, '0')}`;
     const memberId = uuidv4();
 
-    const { rows: memberRows } = await query(
+    const { rows: memberRows } = await client.query(
       `INSERT INTO members (id, church_id, branch_id, member_number, first_name, last_name,
         email, phone, gender, date_of_birth, address, join_date)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CURRENT_DATE) RETURNING *`,
@@ -100,15 +109,19 @@ const convertToMember = async (req, res) => {
        ft.email, ft.phone, ft.gender, ft.date_of_birth, ft.address]
     );
 
-    await query(
+    await client.query(
       `UPDATE first_timers SET converted_to_member = true, member_id = $1, follow_up_status = 'converted'
        WHERE id = $2`,
       [memberId, id]
     );
 
+    await client.query('COMMIT');
     return res.json({ success: true, data: memberRows[0], message: 'First timer converted to member' });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     return res.status(500).json({ success: false, message: 'Server error' });
+  } finally {
+    client.release();
   }
 };
 

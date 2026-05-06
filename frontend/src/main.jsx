@@ -5,6 +5,18 @@ import { Toaster } from 'react-hot-toast';
 import App from './App';
 import './index.css';
 
+// Optional Sentry init (only if DSN provided at build time)
+if (import.meta.env.VITE_SENTRY_DSN) {
+  // Lazy import so missing dep doesn't break dev/build
+  import('@sentry/react').then((Sentry) => {
+    Sentry.init({
+      dsn: import.meta.env.VITE_SENTRY_DSN,
+      environment: import.meta.env.MODE,
+      tracesSampleRate: parseFloat(import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE || '0.1'),
+    });
+  }).catch(() => { /* sentry optional */ });
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>

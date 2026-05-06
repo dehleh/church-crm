@@ -11,7 +11,27 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const logger = require('./config/logger');
 
+// Optional Sentry init (only if DSN provided)
+let Sentry = null;
+if (process.env.SENTRY_DSN) {
+  try {
+    Sentry = require('@sentry/node');
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV || 'development',
+      tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1'),
+    });
+    logger.info('Sentry error tracking enabled');
+  } catch (e) {
+    logger.warn('Sentry DSN set but @sentry/node not installed; skipping');
+    Sentry = null;
+  }
+}
+
 const app = express();
+if (Sentry) {
+  app.use(Sentry.Handlers.requestHandler());
+}
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Trust proxy (Railway, Render, etc. run behind a reverse proxy)
@@ -116,6 +136,7 @@ app.use('/api/assets',         require('./routes/assets'));
 app.use('/api/counseling',     require('./routes/counseling'));
 app.use('/api/welfare',        require('./routes/welfare'));
 app.use('/api/procurement',    require('./routes/procurement'));
+app.use('/api/platform',       require('./routes/platform'));
 
 // Health check — with DB verification
 const { healthCheck } = require('./config/database');
@@ -149,6 +170,9 @@ if (process.env.NODE_ENV === 'production') {
 // ── Error Handling ───────────────────────────────────────────
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 app.use(notFound);
+if (Sentry) {
+  app.use(Sentry.Handlers.errorHandler());
+}
 app.use(errorHandler);
 
 // ── Start ────────────────────────────────────────────────────
