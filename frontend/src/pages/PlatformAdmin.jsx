@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Building2, Users, ShieldAlert, ShieldCheck, Trash2,
-  Search, Loader2, BarChart3, Eye, RefreshCw, Plus, Copy, CheckCircle2
+  Search, Loader2, BarChart3, Eye, RefreshCw, Plus, Copy, CheckCircle2, KeyRound
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { platformAPI } from '../api/services';
@@ -65,6 +65,22 @@ export default function PlatformAdmin() {
       toast.success('Church re-activated');
       loadAll();
     } catch { toast.error('Failed'); } finally { setBusyId(null); }
+  };
+
+  const resetPassword = async (church) => {
+    if (!window.confirm(`Reset admin password for "${church.name}"? The current password will stop working immediately.`)) return;
+    setBusyId(church.id);
+    try {
+      const { data } = await platformAPI.resetChurchAdminPassword(church.id);
+      setCreateResult({
+        church: { name: church.name, slug: church.slug },
+        admin: data.data.user,
+        temporaryPassword: data.data.temporaryPassword,
+        isReset: true,
+      });
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to reset password');
+    } finally { setBusyId(null); }
   };
 
   const doDelete = async () => {
@@ -223,6 +239,8 @@ export default function PlatformAdmin() {
                               className="p-1.5 hover:bg-amber-50 rounded text-amber-700" title="Suspend"><ShieldAlert size={14}/></button>
                           : <button onClick={()=>activate(c)} disabled={busyId===c.id}
                               className="p-1.5 hover:bg-green-50 rounded text-green-700" title="Activate"><ShieldCheck size={14}/></button>}
+                        <button onClick={()=>resetPassword(c)} disabled={busyId===c.id}
+                          className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="Reset admin password"><KeyRound size={14}/></button>
                         <button onClick={()=>setConfirmDelete(c)} disabled={busyId===c.id}
                           className="p-1.5 hover:bg-red-50 rounded text-red-600" title="Delete"><Trash2 size={14}/></button>
                       </div>
@@ -342,12 +360,16 @@ export default function PlatformAdmin() {
       </Modal>
 
       {/* Created result */}
-      <Modal open={!!createResult} onClose={() => setCreateResult(null)} title="Church created">
+      <Modal open={!!createResult} onClose={() => setCreateResult(null)} title={createResult?.isReset ? 'Password reset' : 'Church created'}>
         {createResult && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-green-700">
               <CheckCircle2 size={20}/>
-              <span className="font-semibold">{createResult.church.name} is live.</span>
+              <span className="font-semibold">
+                {createResult.isReset
+                  ? `Password reset for ${createResult.admin.email}`
+                  : `${createResult.church.name} is live.`}
+              </span>
             </div>
             <div className="text-sm space-y-1">
               <Row k="Login URL" v={`${window.location.origin}/login`} />

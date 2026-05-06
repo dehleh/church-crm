@@ -258,11 +258,69 @@ const createChurch = async (req, res) => {
   }
 };
 
+// POST /api/platform/churches/:id/reset-admin-password
+// Resets the head_pastor's password (or a specified userId within the church) to a generated temp password.
+// Body (optional): { userId?: uuid, newPassword?: string }
+const resetChurchAdminPassword = async (req, res) => {
+  const { id: churchId } = req.params;
+  const { userId, newPassword } = req.body || {};
+  try {
+    let target;
+    if (userId) {
+      const r = await query(
+        `SELECT id, email, first_name, last_name, role FROM users WHERE id = $1 AND church_id = $2`,
+        [userId, churchId]
+      );
+      target = r.rows[0];
+    } else {
+      // Default: oldest head_pastor in the church
+      const r = await query(
+        `SELECT id, email, first_name, last_name, role FROM users
+         WHERE church_id = $1 AND role = 'head_pastor'
+         ORDER BY created_at ASC LIMIT 1`,
+        [churchId]
+      );
+      target = r.rows[0];
+    }
+    if (!target) {
+      return res.status(404).json({ success: false, message: 'Admin user not found for this church' });
+    }
+
+    const generated = newPassword ? null : crypto.randomBytes(12).toString('base64url');
+    const passwordToHash = newPassword || generated;
+    if (!passwordToHash || passwordToHash.length < 8) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+    }
+    const passwordHash = await bcrypt.hash(passwordToHash, 12);
+
+    await query(
+      `UPDATE users SET password_hash = $1, refresh_token = NULL WHERE id = $2`,
+      [passwordHash, target.id]
+    );
+
+    await audit(req.user.id, 'reset_admin_password', churchId, {
+      targetUserId: target.id, targetEmail: target.email, passwordGenerated: !!generated,
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        user: { id: target.id, email: target.email, firstName: target.first_name, lastName: target.last_name, role: target.role },
+        temporaryPassword: generated,
+      },
+    });
+  } catch (err) {
+    logger.error('reset admin password failed', { err: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   getPlatformStats,
   listChurches,
   getChurch,
   createChurch,
+  resetChurchAdminPassword,
   suspendChurch,
   activateChurch,
   deleteChurch,

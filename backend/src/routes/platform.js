@@ -27,6 +27,11 @@ router.patch('/churches/:id/suspend', idParam,
   [body('reason').optional().isString().isLength({ max: 500 }), handleValidationErrors],
   ctrl.suspendChurch);
 router.patch('/churches/:id/activate', idParam, ctrl.activateChurch);
+router.post('/churches/:id/reset-admin-password', idParam, [
+  body('userId').optional().isUUID(),
+  body('newPassword').optional({ values: 'falsy' }).isLength({ min: 8, max: 128 }),
+  handleValidationErrors,
+], ctrl.resetChurchAdminPassword);
 router.delete('/churches/:id', idParam, ctrl.deleteChurch);
 router.get('/audit-log', ctrl.getAuditLog);
 
