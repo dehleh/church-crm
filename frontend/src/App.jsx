@@ -36,6 +36,15 @@ const PublicPrayerForm = lazy(() => import('./pages/PublicPrayerForm'));
 const PublicWelfareForm = lazy(() => import('./pages/PublicWelfareForm'));
 const PublicEventCheckIn = lazy(() => import('./pages/PublicEventCheckIn'));
 
+const MemberLogin = lazy(() => import('./pages/portal/MemberLogin'));
+const MemberSetPassword = lazy(() => import('./pages/portal/MemberSetPassword'));
+const MemberPortalLayout = lazy(() => import('./pages/portal/MemberPortalLayout'));
+const MemberHome = lazy(() => import('./pages/portal/MemberHome'));
+const MemberPortalProfile = lazy(() => import('./pages/portal/MemberPortalProfile'));
+const MemberPortalGiving = lazy(() => import('./pages/portal/MemberPortalGiving'));
+const MemberPortalEvents = lazy(() => import('./pages/portal/MemberPortalEvents'));
+const MemberPortalPrayer = lazy(() => import('./pages/portal/MemberPortalPrayer'));
+
 function PageLoader() {
   return (
     <div className="min-h-[40vh] flex items-center justify-center">
@@ -99,6 +108,19 @@ export default function App() {
           <Route path="/connect/:churchSlug/prayer" element={<L><PublicPrayerForm /></L>} />
           <Route path="/connect/:churchSlug/welfare" element={<L><PublicWelfareForm /></L>} />
           <Route path="/connect/:churchSlug/events/:eventId/check-in" element={<L><PublicEventCheckIn /></L>} />
+
+          {/* Member-facing portal */}
+          <Route path="/portal/:churchSlug/login" element={<L><MemberLogin /></L>} />
+          <Route path="/portal/:churchSlug/set-password" element={<L><MemberSetPassword /></L>} />
+          <Route path="/portal/:churchSlug" element={<L><MemberPortalLayout /></L>}>
+            <Route index element={<Navigate to="home" replace />} />
+            <Route path="home" element={<L><MemberHome /></L>} />
+            <Route path="profile" element={<L><MemberPortalProfile /></L>} />
+            <Route path="giving" element={<L><MemberPortalGiving /></L>} />
+            <Route path="events" element={<L><MemberPortalEvents /></L>} />
+            <Route path="prayer" element={<L><MemberPortalPrayer /></L>} />
+          </Route>
+
           <Route path="/" element={<RootRoute />} />
           <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route path="dashboard" element={<L><Dashboard /></L>} />

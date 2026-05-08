@@ -139,6 +139,8 @@ app.use('/api/procurement',    require('./routes/procurement'));
 app.use('/api/platform',       require('./routes/platform'));
 app.use('/api/contact',        require('./routes/contact'));
 app.use('/api/jobs',           require('./routes/jobs'));
+app.use('/api/member-auth',    require('./routes/memberAuth'));
+app.use('/api/me',             require('./routes/memberPortal'));
 
 // Initialize background job queue (BullMQ if REDIS_URL set, in-process otherwise).
 // Importing csvImportController here also registers the CSV processors.
