@@ -1,5 +1,7 @@
 const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
+const path = require('path');
+const fs = require('fs');
 const logger = require('../config/logger');
 
 const PROFILE_FIELDS = [
@@ -33,6 +35,7 @@ const getProfile = async (req, res) => {
       country: m.country,
       occupation: m.occupation,
       employer: m.employer,
+      profilePhotoUrl: m.profile_photo_url,
       nextOfKinName: m.next_of_kin_name,
       nextOfKinPhone: m.next_of_kin_phone,
       nextOfKinRelationship: m.next_of_kin_relationship,
@@ -138,7 +141,7 @@ const submitPrayerRequest = async (req, res) => {
 // GET /api/me/home — quick dashboard stats
 const getHome = async (req, res) => {
   try {
-    const [giveRes, evtRes] = await Promise.all([
+    const [giveRes, evtRes, deptRes, grpRes, prayerRes] = await Promise.all([
       query(
         `SELECT COALESCE(SUM(amount), 0) as ytd, COUNT(*) as count
          FROM transactions
@@ -153,12 +156,32 @@ const getHome = async (req, res) => {
          ORDER BY start_datetime ASC LIMIT 3`,
         [req.churchId]
       ),
+      query(
+        `SELECT d.id, d.name, md.role FROM member_departments md
+         JOIN departments d ON d.id = md.department_id
+         WHERE md.member_id = $1 AND md.is_active = true AND d.is_active = true`,
+        [req.member.id]
+      ),
+      query(
+        `SELECT g.id, g.name, mg.role FROM member_groups mg
+         JOIN groups g ON g.id = mg.group_id
+         WHERE mg.member_id = $1 AND mg.is_active = true AND g.is_active = true`,
+        [req.member.id]
+      ),
+      query(
+        `SELECT COUNT(*)::int as open FROM prayer_requests
+         WHERE member_id = $1 AND status IN ('open','praying')`,
+        [req.member.id]
+      ),
     ]);
     return res.json({
       success: true,
       data: {
         givingYtd: giveRes.rows[0],
         upcomingEvents: evtRes.rows,
+        departments: deptRes.rows,
+        groups: grpRes.rows,
+        openPrayers: prayerRes.rows[0]?.open || 0,
       },
     });
   } catch (err) {
@@ -166,4 +189,179 @@ const getHome = async (req, res) => {
   }
 };
 
-module.exports = { getProfile, updateProfile, getGiving, getEvents, submitPrayerRequest, getHome };
+// POST /api/me/avatar (multipart "avatar")
+const uploadAvatar = async (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+  try {
+    const url = `/uploads/avatars/${req.file.filename}`;
+    // delete old file if it lives in uploads/avatars
+    if (req.member.profile_photo_url && req.member.profile_photo_url.startsWith('/uploads/avatars/')) {
+      const old = path.resolve(process.env.UPLOAD_DIR || 'uploads', 'avatars', path.basename(req.member.profile_photo_url));
+      fs.promises.unlink(old).catch(() => {});
+    }
+    await query('UPDATE members SET profile_photo_url = $1, updated_at = NOW() WHERE id = $2', [url, req.member.id]);
+    return res.json({ success: true, data: { profilePhotoUrl: url } });
+  } catch (err) {
+    logger.error('member uploadAvatar failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/me/affiliations — departments + groups
+const getAffiliations = async (req, res) => {
+  try {
+    const [deptRes, grpRes] = await Promise.all([
+      query(
+        `SELECT d.id, d.name, d.description, d.category, d.meeting_schedule, md.role, md.joined_at
+         FROM member_departments md
+         JOIN departments d ON d.id = md.department_id
+         WHERE md.member_id = $1 AND md.is_active = true AND d.is_active = true
+         ORDER BY d.name`,
+        [req.member.id]
+      ),
+      query(
+        `SELECT g.id, g.name, g.description, g.purpose, g.meeting_schedule, mg.role, mg.joined_at
+         FROM member_groups mg
+         JOIN groups g ON g.id = mg.group_id
+         WHERE mg.member_id = $1 AND mg.is_active = true AND g.is_active = true
+         ORDER BY g.name`,
+        [req.member.id]
+      ),
+    ]);
+    return res.json({ success: true, data: { departments: deptRes.rows, groups: grpRes.rows } });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/me/prayer-requests — list mine
+const listMyPrayerRequests = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, request, category, status, response_notes, created_at, updated_at
+       FROM prayer_requests WHERE member_id = $1
+       ORDER BY created_at DESC LIMIT 50`,
+      [req.member.id]
+    );
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/me/welfare/packages
+const listWelfarePackages = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, name, description, package_type FROM welfare_packages
+       WHERE church_id = $1 AND is_active = true ORDER BY name`,
+      [req.churchId]
+    );
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// POST /api/me/welfare/applications  Body: { packageId, reason, amountRequested? }
+const submitWelfareRequest = async (req, res) => {
+  const { packageId, reason, amountRequested } = req.body;
+  if (!packageId || !reason || !reason.trim()) {
+    return res.status(400).json({ success: false, message: 'Package and reason are required' });
+  }
+  try {
+    const m = req.member;
+    await query(
+      `INSERT INTO welfare_applications
+        (id, church_id, package_id, member_id, applicant_name, reason, amount_requested, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'pending')`,
+      [
+        uuidv4(), req.churchId, packageId, m.id,
+        `${m.first_name} ${m.last_name}`,
+        reason.trim().slice(0, 2000),
+        amountRequested ? Number(amountRequested) : null,
+      ]
+    );
+    return res.json({ success: true, message: 'Welfare request submitted' });
+  } catch (err) {
+    logger.error('member submitWelfareRequest failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/me/welfare/applications
+const listMyWelfareApplications = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT wa.id, wa.reason, wa.status, wa.amount_requested, wa.amount_approved,
+              wa.created_at, wa.reviewed_at, wp.name as package_name, wp.package_type
+       FROM welfare_applications wa
+       JOIN welfare_packages wp ON wp.id = wa.package_id
+       WHERE wa.member_id = $1
+       ORDER BY wa.created_at DESC LIMIT 50`,
+      [req.member.id]
+    );
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// POST /api/me/counseling  Body: { sessionType, notes, preferredDate? }
+const submitCounselingRequest = async (req, res) => {
+  const { sessionType, notes, preferredDate } = req.body;
+  if (!notes || !notes.trim()) {
+    return res.status(400).json({ success: false, message: 'Please describe what you need counsel about' });
+  }
+  try {
+    const m = req.member;
+    await query(
+      `INSERT INTO counseling_sessions
+        (id, church_id, branch_id, member_id, requester_name, session_type, status, scheduled_at, notes, is_confidential)
+       VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8,true)`,
+      [
+        uuidv4(), req.churchId, m.branch_id || null, m.id,
+        `${m.first_name} ${m.last_name}`,
+        sessionType || 'general',
+        preferredDate ? new Date(preferredDate) : null,
+        notes.trim().slice(0, 2000),
+      ]
+    );
+    return res.json({ success: true, message: 'Counseling request submitted' });
+  } catch (err) {
+    logger.error('member submitCounselingRequest failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/me/counseling
+const listMyCounselingSessions = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, session_type, status, scheduled_at, completed_at, notes, created_at
+       FROM counseling_sessions WHERE member_id = $1
+       ORDER BY created_at DESC LIMIT 50`,
+      [req.member.id]
+    );
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+module.exports = {
+  getProfile,
+  updateProfile,
+  getGiving,
+  getEvents,
+  submitPrayerRequest,
+  listMyPrayerRequests,
+  getHome,
+  uploadAvatar,
+  getAffiliations,
+  listWelfarePackages,
+  submitWelfareRequest,
+  listMyWelfareApplications,
+  submitCounselingRequest,
+  listMyCounselingSessions,
+};

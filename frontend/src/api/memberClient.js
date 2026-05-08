@@ -34,9 +34,21 @@ export const memberPortalAPI = {
   home: () => memberApi.get('/me/home'),
   getProfile: () => memberApi.get('/me/profile'),
   updateProfile: (data) => memberApi.patch('/me/profile', data),
+  uploadAvatar: (file) => {
+    const fd = new FormData();
+    fd.append('avatar', file);
+    return memberApi.post('/me/avatar', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  affiliations: () => memberApi.get('/me/affiliations'),
   giving: () => memberApi.get('/me/giving'),
   events: () => memberApi.get('/me/events'),
+  listPrayers: () => memberApi.get('/me/prayer-requests'),
   submitPrayer: (data) => memberApi.post('/me/prayer-requests', data),
+  welfarePackages: () => memberApi.get('/me/welfare/packages'),
+  myWelfareApplications: () => memberApi.get('/me/welfare/applications'),
+  submitWelfare: (data) => memberApi.post('/me/welfare/applications', data),
+  myCounseling: () => memberApi.get('/me/counseling'),
+  submitCounseling: (data) => memberApi.post('/me/counseling', data),
 };
 
 export default memberApi;

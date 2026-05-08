@@ -14,7 +14,7 @@ export default function MemberPortalGiving() {
   }, []);
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-2">My Giving</h1>
       <p className="text-gray-500 text-sm mb-6">A record of contributions linked to your membership.</p>
 

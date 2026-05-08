@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Camera } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { memberPortalAPI } from '../../api/memberClient';
 
@@ -49,17 +49,61 @@ export default function MemberPortalProfile() {
   );
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none';
 
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return toast.error('Image must be under 5MB');
+    setUploading(true);
+    try {
+      await memberPortalAPI.uploadAvatar(file);
+      toast.success('Photo updated');
+      refresh && refresh();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+  const initials = `${me.firstName?.[0] || ''}${me.lastName?.[0] || ''}`.toUpperCase();
+
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-2">My Profile</h1>
       <p className="text-gray-500 text-sm mb-6">Keep your contact and family details current so the church can stay in touch.</p>
 
+      <div className="bg-white border border-gray-100 rounded-xl p-5 mb-4">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            {me.profilePhotoUrl ? (
+              <img src={me.profilePhotoUrl} alt="" className="w-20 h-20 rounded-full object-cover ring-2 ring-brand-100" />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center font-bold text-2xl">{initials}</div>
+            )}
+            <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+              className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-700 hover:bg-gray-50">
+              {uploading ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-lg font-bold text-gray-900 truncate">{me.firstName} {me.middleName} {me.lastName}</div>
+            <div className="text-xs text-gray-500">{me.memberNumber}</div>
+            <button type="button" onClick={() => fileRef.current?.click()} className="text-xs text-brand-600 font-semibold hover:underline mt-1">
+              Change profile photo
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-white border border-gray-100 rounded-xl p-5 mb-6">
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div><div className="text-xs text-gray-400 uppercase font-semibold">Name</div><div className="text-gray-900 font-medium mt-0.5">{me.firstName} {me.middleName} {me.lastName}</div></div>
-          <div><div className="text-xs text-gray-400 uppercase font-semibold">Member Number</div><div className="text-gray-900 font-medium mt-0.5">{me.memberNumber}</div></div>
-          <div><div className="text-xs text-gray-400 uppercase font-semibold">Email</div><div className="text-gray-900 font-medium mt-0.5">{me.email || '—'}</div></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <div><div className="text-xs text-gray-400 uppercase font-semibold">Email</div><div className="text-gray-900 font-medium mt-0.5 break-all">{me.email || '—'}</div></div>
           <div><div className="text-xs text-gray-400 uppercase font-semibold">Date of Birth</div><div className="text-gray-900 font-medium mt-0.5">{fmtDate(me.dateOfBirth) || '—'}</div></div>
+          <div><div className="text-xs text-gray-400 uppercase font-semibold">Gender</div><div className="text-gray-900 font-medium mt-0.5 capitalize">{me.gender || '—'}</div></div>
+          <div><div className="text-xs text-gray-400 uppercase font-semibold">Joined</div><div className="text-gray-900 font-medium mt-0.5">{fmtDate(me.joinDate) || '—'}</div></div>
         </div>
         <p className="text-xs text-gray-400 mt-3">Contact your church admin to change your name, email, member number, gender, or date of birth.</p>
       </div>

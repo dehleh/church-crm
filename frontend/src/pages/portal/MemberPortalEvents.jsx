@@ -12,7 +12,7 @@ export default function MemberPortalEvents() {
   }, []);
 
   return (
-    <div className="p-8 max-w-4xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-2">Upcoming Events</h1>
       <p className="text-gray-500 text-sm mb-6">Services, meetings and special programmes coming up.</p>
 

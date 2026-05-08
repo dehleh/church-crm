@@ -44,6 +44,9 @@ const MemberPortalProfile = lazy(() => import('./pages/portal/MemberPortalProfil
 const MemberPortalGiving = lazy(() => import('./pages/portal/MemberPortalGiving'));
 const MemberPortalEvents = lazy(() => import('./pages/portal/MemberPortalEvents'));
 const MemberPortalPrayer = lazy(() => import('./pages/portal/MemberPortalPrayer'));
+const MemberPortalGroups = lazy(() => import('./pages/portal/MemberPortalGroups'));
+const MemberPortalCounseling = lazy(() => import('./pages/portal/MemberPortalCounseling'));
+const MemberPortalWelfare = lazy(() => import('./pages/portal/MemberPortalWelfare'));
 
 function PageLoader() {
   return (
@@ -119,6 +122,9 @@ export default function App() {
             <Route path="giving" element={<L><MemberPortalGiving /></L>} />
             <Route path="events" element={<L><MemberPortalEvents /></L>} />
             <Route path="prayer" element={<L><MemberPortalPrayer /></L>} />
+            <Route path="groups" element={<L><MemberPortalGroups /></L>} />
+            <Route path="counseling" element={<L><MemberPortalCounseling /></L>} />
+            <Route path="welfare" element={<L><MemberPortalWelfare /></L>} />
           </Route>
 
           <Route path="/" element={<RootRoute />} />
