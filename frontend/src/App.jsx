@@ -30,6 +30,8 @@ const Counseling = lazy(() => import('./pages/Counseling'));
 const Welfare = lazy(() => import('./pages/Welfare'));
 const Procurement = lazy(() => import('./pages/Procurement'));
 const PlatformAdmin = lazy(() => import('./pages/PlatformAdmin'));
+const PlatformAuditLog = lazy(() => import('./pages/PlatformAuditLog'));
+const PlatformLayout = lazy(() => import('./components/layout/PlatformLayout'));
 const PublicFirstTimerForm = lazy(() => import('./pages/PublicFirstTimerForm'));
 const PublicMemberForm = lazy(() => import('./pages/PublicMemberForm'));
 const PublicPrayerForm = lazy(() => import('./pages/PublicPrayerForm'));
@@ -89,12 +91,14 @@ function SuperAdminRoute({ children }) {
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;
+  if (user?.isSuperAdmin) return <Navigate to="/platform" replace />;
   return user ? <Navigate to="/dashboard" replace /> : children;
 }
 
 function RootRoute() {
   const { user, loading } = useAuth();
   if (loading) return null;
+  if (user?.isSuperAdmin) return <Navigate to="/platform" replace />;
   if (user) return <Navigate to="/dashboard" replace />;
   return <L><Landing /></L>;
 }
@@ -127,6 +131,12 @@ export default function App() {
             <Route path="welfare" element={<L><MemberPortalWelfare /></L>} />
           </Route>
 
+          {/* Platform Admin — completely separate shell */}
+          <Route path="/platform" element={<SuperAdminRoute><L><PlatformLayout /></L></SuperAdminRoute>}>
+            <Route index element={<L><PlatformAdmin /></L>} />
+            <Route path="audit-log" element={<L><PlatformAuditLog /></L>} />
+          </Route>
+
           <Route path="/" element={<RootRoute />} />
           <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route path="dashboard" element={<L><Dashboard /></L>} />
@@ -151,7 +161,6 @@ export default function App() {
             <Route path="counseling" element={<L><Counseling /></L>} />
             <Route path="welfare" element={<L><Welfare /></L>} />
             <Route path="procurement" element={<L><Procurement /></L>} />
-            <Route path="platform" element={<SuperAdminRoute><L><PlatformAdmin /></L></SuperAdminRoute>} />
             <Route path="settings" element={<L><Settings /></L>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

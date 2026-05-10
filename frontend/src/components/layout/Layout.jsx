@@ -44,9 +44,6 @@ const NAV = [
     { to: '/reports',  icon: BarChart2,   label: 'Reports' },
     { to: '/settings', icon: Settings,    label: 'Settings' },
   ]},
-  { group: 'Platform', superAdminOnly: true, items: [
-    { to: '/platform', icon: Globe, label: 'Platform Admin', superAdminOnly: true },
-  ]},
 ];
 
 function getInitials(firstName, lastName) {
@@ -107,7 +104,7 @@ export default function Layout() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
-          {NAV.filter(g => !g.superAdminOnly || user?.isSuperAdmin).map(group => (
+          {NAV.map(group => (
             <div key={group.group} className="mb-1">
               {!collapsed && (
                 <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
@@ -172,6 +169,15 @@ export default function Layout() {
           <div className="flex-1 flex items-center gap-3 hidden md:flex">
             <GlobalSearch />
           </div>
+          {user?.isSuperAdmin && (
+            <button
+              onClick={() => navigate('/platform')}
+              title="Open Platform Console"
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-semibold uppercase tracking-wide transition-colors"
+            >
+              <Globe size={12} /> Platform
+            </button>
+          )}
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => { setShowNotifications(v => !v); setShowProfileMenu(false); }}

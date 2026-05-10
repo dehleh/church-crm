@@ -34,7 +34,7 @@ export default function Login() {
         navigate('/settings', { state: { changePassword: true } });
       } else {
         toast.success(`Welcome back, ${data.data.user.firstName}!`);
-        navigate('/dashboard');
+        navigate(data.data.user.isSuperAdmin ? '/platform' : '/dashboard');
       }
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please check your credentials and try again.';
