@@ -61,7 +61,7 @@ export default function Register() {
     try {
       const { data } = await authAPI.register(form);
       login(data.data.user, data.data);
-      toast.success('Church registered! Welcome to ChurchOS 🎉');
+      toast.success('Church registered! Welcome to The Mobile Missionaries 🎉');
       navigate('/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Registration failed');
@@ -74,10 +74,10 @@ export default function Register() {
     <div className="min-h-screen bg-gradient-to-br from-brand-950 via-brand-900 to-brand-800 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 backdrop-blur mb-4">
-            <span className="text-3xl">⛪</span>
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-white shadow-xl mb-4 p-2">
+            <img src="/logo.png" alt="The Mobile Missionaries" className="w-full h-full object-contain" />
           </div>
-          <h1 className="font-display text-3xl font-bold text-white">ChurchOS</h1>
+          <h1 className="font-display text-3xl font-bold text-white">The Mobile Missionaries</h1>
           <p className="text-brand-300 text-sm mt-1">Register your church in minutes</p>
         </div>
 
@@ -106,7 +106,7 @@ export default function Register() {
               <div>
                 <label className="label">Church URL Slug *</label>
                 <div className="flex">
-                  <span className="inline-flex items-center px-3 bg-gray-50 border border-r-0 border-gray-200 rounded-l-lg text-gray-500 text-sm">churchos.app/</span>
+                  <span className="inline-flex items-center px-3 bg-gray-50 border border-r-0 border-gray-200 rounded-l-lg text-gray-500 text-sm">themobilemissionary.org/</span>
                   <input className={`input rounded-l-none ${errors.churchSlug ? 'border-red-400' : ''}`} placeholder="tbc-lekki" value={form.churchSlug} onChange={set('churchSlug')} />
                 </div>
                 {errors.churchSlug ? <p className="text-xs text-red-500 mt-1">{errors.churchSlug}</p> : <p className="text-xs text-gray-400 mt-1">Only lowercase letters, numbers, and hyphens</p>}
@@ -161,7 +161,7 @@ export default function Register() {
               <div className="space-y-3">
                 {[
                   { label: 'Church Name', value: form.churchName },
-                  { label: 'Church Slug', value: `churchos.app/${form.churchSlug}` },
+                  { label: 'Church Slug', value: `themobilemissionary.org/${form.churchSlug}` },
                   { label: 'Denomination', value: form.denomination || 'Not specified' },
                   { label: 'Admin Name', value: `${form.adminFirstName} ${form.adminLastName}` },
                   { label: 'Admin Email', value: form.adminEmail },

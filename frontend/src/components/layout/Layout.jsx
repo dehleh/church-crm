@@ -91,12 +91,10 @@ export default function Layout() {
       )}>
         {/* Brand */}
         <div className={clsx('flex items-center border-b border-gray-100 flex-shrink-0 cursor-pointer', collapsed ? 'p-3 justify-center' : 'p-4 gap-3')} onClick={() => navigate('/dashboard')}>
-          <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-lg">⛪</span>
-          </div>
+          <img src="/logo.png" alt="TMM" className="w-9 h-9 object-contain flex-shrink-0" />
           {!collapsed && (
             <div>
-              <div className="font-display font-bold text-gray-900 text-base leading-tight">ChurchOS</div>
+              <div className="font-display font-bold text-gray-900 text-base leading-tight">TMM</div>
               <div className="text-[10px] text-gray-400 font-body leading-tight truncate max-w-[120px]">{user?.churchName}</div>
             </div>
           )}

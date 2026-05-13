@@ -49,10 +49,10 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 backdrop-blur mb-4">
-            <span className="text-3xl">⛪</span>
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-white shadow-xl mb-4 p-2">
+            <img src="/logo.png" alt="The Mobile Missionaries" className="w-full h-full object-contain" />
           </div>
-          <h1 className="font-display text-3xl font-bold text-white">ChurchOS</h1>
+          <h1 className="font-display text-3xl font-bold text-white">The Mobile Missionaries</h1>
           <p className="text-brand-300 text-sm mt-1">Church Management Platform</p>
         </div>
 

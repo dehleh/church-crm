@@ -70,10 +70,8 @@ function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-3">
-      <div className="w-14 h-14 rounded-2xl bg-brand-600 flex items-center justify-center shadow-lg">
-        <span className="text-white text-3xl">⛪</span>
-      </div>
-      <div className="font-display font-bold text-gray-900 text-xl">ChurchOS</div>
+      <img src="/logo.png" alt="The Mobile Missionaries" className="w-20 h-20 object-contain" />
+      <div className="font-display font-bold text-gray-900 text-xl">The Mobile Missionaries</div>
       <div className="w-5 h-5 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin mt-1"></div>
     </div>
   );

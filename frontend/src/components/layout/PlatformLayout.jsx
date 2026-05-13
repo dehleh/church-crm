@@ -39,11 +39,11 @@ export default function PlatformLayout() {
       )}>
         {/* Brand */}
         <div className="flex items-center gap-3 p-4 border-b border-slate-800">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg">
-            <Globe size={20} className="text-white" />
+          <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-lg overflow-hidden">
+            <img src="/logo.png" alt="TMM" className="w-9 h-9 object-contain" />
           </div>
           <div className="min-w-0">
-            <div className="font-display font-bold text-white text-base leading-tight">ChurchOS</div>
+            <div className="font-display font-bold text-white text-base leading-tight">TMM</div>
             <div className="text-[10px] uppercase tracking-widest text-indigo-300 font-semibold">Platform Console</div>
           </div>
           <button onClick={() => setMobileOpen(false)} className="lg:hidden ml-auto p-1 text-slate-400 hover:text-white">

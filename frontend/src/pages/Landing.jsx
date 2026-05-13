@@ -69,7 +69,7 @@ const PRICING = [
 ];
 
 const TESTIMONIALS = [
-  { name: 'Pastor Emmanuel O.', church: 'The Branch Church, Lekki', quote: 'ChurchOS replaced 4 different tools for us. Our pastors actually use it because it just works.' },
+  { name: 'Pastor Emmanuel O.', church: 'The Branch Church, Lekki', quote: 'The Mobile Missionaries replaced 4 different tools for us. Our pastors actually use it because it just works.' },
   { name: 'Rev. Grace A.', church: 'Living Word Assembly', quote: 'We track giving, follow up new visitors, and run our cell groups all from one place. Game changer.' },
   { name: 'Bishop David M.', church: 'Faith Tabernacle Network', quote: 'Multi-branch was the dealbreaker for us. Each campus runs independently but I see everything from the top.' },
 ];
@@ -115,8 +115,8 @@ export default function Landing() {
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-gray-100">
         <Section className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white text-xl">⛪</div>
-            <span className="font-display font-bold text-xl">ChurchOS</span>
+            <img src="/logo.png" alt="TMM" className="w-10 h-10 object-contain" />
+            <span className="font-display font-bold text-xl">The Mobile Missionaries</span>
           </Link>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-700">
             <a href="#features" className="hover:text-brand-600">Features</a>
@@ -163,7 +163,7 @@ export default function Landing() {
               Run your entire <span className="text-brand-600">church</span> from one place.
             </h1>
             <p className="mt-6 text-lg text-gray-600 max-w-xl">
-              ChurchOS is the all-in-one platform to manage your members, finances, events, communications, and multiple branches. Spend less time on admin, more time on ministry.
+              The Mobile Missionaries is the all-in-one platform to manage your members, finances, events, communications, and multiple branches. Spend less time on admin, more time on ministry.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/register" className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white font-semibold hover:bg-brand-700 shadow-lg shadow-brand-600/20">
@@ -186,7 +186,7 @@ export default function Landing() {
                 <div className="w-3 h-3 rounded-full bg-red-400"></div>
                 <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
                 <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                <div className="ml-3 text-xs text-gray-500">app.churchos / dashboard</div>
+                <div className="ml-3 text-xs text-gray-500">app.themobilemissionary.org / dashboard</div>
               </div>
               <div className="p-6 grid grid-cols-2 gap-3">
                 {[
@@ -390,9 +390,9 @@ export default function Landing() {
               Questions about pricing, migrations, or enterprise plans? We're happy to help. Most messages get a reply within 4 business hours.
             </p>
             <div className="space-y-4">
-              <a href="mailto:hello@churchos.app" className="flex items-center gap-3 text-gray-700 hover:text-brand-600">
+              <a href="mailto:hello@themobilemissionary.org" className="flex items-center gap-3 text-gray-700 hover:text-brand-600">
                 <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center"><Mail className="w-5 h-5" /></div>
-                hello@churchos.app
+                hello@themobilemissionary.org
               </a>
               <a href="tel:+2348000000000" className="flex items-center gap-3 text-gray-700 hover:text-brand-600">
                 <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center"><Phone className="w-5 h-5" /></div>
@@ -456,7 +456,7 @@ export default function Landing() {
         <div className="rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 p-10 sm:p-16 text-center text-white">
           <h2 className="text-3xl sm:text-5xl font-display font-bold mb-4">Ready to transform your ministry?</h2>
           <p className="text-lg sm:text-xl text-brand-100 mb-8 max-w-2xl mx-auto">
-            Join hundreds of churches running better with ChurchOS. Setup is free and takes 60 seconds.
+            Join hundreds of churches running better with The Mobile Missionaries. Setup is free and takes 60 seconds.
           </p>
           <Link to="/register" className="inline-flex items-center gap-2 px-8 py-4 rounded-lg bg-white text-brand-700 font-bold text-lg hover:bg-brand-50">
             Get started free <ArrowRight className="w-5 h-5" />
@@ -469,8 +469,8 @@ export default function Landing() {
         <Section className="py-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center text-white">⛪</div>
-              <span className="font-display font-bold">ChurchOS</span>
+              <img src="/logo.png" alt="TMM" className="w-9 h-9 object-contain" />
+              <span className="font-display font-bold">The Mobile Missionaries</span>
             </div>
             <p className="text-sm text-gray-500">The all-in-one platform for modern churches.</p>
           </div>
@@ -486,7 +486,7 @@ export default function Landing() {
             <div className="font-semibold mb-3 text-sm">Company</div>
             <ul className="space-y-2 text-sm text-gray-600">
               <li><a href="#contact" className="hover:text-brand-600">Contact</a></li>
-              <li><a href="mailto:hello@churchos.app" className="hover:text-brand-600">hello@churchos.app</a></li>
+              <li><a href="mailto:hello@themobilemissionary.org" className="hover:text-brand-600">hello@themobilemissionary.org</a></li>
             </ul>
           </div>
           <div>
@@ -498,7 +498,7 @@ export default function Landing() {
           </div>
         </Section>
         <div className="border-t border-gray-100 py-6 text-center text-xs text-gray-500">
-          © {new Date().getFullYear()} ChurchOS. All rights reserved.
+          © {new Date().getFullYear()} The Mobile Missionaries. All rights reserved.
         </div>
       </footer>
     </div>

@@ -93,7 +93,7 @@ export default function PublicFirstTimerForm() {
           {submitted ? (
             <div className="text-center py-10 space-y-3">
               <h2 className="text-2xl font-display font-bold text-gray-900">Submission received</h2>
-              <p className="text-gray-600">Thank you for worshipping with us. Our team can now follow up with you from ChurchOS.</p>
+              <p className="text-gray-600">Thank you for worshipping with us. Our team can now follow up with you.</p>
               <button onClick={() => { setSubmitted(false); setForm({ firstName: '', lastName: '', phone: '', email: '', gender: '', visitDate: new Date().toISOString().slice(0, 10), dateOfBirth: '', howDidYouHear: '', address: '', branchId: '', prayerRequest: '', serviceAttended: '' }); }} className="btn-secondary">Submit another response</button>
             </div>
           ) : (
