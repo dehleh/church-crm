@@ -130,7 +130,7 @@ export default function Landing() {
           </nav>
           <div className="hidden md:flex items-center gap-3">
             <Link to="/login" className="text-sm font-medium text-gray-700 hover:text-brand-600">Sign in</Link>
-            <Link to="/register" className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700">
+            <Link to="/get-started" className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700">
               Get Started
             </Link>
           </div>
@@ -148,7 +148,7 @@ export default function Landing() {
               <a href="#contact" onClick={() => setOpen(false)}>Contact</a>
               <div className="flex gap-2 pt-2 border-t border-gray-100">
                 <Link to="/login" className="flex-1 px-4 py-2 text-center rounded-lg border border-gray-300">Sign in</Link>
-                <Link to="/register" className="flex-1 px-4 py-2 text-center rounded-lg bg-brand-600 text-white">Get Started</Link>
+                <Link to="/get-started" className="flex-1 px-4 py-2 text-center rounded-lg bg-brand-600 text-white">Get Started</Link>
               </div>
             </Section>
           </div>
@@ -169,17 +169,17 @@ export default function Landing() {
               The Mobile Missionaries is the all-in-one platform to manage your members, finances, events, communications, and multiple branches. Spend less time on admin, more time on ministry.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/register" className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white font-semibold hover:bg-brand-700 shadow-lg shadow-brand-600/20">
-                Start free <ArrowRight className="w-4 h-4" />
+              <Link to="/get-started" className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white font-semibold hover:bg-brand-700 shadow-lg shadow-brand-600/20">
+                Get Started <ArrowRight className="w-4 h-4" />
               </Link>
-              <a href="#pricing" className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-gray-300 font-semibold hover:bg-gray-50">
-                See pricing
-              </a>
+              <Link to="/register" className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-gray-300 font-semibold hover:bg-gray-50">
+                Start 14-day free trial
+              </Link>
             </div>
             <div className="mt-8 flex items-center gap-6 text-sm text-gray-500">
+              <div className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-500" /> 14-day free trial</div>
               <div className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-500" /> No credit card</div>
               <div className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-500" /> Setup in minutes</div>
-              <div className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-500" /> Cancel anytime</div>
             </div>
           </div>
           <div className="relative">
@@ -310,7 +310,7 @@ export default function Landing() {
                 ))}
               </ul>
               <Link
-                to={p.name === 'Enterprise' ? '#contact' : '/register'}
+                to={p.name === 'Enterprise' ? '/get-started?plan=enterprise' : `/get-started?plan=${p.name.toLowerCase()}`}
                 className={`mt-8 block text-center px-6 py-3 rounded-lg font-semibold transition ${
                   p.highlight ? 'bg-brand-600 text-white hover:bg-brand-700' : 'border-2 border-gray-200 hover:border-brand-600 hover:text-brand-600'
                 }`}
@@ -459,11 +459,16 @@ export default function Landing() {
         <div className="rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 p-10 sm:p-16 text-center text-white">
           <h2 className="text-3xl sm:text-5xl font-display font-bold mb-4">Ready to transform your ministry?</h2>
           <p className="text-lg sm:text-xl text-brand-100 mb-8 max-w-2xl mx-auto">
-            Join hundreds of churches running better with The Mobile Missionaries. Setup is free and takes 60 seconds.
+            Join hundreds of churches running better with The Mobile Missionaries. Try it free for 14 days — no card required.
           </p>
-          <Link to="/register" className="inline-flex items-center gap-2 px-8 py-4 rounded-lg bg-white text-brand-700 font-bold text-lg hover:bg-brand-50">
-            Get started free <ArrowRight className="w-5 h-5" />
-          </Link>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <Link to="/get-started" className="inline-flex items-center gap-2 px-8 py-4 rounded-lg bg-white text-brand-700 font-bold text-lg hover:bg-brand-50">
+              Get Started <ArrowRight className="w-5 h-5" />
+            </Link>
+            <Link to="/register" className="inline-flex items-center gap-2 px-8 py-4 rounded-lg border-2 border-white/40 text-white font-bold text-lg hover:bg-white/10">
+              Start 14-day trial
+            </Link>
+          </div>
         </div>
       </Section>
 
@@ -485,7 +490,8 @@ export default function Landing() {
             <ul className="space-y-2 text-sm text-gray-600">
               <li><a href="#features" className="hover:text-brand-600">Features</a></li>
               <li><a href="#pricing" className="hover:text-brand-600">Pricing</a></li>
-              <li><Link to="/register" className="hover:text-brand-600">Get Started</Link></li>
+              <li><Link to="/get-started" className="hover:text-brand-600">Get Started</Link></li>
+              <li><Link to="/register" className="hover:text-brand-600">Free 14-day trial</Link></li>
             </ul>
           </div>
           <div>

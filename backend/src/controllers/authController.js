@@ -49,11 +49,12 @@ const registerChurch = async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      // Create church
+      // Create church (auto-grant 14-day free trial)
+      const trialExpires = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
       await client.query(
-        `INSERT INTO churches (id, name, slug, denomination)
-         VALUES ($1, $2, $3, $4)`,
-        [churchId, churchName, churchSlug, denomination]
+        `INSERT INTO churches (id, name, slug, denomination, subscription_plan, subscription_expires_at)
+         VALUES ($1, $2, $3, $4, 'trial', $5)`,
+        [churchId, churchName, churchSlug, denomination, trialExpires]
       );
 
       // Create default HQ branch
@@ -93,7 +94,11 @@ const registerChurch = async (req, res) => {
           refreshToken,
           user: {
             id: userId, firstName: adminFirstName, lastName: adminLastName,
-            email: adminEmail, role: 'head_pastor', churchId, churchName, churchSlug
+            email: adminEmail, role: 'head_pastor', churchId, churchName, churchSlug,
+            subscriptionPlan: 'trial',
+            subscriptionExpiresAt: trialExpires.toISOString(),
+            multiBranchEnabled: false,
+            isWhitelisted: false,
           }
         }
       });

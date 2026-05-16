@@ -33,6 +33,30 @@ const authenticate = async (req, res, next) => {
 
     req.user = rows[0];
     req.churchId = rows[0].church_id;
+
+    // License enforcement — block product use if no active license.
+    // Exempt paths: auth, license intake, platform admin, public, contact,
+    // member portal/auth, and self info endpoint.
+    const LICENSE_EXEMPT = ['/api/auth', '/api/license', '/api/platform',
+      '/api/public', '/api/contact', '/api/me', '/api/member-auth'];
+    const path = req.originalUrl || '';
+    const exempt = LICENSE_EXEMPT.some(p => path.startsWith(p));
+    if (!exempt && !rows[0].is_super_admin && !rows[0].is_whitelisted) {
+      const plan = rows[0].subscription_plan;
+      const exp  = rows[0].subscription_expires_at ? new Date(rows[0].subscription_expires_at) : null;
+      const valid = plan && (!exp || exp > new Date());
+      if (!valid) {
+        return res.status(402).json({
+          success: false,
+          code: 'LICENSE_EXPIRED',
+          message: plan
+            ? 'Your license has expired. Please renew to continue using the product.'
+            : 'No active license. Please request a license to continue.',
+          data: { plan: plan || null, expiresAt: rows[0].subscription_expires_at || null },
+        });
+      }
+    }
+
     // Branch context: explicit query param overrides; branch-scoped roles are pinned.
     const q = req.query || {};
     const branchScopedRoles = ['branch_admin', 'branch_pastor'];

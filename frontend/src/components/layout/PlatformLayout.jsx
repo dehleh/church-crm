@@ -1,14 +1,15 @@
 import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom';
 import { useState } from 'react';
 import {
-  Globe, Building2, ScrollText, LogOut, ArrowLeftRight, Menu, X
+  Globe, Building2, ScrollText, LogOut, ArrowLeftRight, Menu, X, Mail
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 
 const NAV = [
-  { to: '/platform',           icon: Building2,  label: 'Churches',  end: true },
-  { to: '/platform/audit-log', icon: ScrollText, label: 'Audit Log' },
+  { to: '/platform',                   icon: Building2,  label: 'Churches',         end: true },
+  { to: '/platform/license-requests',  icon: Mail,       label: 'License Requests' },
+  { to: '/platform/audit-log',         icon: ScrollText, label: 'Audit Log' },
 ];
 
 function getInitials(firstName, lastName) {

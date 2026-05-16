@@ -36,6 +36,13 @@ api.interceptors.response.use(
     }
     if (err.response?.status !== 401) {
       const data = err.response?.data;
+      // License expired — redirect to dedicated screen
+      if (err.response?.status === 402 && data?.code === 'LICENSE_EXPIRED') {
+        if (window.location.pathname !== '/license-expired') {
+          window.location.href = '/license-expired';
+        }
+        return Promise.reject(err);
+      }
       let msg = data?.message || 'Something went wrong';
       // Show field-level validation errors if present
       if (data?.errors?.length) {

@@ -7,6 +7,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 
 const Landing = lazy(() => import('./pages/Landing'));
+const GetStarted = lazy(() => import('./pages/GetStarted'));
+const LicenseExpired = lazy(() => import('./pages/LicenseExpired'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Members = lazy(() => import('./pages/Members'));
 const MemberProfile = lazy(() => import('./pages/MemberProfile'));
@@ -31,6 +33,7 @@ const Welfare = lazy(() => import('./pages/Welfare'));
 const Procurement = lazy(() => import('./pages/Procurement'));
 const PlatformAdmin = lazy(() => import('./pages/PlatformAdmin'));
 const PlatformAuditLog = lazy(() => import('./pages/PlatformAuditLog'));
+const PlatformLicenseRequests = lazy(() => import('./pages/PlatformLicenseRequests'));
 const PlatformLayout = lazy(() => import('./components/layout/PlatformLayout'));
 const PublicFirstTimerForm = lazy(() => import('./pages/PublicFirstTimerForm'));
 const PublicMemberForm = lazy(() => import('./pages/PublicMemberForm'));
@@ -109,6 +112,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+          <Route path="/get-started" element={<L><GetStarted /></L>} />
+          <Route path="/license-expired" element={<L><LicenseExpired /></L>} />
           <Route path="/connect/:churchSlug/first-timer" element={<L><PublicFirstTimerForm /></L>} />
           <Route path="/connect/:churchSlug/member" element={<L><PublicMemberForm /></L>} />
           <Route path="/connect/:churchSlug/prayer" element={<L><PublicPrayerForm /></L>} />
@@ -134,6 +139,7 @@ export default function App() {
           <Route path="/platform" element={<SuperAdminRoute><L><PlatformLayout /></L></SuperAdminRoute>}>
             <Route index element={<L><PlatformAdmin /></L>} />
             <Route path="audit-log" element={<L><PlatformAuditLog /></L>} />
+            <Route path="license-requests" element={<L><PlatformLicenseRequests /></L>} />
           </Route>
 
           <Route path="/" element={<RootRoute />} />

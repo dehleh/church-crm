@@ -204,7 +204,13 @@ export const platformAPI = {
   deleteChurch: (id) => api.delete(`/platform/churches/${id}`),
   updateSettings: (id, data) => api.patch(`/platform/churches/${id}/settings`, data),
   plans: () => api.get('/platform/plans'),
+  listLicenseRequests: (params) => api.get('/platform/license-requests', { params }),
+  updateLicenseRequest: (id, data) => api.patch(`/platform/license-requests/${id}`, data),
   auditLog: (params) => api.get('/platform/audit-log', { params }),
+};
+
+export const licenseAPI = {
+  submitRequest: (data) => axios.post('/api/license/request', data),
 };
 
 export const jobsAPI = {

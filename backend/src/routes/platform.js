@@ -45,6 +45,16 @@ router.patch('/churches/:id/settings', idParam, [
   handleValidationErrors,
 ], ctrl.updateChurchSettings);
 router.get('/plans', ctrl.getPlans);
+
+// License purchase requests
+const license = require('../controllers/licenseController');
+router.get('/license-requests', license.listLicenseRequests);
+router.patch('/license-requests/:id', idParam, [
+  body('status').optional().isIn(['pending','contacted','approved','rejected']),
+  body('notes').optional({ nullable: true }).isString().isLength({ max: 2000 }),
+  handleValidationErrors,
+], license.updateLicenseRequest);
+
 router.get('/audit-log', ctrl.getAuditLog);
 
 module.exports = router;
