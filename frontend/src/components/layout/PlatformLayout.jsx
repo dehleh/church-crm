@@ -43,7 +43,7 @@ export default function PlatformLayout() {
             <img src="/logo.png" alt="TMM" className="w-9 h-9 object-contain" />
           </div>
           <div className="min-w-0">
-            <div className="font-display font-bold text-white text-base leading-tight">TMM</div>
+            <div className="font-display font-bold text-white text-base leading-tight">ChurchOS</div>
             <div className="text-[10px] uppercase tracking-widest text-indigo-300 font-semibold">Platform Console</div>
           </div>
           <button onClick={() => setMobileOpen(false)} className="lg:hidden ml-auto p-1 text-slate-400 hover:text-white">

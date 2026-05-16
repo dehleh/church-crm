@@ -94,8 +94,8 @@ export default function Layout() {
           <img src="/logo.png" alt="TMM" className="w-9 h-9 object-contain flex-shrink-0" />
           {!collapsed && (
             <div>
-              <div className="font-display font-bold text-gray-900 text-base leading-tight">TMM</div>
-              <div className="text-[10px] text-gray-400 font-body leading-tight truncate max-w-[120px]">{user?.churchName}</div>
+              <div className="font-display font-bold text-gray-900 text-base leading-tight">ChurchOS</div>
+              <div className="text-[10px] text-gray-400 font-body leading-tight truncate max-w-[120px]">{user?.churchName || 'The Mobile Missionaries'}</div>
             </div>
           )}
         </div>

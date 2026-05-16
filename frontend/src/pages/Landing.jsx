@@ -116,7 +116,10 @@ export default function Landing() {
         <Section className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2">
             <img src="/logo.png" alt="TMM" className="w-10 h-10 object-contain" />
-            <span className="font-display font-bold text-xl">The Mobile Missionaries</span>
+            <div className="leading-tight">
+              <div className="font-display font-bold text-xl">ChurchOS</div>
+              <div className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">The Mobile Missionaries</div>
+            </div>
           </Link>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-700">
             <a href="#features" className="hover:text-brand-600">Features</a>
@@ -470,7 +473,10 @@ export default function Landing() {
           <div>
             <div className="flex items-center gap-2 mb-3">
               <img src="/logo.png" alt="TMM" className="w-9 h-9 object-contain" />
-              <span className="font-display font-bold">The Mobile Missionaries</span>
+              <div className="leading-tight">
+                <div className="font-display font-bold">ChurchOS</div>
+                <div className="text-[9px] uppercase tracking-widest text-gray-500 font-semibold">The Mobile Missionaries</div>
+              </div>
             </div>
             <p className="text-sm text-gray-500">The all-in-one platform for modern churches.</p>
           </div>

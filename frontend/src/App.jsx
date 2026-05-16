@@ -72,6 +72,7 @@ function PrivateRoute({ children }) {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-3">
       <img src="/logo.png" alt="The Mobile Missionaries" className="w-20 h-20 object-contain" />
       <div className="font-display font-bold text-gray-900 text-xl">The Mobile Missionaries</div>
+      <div className="text-xs uppercase tracking-[0.2em] text-brand-600 font-semibold">Powered by ChurchOS</div>
       <div className="w-5 h-5 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin mt-1"></div>
     </div>
   );

@@ -52,8 +52,8 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-white shadow-xl mb-4 p-2">
             <img src="/logo.png" alt="The Mobile Missionaries" className="w-full h-full object-contain" />
           </div>
-          <h1 className="font-display text-3xl font-bold text-white">The Mobile Missionaries</h1>
-          <p className="text-brand-300 text-sm mt-1">Church Management Platform</p>
+          <h1 className="font-display text-3xl font-bold text-white">ChurchOS</h1>
+          <p className="text-brand-300 text-sm mt-1">The Mobile Missionaries · Church Management Platform</p>
         </div>
 
         {/* Card */}
