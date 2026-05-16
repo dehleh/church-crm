@@ -27,23 +27,23 @@ const STEPS = [
 
 const PRICING = [
   {
-    name: 'Starter', price: '₦0', period: 'forever', tagline: 'Perfect for small churches getting started',
+    name: 'Starter', price: '₦25,000', period: '/ month', tagline: 'Perfect for a single-branch church getting started',
     features: [
-      'Up to 100 members',
-      '1 branch',
+      'Single branch',
+      'Up to 250 members',
       'Member directory & profiles',
       'Events & attendance',
       'First-timers tracking',
       'Basic reports',
       'Email support',
     ],
-    cta: 'Start Free', highlight: false,
+    cta: 'Get Started', highlight: false,
   },
   {
-    name: 'Growth', price: '₦25,000', period: '/ month', tagline: 'For growing churches that need more power',
+    name: 'Growth', price: '₦60,000', period: '/ month', tagline: 'For growing churches with multiple branches',
     features: [
-      'Up to 1,000 members',
       'Up to 3 branches',
+      'Up to 500 members',
       'Everything in Starter',
       'Finance & budgets',
       'SMS & bulk email',
@@ -51,10 +51,10 @@ const PRICING = [
       'Advanced reports',
       'Priority support',
     ],
-    cta: 'Start 14-Day Trial', highlight: true,
+    cta: 'Get Started', highlight: true,
   },
   {
-    name: 'Enterprise', price: 'Custom', period: '', tagline: 'For denominations & large multi-site churches',
+    name: 'Enterprise', price: 'Custom', period: '', tagline: 'For denominations & large multi-site churches (10+ branches or 5,000+ members)',
     features: [
       'Unlimited members & branches',
       'Everything in Growth',
@@ -64,7 +64,7 @@ const PRICING = [
       'On-premise option',
       '24/7 support',
     ],
-    cta: 'Contact Sales', highlight: false,
+    cta: 'Contact Admin', highlight: false,
   },
 ];
 
