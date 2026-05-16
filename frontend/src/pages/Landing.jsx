@@ -483,7 +483,7 @@ export default function Landing() {
                 <div className="text-[9px] uppercase tracking-widest text-gray-500 font-semibold">The Mobile Missionaries</div>
               </div>
             </div>
-            <p className="text-sm text-gray-500">The all-in-one platform for modern churches.</p>
+            <p className="text-sm text-gray-500">The all-in-one platform for kingdom churches.</p>
           </div>
           <div>
             <div className="font-semibold mb-3 text-sm">Product</div>
