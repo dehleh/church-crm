@@ -115,7 +115,7 @@ export default function Landing() {
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-gray-100">
         <Section className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2">
-            <img src="/logo.png" alt="TMM" className="w-10 h-10 object-contain" />
+            <img src="/logo.png" alt="TMM" className="w-14 h-14 md:w-16 md:h-16 object-contain" />
             <div className="leading-tight">
               <div className="font-display font-bold text-xl">ChurchOS</div>
               <div className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">The Mobile Missionaries</div>
@@ -472,7 +472,7 @@ export default function Landing() {
         <Section className="py-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <img src="/logo.png" alt="TMM" className="w-9 h-9 object-contain" />
+              <img src="/logo.png" alt="TMM" className="w-12 h-12 object-contain" />
               <div className="leading-tight">
                 <div className="font-display font-bold">ChurchOS</div>
                 <div className="text-[9px] uppercase tracking-widest text-gray-500 font-semibold">The Mobile Missionaries</div>
