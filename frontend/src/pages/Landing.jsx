@@ -397,13 +397,13 @@ export default function Landing() {
                 <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center"><Mail className="w-5 h-5" /></div>
                 hello@themobilemissionary.org
               </a>
-              <a href="tel:+2348000000000" className="flex items-center gap-3 text-gray-700 hover:text-brand-600">
+              <a href="tel:+2349156503692" className="flex items-center gap-3 text-gray-700 hover:text-brand-600">
                 <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center"><Phone className="w-5 h-5" /></div>
-                +234 800 000 0000
+                +234 915 650 3692
               </a>
               <div className="flex items-center gap-3 text-gray-700">
                 <div className="w-10 h-10 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center"><MapPin className="w-5 h-5" /></div>
-                Lagos, Nigeria
+                No 7 Adetoro Ipaye, Lekki, Lagos, Nigeria
               </div>
             </div>
           </div>
