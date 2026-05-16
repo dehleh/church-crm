@@ -32,6 +32,8 @@ const OPTIONAL_DEFAULTS = {
   CONTACT_NOTIFY_EMAIL: '',
   REDIS_URL: '',
   QUEUE_CONCURRENCY: '4',
+  PAYSTACK_PUBLIC_KEY: '',
+  PAYSTACK_SECRET_KEY: '',
 };
 
 function validateEnv() {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Building2, Users, ShieldAlert, ShieldCheck, Trash2,
-  Search, Loader2, BarChart3, Eye, RefreshCw, Plus, Copy, CheckCircle2, KeyRound
+  Search, Loader2, BarChart3, Eye, RefreshCw, Plus, Copy, CheckCircle2, KeyRound, Settings as SettingsIcon
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { platformAPI } from '../api/services';
@@ -19,6 +19,9 @@ export default function PlatformAdmin() {
   const [detail, setDetail] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [settingsTarget, setSettingsTarget] = useState(null);
+  const [settingsForm, setSettingsForm] = useState(null);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [createForm, setCreateForm] = useState({
     churchName: '', churchSlug: '', denomination: '',
     adminFirstName: '', adminLastName: '', adminEmail: '', adminPhone: '',
@@ -99,6 +102,53 @@ export default function PlatformAdmin() {
       const { data } = await platformAPI.getChurch(church.id);
       setDetail(data.data);
     } catch { toast.error('Failed to load'); }
+  };
+
+  const openSettings = async (church) => {
+    try {
+      const { data } = await platformAPI.getChurch(church.id);
+      const c = data.data;
+      setSettingsTarget(c);
+      setSettingsForm({
+        subscriptionPlan: c.subscription_plan || 'starter',
+        multiBranchEnabled: !!c.multi_branch_enabled,
+        isWhitelisted: !!c.is_whitelisted,
+        branchLimit: c.branch_limit ?? '',
+        memberLimit: c.member_limit ?? '',
+        licenseKey: c.license_key || '',
+        licenseNotes: c.license_notes || '',
+        subscriptionExpiresAt: c.subscription_expires_at ? c.subscription_expires_at.slice(0, 10) : '',
+      });
+    } catch { toast.error('Failed to load church settings'); }
+  };
+
+  const saveSettings = async (e) => {
+    e.preventDefault();
+    if (!settingsTarget) return;
+    setSavingSettings(true);
+    try {
+      const payload = {
+        subscriptionPlan: settingsForm.subscriptionPlan || null,
+        multiBranchEnabled: settingsForm.multiBranchEnabled,
+        isWhitelisted: settingsForm.isWhitelisted,
+        branchLimit: settingsForm.branchLimit === '' ? null : parseInt(settingsForm.branchLimit, 10),
+        memberLimit: settingsForm.memberLimit === '' ? null : parseInt(settingsForm.memberLimit, 10),
+        licenseKey: settingsForm.licenseKey || null,
+        licenseNotes: settingsForm.licenseNotes || null,
+        subscriptionExpiresAt: settingsForm.subscriptionExpiresAt
+          ? new Date(settingsForm.subscriptionExpiresAt).toISOString()
+          : null,
+      };
+      await platformAPI.updateSettings(settingsTarget.id, payload);
+      toast.success('Settings updated');
+      setSettingsTarget(null);
+      setSettingsForm(null);
+      loadAll();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to update');
+    } finally {
+      setSavingSettings(false);
+    }
   };
 
   const slugify = (s) => s.toLowerCase().trim()
@@ -207,6 +257,7 @@ export default function PlatformAdmin() {
                   <th className="text-right px-4 py-3">Members</th>
                   <th className="text-right px-4 py-3">Branches</th>
                   <th className="text-left px-4 py-3">Last Login</th>
+                  <th className="text-left px-4 py-3">Plan</th>
                   <th className="text-left px-4 py-3">Status</th>
                   <th className="text-right px-4 py-3">Actions</th>
                 </tr>
@@ -226,6 +277,9 @@ export default function PlatformAdmin() {
                       {c.last_login_at ? new Date(c.last_login_at).toLocaleDateString() : '—'}
                     </td>
                     <td className="px-4 py-3">
+                      <PlanBadge plan={c.subscription_plan} multiBranch={c.multi_branch_enabled} whitelisted={c.is_whitelisted} />
+                    </td>
+                    <td className="px-4 py-3">
                       {c.is_active
                         ? <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">Active</span>
                         : <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700">Suspended</span>}
@@ -234,6 +288,8 @@ export default function PlatformAdmin() {
                       <div className="flex gap-1 justify-end">
                         <button onClick={()=>showDetail(c)} disabled={busyId===c.id}
                           className="p-1.5 hover:bg-gray-100 rounded text-gray-600" title="View"><Eye size={14}/></button>
+                        <button onClick={()=>openSettings(c)} disabled={busyId===c.id}
+                          className="p-1.5 hover:bg-indigo-50 rounded text-indigo-700" title="Plan & access"><SettingsIcon size={14}/></button>
                         {c.is_active
                           ? <button onClick={()=>suspend(c)} disabled={busyId===c.id}
                               className="p-1.5 hover:bg-amber-50 rounded text-amber-700" title="Suspend"><ShieldAlert size={14}/></button>
@@ -359,6 +415,92 @@ export default function PlatformAdmin() {
         </form>
       </Modal>
 
+      {/* Plan & access settings modal */}
+      <Modal open={!!settingsTarget} onClose={() => !savingSettings && (setSettingsTarget(null), setSettingsForm(null))}
+             title={settingsTarget ? `Plan & access — ${settingsTarget.name}` : ''}>
+        {settingsForm && (
+          <form onSubmit={saveSettings} className="space-y-4">
+            <div>
+              <label className="label">Subscription plan</label>
+              <select className="input" value={settingsForm.subscriptionPlan}
+                onChange={(e)=>setSettingsForm(f=>({...f, subscriptionPlan: e.target.value}))}>
+                <option value="starter">Starter — ₦25,000 (single branch)</option>
+                <option value="growth">Growth — ₦60,000 (≤3 branches / ≤500 members)</option>
+                <option value="enterprise">Enterprise — Contact admin (10+ branches / 5,000+ members)</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex items-start gap-2 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                <input type="checkbox" className="mt-0.5"
+                  checked={settingsForm.multiBranchEnabled}
+                  onChange={(e)=>setSettingsForm(f=>({...f, multiBranchEnabled: e.target.checked}))}/>
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">Multi-branch enabled</div>
+                  <div className="text-xs text-gray-500">If off, the church can only have its single HQ branch.</div>
+                </div>
+              </label>
+              <label className="flex items-start gap-2 p-3 rounded-lg border border-amber-200 bg-amber-50 cursor-pointer hover:bg-amber-100">
+                <input type="checkbox" className="mt-0.5"
+                  checked={settingsForm.isWhitelisted}
+                  onChange={(e)=>setSettingsForm(f=>({...f, isWhitelisted: e.target.checked}))}/>
+                <div>
+                  <div className="text-sm font-semibold text-amber-900">License whitelist</div>
+                  <div className="text-xs text-amber-700">Bypass plan limits (for licensed / paid-up churches).</div>
+                </div>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Branch limit</label>
+                <input type="number" min="0" className="input" placeholder="Unlimited"
+                  value={settingsForm.branchLimit}
+                  onChange={(e)=>setSettingsForm(f=>({...f, branchLimit: e.target.value}))}/>
+                <p className="text-[11px] text-gray-400 mt-1">Leave blank for unlimited.</p>
+              </div>
+              <div>
+                <label className="label">Member limit</label>
+                <input type="number" min="0" className="input" placeholder="Unlimited"
+                  value={settingsForm.memberLimit}
+                  onChange={(e)=>setSettingsForm(f=>({...f, memberLimit: e.target.value}))}/>
+                <p className="text-[11px] text-gray-400 mt-1">Leave blank for unlimited.</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Subscription expires</label>
+              <input type="date" className="input"
+                value={settingsForm.subscriptionExpiresAt}
+                onChange={(e)=>setSettingsForm(f=>({...f, subscriptionExpiresAt: e.target.value}))}/>
+            </div>
+
+            <div>
+              <label className="label">License key (optional)</label>
+              <input className="input font-mono text-sm"
+                value={settingsForm.licenseKey}
+                onChange={(e)=>setSettingsForm(f=>({...f, licenseKey: e.target.value}))}/>
+            </div>
+
+            <div>
+              <label className="label">License notes</label>
+              <textarea className="input" rows={2}
+                value={settingsForm.licenseNotes}
+                onChange={(e)=>setSettingsForm(f=>({...f, licenseNotes: e.target.value}))}/>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" className="btn-outline" disabled={savingSettings}
+                onClick={() => { setSettingsTarget(null); setSettingsForm(null); }}>Cancel</button>
+              <button type="submit" className="btn-primary gap-2" disabled={savingSettings}>
+                {savingSettings && <Loader2 size={14} className="animate-spin"/>}
+                Save settings
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
       {/* Created result */}
       <Modal open={!!createResult} onClose={() => setCreateResult(null)} title={createResult?.isReset ? 'Password reset' : 'Church created'}>
         {createResult && (
@@ -429,6 +571,24 @@ function Row({ k, v }) {
     <div className="flex justify-between">
       <span className="text-gray-500">{k}</span>
       <span className="font-medium text-gray-900">{v}</span>
+    </div>
+  );
+}
+
+function PlanBadge({ plan, multiBranch, whitelisted }) {
+  const map = {
+    starter:    { label: 'Starter',    cls: 'bg-gray-100 text-gray-700' },
+    growth:     { label: 'Growth',     cls: 'bg-indigo-100 text-indigo-700' },
+    enterprise: { label: 'Enterprise', cls: 'bg-purple-100 text-purple-700' },
+    free:       { label: 'Free',       cls: 'bg-gray-100 text-gray-500' },
+    pro:        { label: 'Pro',        cls: 'bg-indigo-100 text-indigo-700' },
+  };
+  const p = map[plan] || { label: plan || '—', cls: 'bg-gray-100 text-gray-500' };
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      <span className={`px-2 py-0.5 text-[11px] rounded-full font-semibold ${p.cls}`}>{p.label}</span>
+      {multiBranch && <span className="px-1.5 py-0.5 text-[10px] rounded bg-emerald-100 text-emerald-700 font-semibold">multi</span>}
+      {whitelisted && <span className="px-1.5 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 font-semibold">licensed</span>}
     </div>
   );
 }

@@ -39,6 +39,38 @@ const getBranch = async (req, res) => {
 const createBranch = async (req, res) => {
   const { name, code, address, city, state, phone, email, pastorName } = req.body;
   try {
+    // Enforce single-branch / plan limits unless whitelisted or super admin
+    const churchRes = await query(
+      `SELECT multi_branch_enabled, is_whitelisted, branch_limit, subscription_plan
+       FROM churches WHERE id = $1`,
+      [req.churchId]
+    );
+    const church = churchRes.rows[0];
+    if (!church) return res.status(404).json({ success: false, message: 'Church not found' });
+
+    if (!req.user?.is_super_admin && !church.is_whitelisted) {
+      const countRes = await query(
+        `SELECT COUNT(*)::int AS n FROM branches WHERE church_id = $1 AND is_active = true`,
+        [req.churchId]
+      );
+      const current = countRes.rows[0].n;
+
+      if (!church.multi_branch_enabled && current >= 1) {
+        return res.status(403).json({
+          success: false,
+          code: 'MULTI_BRANCH_DISABLED',
+          message: 'Multi-branch is disabled for your church. Upgrade your plan to add more branches.',
+        });
+      }
+      if (church.branch_limit != null && current >= church.branch_limit) {
+        return res.status(403).json({
+          success: false,
+          code: 'BRANCH_LIMIT_REACHED',
+          message: `You have reached your plan's limit of ${church.branch_limit} branches.`,
+        });
+      }
+    }
+
     const { rows } = await query(
       `INSERT INTO branches (id, church_id, name, code, address, city, state, phone, email, pastor_name)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,

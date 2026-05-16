@@ -202,6 +202,8 @@ export const platformAPI = {
   activateChurch: (id) => api.patch(`/platform/churches/${id}/activate`),
   resetChurchAdminPassword: (id, data) => api.post(`/platform/churches/${id}/reset-admin-password`, data || {}),
   deleteChurch: (id) => api.delete(`/platform/churches/${id}`),
+  updateSettings: (id, data) => api.patch(`/platform/churches/${id}/settings`, data),
+  plans: () => api.get('/platform/plans'),
   auditLog: (params) => api.get('/platform/audit-log', { params }),
 };
 

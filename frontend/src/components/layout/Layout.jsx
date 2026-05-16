@@ -39,7 +39,7 @@ const NAV = [
     { to: '/procurement', icon: ClipboardList, label: 'Procurement' },
   ]},
   { group: 'Admin', items: [
-    { to: '/branches', icon: GitBranch,   label: 'Branches' },
+    { to: '/branches', icon: GitBranch,   label: 'Branches', requiresMultiBranch: true },
     { to: '/users',    icon: ShieldCheck, label: 'Users' },
     { to: '/reports',  icon: BarChart2,   label: 'Reports' },
     { to: '/settings', icon: Settings,    label: 'Settings' },
@@ -102,14 +102,17 @@ export default function Layout() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
-          {NAV.map(group => (
+          {NAV.map(group => {
+            const items = group.items.filter(it => !it.requiresMultiBranch || user?.multiBranchEnabled || user?.isWhitelisted);
+            if (!items.length) return null;
+            return (
             <div key={group.group} className="mb-1">
               {!collapsed && (
                 <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
                   {group.group}
                 </div>
               )}
-              {group.items.map(({ to, icon: Icon, label }) => (
+              {items.map(({ to, icon: Icon, label }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -125,7 +128,8 @@ export default function Layout() {
                 </NavLink>
               ))}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         {/* User footer */}

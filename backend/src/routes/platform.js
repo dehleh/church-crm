@@ -33,6 +33,18 @@ router.post('/churches/:id/reset-admin-password', idParam, [
   handleValidationErrors,
 ], ctrl.resetChurchAdminPassword);
 router.delete('/churches/:id', idParam, ctrl.deleteChurch);
+router.patch('/churches/:id/settings', idParam, [
+  body('subscriptionPlan').optional({ nullable: true }).isString(),
+  body('subscriptionExpiresAt').optional({ nullable: true }).isISO8601(),
+  body('multiBranchEnabled').optional().isBoolean(),
+  body('isWhitelisted').optional().isBoolean(),
+  body('licenseKey').optional({ nullable: true }).isString().isLength({ max: 200 }),
+  body('licenseNotes').optional({ nullable: true }).isString().isLength({ max: 1000 }),
+  body('branchLimit').optional({ nullable: true }).isInt({ min: 0 }),
+  body('memberLimit').optional({ nullable: true }).isInt({ min: 0 }),
+  handleValidationErrors,
+], ctrl.updateChurchSettings);
+router.get('/plans', ctrl.getPlans);
 router.get('/audit-log', ctrl.getAuditLog);
 
 module.exports = router;

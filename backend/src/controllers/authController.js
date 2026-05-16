@@ -117,7 +117,10 @@ const login = async (req, res) => {
   const { email, password } = req.body;
   try {
     const { rows } = await query(
-      `SELECT u.*, c.name as church_name, c.slug as church_slug, c.is_active as church_active
+      `SELECT u.*,
+         c.name as church_name, c.slug as church_slug, c.is_active as church_active,
+         c.multi_branch_enabled, c.is_whitelisted, c.subscription_plan, c.subscription_expires_at,
+         c.branch_limit, c.member_limit
        FROM users u JOIN churches c ON c.id = u.church_id
        WHERE u.email = $1`,
       [email]
@@ -189,7 +192,13 @@ const login = async (req, res) => {
           churchName: user.church_name,
           churchSlug: user.church_slug,
           avatarUrl: user.avatar_url,
-          branchId: user.branch_id
+          branchId: user.branch_id,
+          multiBranchEnabled: user.multi_branch_enabled || false,
+          isWhitelisted: user.is_whitelisted || false,
+          subscriptionPlan: user.subscription_plan || null,
+          subscriptionExpiresAt: user.subscription_expires_at || null,
+          branchLimit: user.branch_limit ?? null,
+          memberLimit: user.member_limit ?? null,
         }
       }
     });
@@ -232,8 +241,26 @@ const logout = async (req, res) => {
 
 // GET /api/auth/me
 const getMe = async (req, res) => {
-  const { password_hash, refresh_token, ...user } = req.user;
-  return res.json({ success: true, data: user });
+  const { password_hash, refresh_token, ...u } = req.user;
+  // Normalize church flags to camelCase (frontend convention)
+  const data = {
+    ...u,
+    isSuperAdmin: u.is_super_admin || false,
+    churchId: u.church_id,
+    churchName: u.church_name,
+    churchSlug: u.church_slug,
+    branchId: u.branch_id,
+    avatarUrl: u.avatar_url,
+    firstName: u.first_name,
+    lastName: u.last_name,
+    multiBranchEnabled: u.multi_branch_enabled || false,
+    isWhitelisted: u.is_whitelisted || false,
+    subscriptionPlan: u.subscription_plan || null,
+    subscriptionExpiresAt: u.subscription_expires_at || null,
+    branchLimit: u.branch_limit ?? null,
+    memberLimit: u.member_limit ?? null,
+  };
+  return res.json({ success: true, data });
 };
 
 module.exports = { registerChurch, login, refreshToken, logout, getMe };

@@ -12,7 +12,10 @@ const authenticate = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     const { rows } = await query(
-      `SELECT u.*, c.name as church_name, c.slug as church_slug, c.is_active as church_active
+      `SELECT u.*,
+         c.name as church_name, c.slug as church_slug, c.is_active as church_active,
+         c.multi_branch_enabled, c.is_whitelisted, c.subscription_plan, c.subscription_expires_at,
+         c.branch_limit, c.member_limit
        FROM users u
        JOIN churches c ON c.id = u.church_id
        WHERE u.id = $1 AND u.is_active = true`,

@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const logger = require('../config/logger');
+const { PLANS, PLAN_CODES } = require('../services/plans');
 
 const audit = async (actorUserId, action, targetChurchId, details = {}) => {
   try {
@@ -315,6 +316,62 @@ const resetChurchAdminPassword = async (req, res) => {
   }
 };
 
+// GET /api/platform/plans
+const getPlans = async (_req, res) => {
+  return res.json({ success: true, data: PLANS });
+};
+
+// PATCH /api/platform/churches/:id/settings
+// Body (any subset): {
+//   subscriptionPlan, subscriptionExpiresAt,
+//   multiBranchEnabled, isWhitelisted, licenseKey, licenseNotes,
+//   branchLimit, memberLimit
+// }
+const updateChurchSettings = async (req, res) => {
+  const { id } = req.params;
+  const {
+    subscriptionPlan, subscriptionExpiresAt,
+    multiBranchEnabled, isWhitelisted, licenseKey, licenseNotes,
+    branchLimit, memberLimit,
+  } = req.body || {};
+
+  const sets = [];
+  const params = [];
+  let i = 1;
+  const push = (col, val) => { sets.push(`${col} = $${i++}`); params.push(val); };
+
+  if (subscriptionPlan !== undefined) {
+    if (subscriptionPlan && !PLAN_CODES.includes(subscriptionPlan)) {
+      return res.status(400).json({ success: false, message: `Invalid plan. Use one of: ${PLAN_CODES.join(', ')}` });
+    }
+    push('subscription_plan', subscriptionPlan);
+  }
+  if (subscriptionExpiresAt !== undefined) push('subscription_expires_at', subscriptionExpiresAt || null);
+  if (multiBranchEnabled !== undefined)   push('multi_branch_enabled', !!multiBranchEnabled);
+  if (isWhitelisted !== undefined)        push('is_whitelisted', !!isWhitelisted);
+  if (licenseKey !== undefined)           push('license_key', licenseKey || null);
+  if (licenseNotes !== undefined)         push('license_notes', licenseNotes || null);
+  if (branchLimit !== undefined)          push('branch_limit', branchLimit === null || branchLimit === '' ? null : parseInt(branchLimit, 10));
+  if (memberLimit !== undefined)          push('member_limit', memberLimit === null || memberLimit === '' ? null : parseInt(memberLimit, 10));
+
+  if (!sets.length) return res.status(400).json({ success: false, message: 'No settings provided' });
+
+  params.push(id);
+  try {
+    const { rows } = await query(
+      `UPDATE churches SET ${sets.join(', ')}, updated_at = NOW()
+       WHERE id = $${i} RETURNING *`,
+      params
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Church not found' });
+    await audit(req.user.id, 'update_church_settings', id, req.body || {});
+    return res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    logger.error('update church settings failed', { err: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   getPlatformStats,
   listChurches,
@@ -325,4 +382,6 @@ module.exports = {
   activateChurch,
   deleteChurch,
   getAuditLog,
+  getPlans,
+  updateChurchSettings,
 };
