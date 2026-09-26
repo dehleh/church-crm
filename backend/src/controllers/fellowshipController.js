@@ -270,16 +270,37 @@ const createCenter = async (req, res) => {
   const {
     zoneId, name, code, leaderMemberId, assistantLeaderMemberId, hostMemberId,
     hostName, hostPhone, hostAddress, landmark, city, state,
-    meetingDay, meetingTime, meetingFrequency, targetAudience, maxCapacity, notes
+    meetingDay, meetingTime, meetingFrequency, targetAudience, maxCapacity, status, notes
   } = req.body;
 
-  if (!name || !hostAddress) {
+  const resolvedAddress = (hostAddress || req.body.host_address || '').trim();
+  const centerName = (name || '').trim();
+
+  if (!centerName || !resolvedAddress) {
     return res.status(400).json({ success: false, message: 'Center name and host address are required' });
   }
 
+  const resolvedZoneId = (zoneId || req.body.zone_id || '').trim() || null;
+  const resolvedLeaderId = (leaderMemberId || req.body.leader_member_id || '').trim() || null;
+  const resolvedAsstLeaderId = (assistantLeaderMemberId || req.body.assistant_leader_member_id || '').trim() || null;
+  const resolvedHostMemberId = (hostMemberId || req.body.host_member_id || '').trim() || null;
+  const resolvedHostName = (hostName || req.body.host_name || '').trim() || null;
+  const resolvedHostPhone = (hostPhone || req.body.host_phone || '').trim() || null;
+  const resolvedLandmark = (landmark || '').trim() || null;
+  const resolvedCity = (city || '').trim() || null;
+  const resolvedState = (state || '').trim() || null;
+  const resolvedMeetingDay = meetingDay || req.body.meeting_day || 'Wednesday';
+  const resolvedMeetingTime = meetingTime || req.body.meeting_time || '18:30';
+  const resolvedFrequency = meetingFrequency || req.body.meeting_frequency || 'weekly';
+  const resolvedAudience = targetAudience || req.body.target_audience || 'general';
+  const rawCap = maxCapacity || req.body.max_capacity;
+  const resolvedCapacity = rawCap ? parseInt(rawCap, 10) : 15;
+  const resolvedStatus = status || req.body.status || 'active';
+  const resolvedNotes = (notes || '').trim() || null;
+
   try {
     const id = uuidv4();
-    const autoCode = code || `FC-${Date.now().toString().slice(-4)}`;
+    const autoCode = (code || '').trim() || `FC-${Date.now().toString().slice(-4)}`;
 
     const { rows } = await query(
       `INSERT INTO fellowship_centers (
@@ -287,31 +308,42 @@ const createCenter = async (req, res) => {
         leader_member_id, assistant_leader_member_id, host_member_id,
         host_name, host_phone, host_address, landmark, city, state,
         meeting_day, meeting_time, meeting_frequency, target_audience,
-        max_capacity, notes
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+        max_capacity, status, notes
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
       RETURNING *`,
       [
-        id, req.churchId, req.branchId || null, zoneId || null, name, autoCode,
-        leaderMemberId || null, assistantLeaderMemberId || null, hostMemberId || null,
-        hostName || null, hostPhone || null, hostAddress, landmark || null, city || null, state || null,
-        meetingDay || 'Wednesday', meetingTime || '18:30', meetingFrequency || 'weekly',
-        targetAudience || 'general', maxCapacity ? parseInt(maxCapacity, 10) : 15, notes || null
+        id, req.churchId, req.branchId || null, resolvedZoneId, centerName, autoCode,
+        resolvedLeaderId, resolvedAsstLeaderId, resolvedHostMemberId,
+        resolvedHostName, resolvedHostPhone, resolvedAddress, resolvedLandmark, resolvedCity, resolvedState,
+        resolvedMeetingDay, resolvedMeetingTime, resolvedFrequency,
+        resolvedAudience, resolvedCapacity, resolvedStatus, resolvedNotes
       ]
     );
 
     // Auto-enroll leader into fellowship_members if specified
-    if (leaderMemberId) {
+    if (resolvedLeaderId) {
       await query(
         `INSERT INTO fellowship_members (id, church_id, center_id, member_id, role)
-         VALUES ($1, $2, $3, $4, 'leader') ON CONFLICT DO NOTHING`,
-        [uuidv4(), req.churchId, id, leaderMemberId]
+         VALUES ($1, $2, $3, $4, 'leader')
+         ON CONFLICT (center_id, member_id) DO UPDATE SET role = 'leader'`,
+        [uuidv4(), req.churchId, id, resolvedLeaderId]
+      );
+    }
+
+    // Auto-enroll host member if specified and different from leader
+    if (resolvedHostMemberId && resolvedHostMemberId !== resolvedLeaderId) {
+      await query(
+        `INSERT INTO fellowship_members (id, church_id, center_id, member_id, role)
+         VALUES ($1, $2, $3, $4, 'host')
+         ON CONFLICT (center_id, member_id) DO NOTHING`,
+        [uuidv4(), req.churchId, id, resolvedHostMemberId]
       );
     }
 
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
-    logger.error('createCenter failed', { error: err.message });
-    return res.status(500).json({ success: false, message: 'Server error' });
+    logger.error('createCenter failed', { error: err.message, body: req.body });
+    return res.status(500).json({ success: false, message: err.message || 'Server error creating center' });
   }
 };
 

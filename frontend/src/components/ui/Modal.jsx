@@ -2,19 +2,21 @@ import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
 
-export default function Modal({ open, onClose, title, children, footer, size = 'md' }) {
+export default function Modal({ open, isOpen, onClose, title, children, footer, size = 'md' }) {
+  const isVisible = open !== undefined ? Boolean(open) : Boolean(isOpen);
+
   useEffect(() => {
-    if (!open) return;
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    if (!isVisible) return;
+    const handler = (e) => { if (e.key === 'Escape') onClose?.(); };
     document.addEventListener('keydown', handler);
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', handler);
       document.body.style.overflow = '';
     };
-  }, [open, onClose]);
+  }, [isVisible, onClose]);
 
-  if (!open) return null;
+  if (!isVisible) return null;
 
   const maxW = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }[size];
 

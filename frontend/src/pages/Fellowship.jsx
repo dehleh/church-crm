@@ -96,25 +96,87 @@ export default function Fellowship() {
     }
   }, [activeTab]);
 
+  const openNewCenterModal = () => {
+    setActiveCenter(null);
+    setCenterForm({
+      meetingDay: terms.meetingDay || 'Wednesday',
+      meetingTime: terms.meetingTime || '18:30',
+      maxCapacity: terms.defaultCapacity || 15,
+      meetingFrequency: 'weekly',
+      status: 'active',
+      zoneId: '',
+      leaderMemberId: '',
+      hostName: '',
+      landmark: '',
+      city: '',
+      name: '',
+      hostAddress: '',
+    });
+    setModal('center_new');
+  };
+
+  const openEditCenterModal = (center) => {
+    setActiveCenter(center);
+    setCenterForm({
+      ...center,
+      name: center.name || '',
+      hostAddress: center.host_address || center.hostAddress || '',
+      zoneId: center.zone_id || center.zoneId || '',
+      leaderMemberId: center.leader_member_id || center.leaderMemberId || '',
+      hostName: center.host_name || center.hostName || '',
+      landmark: center.landmark || '',
+      city: center.city || '',
+      meetingDay: center.meeting_day || center.meetingDay || 'Wednesday',
+      meetingTime: center.meeting_time || center.meetingTime || '18:30',
+      meetingFrequency: center.meeting_frequency || center.meetingFrequency || 'weekly',
+      maxCapacity: center.max_capacity || center.maxCapacity || 15,
+      status: center.status || 'active',
+    });
+    setModal('center_edit');
+  };
+
   // Center Operations
   const handleSaveCenter = async (e) => {
     e.preventDefault();
-    if (!centerForm.name || !centerForm.hostAddress) {
-      return toast.error('Center name and host address are required');
+    const name = (centerForm.name || '').trim();
+    const hostAddress = (centerForm.hostAddress || centerForm.host_address || '').trim();
+
+    if (!name) {
+      return toast.error(`Please enter a name for the ${terms.singularTerm.toLowerCase()}`);
     }
+    if (!hostAddress) {
+      return toast.error('Please enter the host residential address');
+    }
+
+    const payload = {
+      ...centerForm,
+      name,
+      hostAddress,
+      zoneId: centerForm.zoneId || centerForm.zone_id || null,
+      leaderMemberId: centerForm.leaderMemberId || centerForm.leader_member_id || null,
+      hostName: centerForm.hostName || centerForm.host_name || null,
+      landmark: centerForm.landmark || null,
+      city: centerForm.city || null,
+      meetingDay: centerForm.meetingDay || centerForm.meeting_day || 'Wednesday',
+      meetingTime: centerForm.meetingTime || centerForm.meeting_time || '18:30',
+      maxCapacity: centerForm.maxCapacity || centerForm.max_capacity || 15,
+      status: centerForm.status || 'active',
+    };
+
     setSaving(true);
     try {
       if (modal === 'center_edit') {
-        await fellowshipAPI.updateCenter(activeCenter.id, centerForm);
-        toast.success(`${terms.singularTerm} updated!`);
+        await fellowshipAPI.updateCenter(activeCenter.id, payload);
+        toast.success(`${terms.singularTerm} updated successfully!`);
       } else {
-        await fellowshipAPI.createCenter(centerForm);
-        toast.success(`${terms.singularTerm} created!`);
+        await fellowshipAPI.createCenter(payload);
+        toast.success(`${terms.singularTerm} created successfully!`);
       }
       setModal(null);
-      loadAll();
-    } catch {
-      toast.error('Failed to save center');
+      await loadAll();
+    } catch (err) {
+      console.error('Failed to save center:', err);
+      toast.error(err.response?.data?.message || err.message || 'Failed to save fellowship center');
     } finally {
       setSaving(false);
     }
@@ -262,15 +324,7 @@ export default function Fellowship() {
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => {
-              setCenterForm({
-                meetingDay: terms.meetingDay || 'Wednesday',
-                meetingTime: terms.meetingTime || '18:30',
-                maxCapacity: terms.defaultCapacity || 15,
-                meetingFrequency: 'weekly',
-              });
-              setModal('center_new');
-            }}
+            onClick={openNewCenterModal}
             className="btn-primary inline-flex items-center gap-1.5"
           >
             <Plus size={16} /> New {terms.singularTerm}
@@ -405,7 +459,7 @@ export default function Fellowship() {
               <p className="font-semibold text-gray-700">No {terms.pluralTerm} found</p>
               <p className="text-sm text-gray-400 mt-1">Get started by creating your first meeting center.</p>
               <button
-                onClick={() => setModal('center_new')}
+                onClick={openNewCenterModal}
                 className="btn-primary mt-4 inline-flex items-center gap-1.5"
               >
                 <Plus size={16} /> Create {terms.singularTerm}
@@ -472,11 +526,7 @@ export default function Fellowship() {
                           Roster ({center.member_count})
                         </button>
                         <button
-                          onClick={() => {
-                            setActiveCenter(center);
-                            setCenterForm(center);
-                            setModal('center_edit');
-                          }}
+                          onClick={() => openEditCenterModal(center)}
                           className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100"
                           title="Edit"
                         >
@@ -941,7 +991,8 @@ export default function Fellowship() {
       {(modal === 'center_new' || modal === 'center_edit') && (
         <Modal
           title={modal === 'center_new' ? `Create New ${terms.singularTerm}` : `Edit ${terms.singularTerm}`}
-          isOpen={true}
+          open={true}
+          size="lg"
           onClose={() => setModal(null)}
         >
           <form onSubmit={handleSaveCenter} className="space-y-4">
@@ -1093,7 +1144,8 @@ export default function Fellowship() {
       {modal === 'center_roster' && activeCenter && (
         <Modal
           title={`${activeCenter.name} — Member Roster`}
-          isOpen={true}
+          open={true}
+          size="lg"
           onClose={() => setModal(null)}
         >
           <div className="space-y-4">
@@ -1178,7 +1230,8 @@ export default function Fellowship() {
       {modal === 'report_new' && (
         <Modal
           title="Submit Weekly Fellowship Meeting Report"
-          isOpen={true}
+          open={true}
+          size="lg"
           onClose={() => setModal(null)}
         >
           <form onSubmit={handleSubmitReport} className="space-y-4">
@@ -1328,7 +1381,8 @@ export default function Fellowship() {
       {modal === 'zone_new' && (
         <Modal
           title={`Add New ${terms.zoneTerm}`}
-          isOpen={true}
+          open={true}
+          size="md"
           onClose={() => setModal(null)}
         >
           <form onSubmit={async (e) => {
