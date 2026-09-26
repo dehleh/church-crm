@@ -18,9 +18,17 @@ api.interceptors.request.use(config => {
   return config;
 });
 
-// Handle 401 — refresh or redirect to login
+// Handle responses — detect if static server returned index.html instead of JSON
 api.interceptors.response.use(
-  res => res,
+  res => {
+    if (typeof res.data === 'string' && res.data.trim().startsWith('<!DOCTYPE html')) {
+      const err = new Error(
+        'Backend connection error: API request returned index.html instead of backend data. Please ensure VITE_API_URL is configured on church-crm-frontend in Railway.'
+      );
+      return Promise.reject(err);
+    }
+    return res;
+  },
   async err => {
     const original = err.config;
     if (err.response?.status === 401 && !original._retry) {

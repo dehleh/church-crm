@@ -59,8 +59,13 @@ export default function Register() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const { data } = await authAPI.register(form);
-      login(data.data.user, data.data);
+      const res = await authAPI.register(form);
+      const payload = res?.data?.data || res?.data;
+      const user = payload?.user;
+      if (!user) {
+        throw new Error('Registration failed: Invalid response received from server.');
+      }
+      login(user, payload);
       toast.success('Church registered! Welcome to The Mobile Missionaries 🎉');
       navigate('/dashboard');
     } catch (err) {

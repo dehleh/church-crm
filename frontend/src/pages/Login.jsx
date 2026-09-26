@@ -27,17 +27,22 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const { data } = await authAPI.login(form);
-      login(data.data.user, data.data);
-      if (data.data.forcePasswordChange) {
+      const res = await authAPI.login(form);
+      const payload = res?.data?.data || res?.data;
+      const user = payload?.user;
+      if (!user) {
+        throw new Error('Login failed: Invalid response received from server.');
+      }
+      login(user, payload);
+      if (payload.forcePasswordChange) {
         toast('Please change your temporary password', { icon: '🔑' });
         navigate('/settings', { state: { changePassword: true } });
       } else {
-        toast.success(`Welcome back, ${data.data.user.firstName}!`);
-        navigate(data.data.user.isSuperAdmin ? '/platform' : '/dashboard');
+        toast.success(`Welcome back, ${user.firstName}!`);
+        navigate(user.isSuperAdmin ? '/platform' : '/dashboard');
       }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Login failed. Please check your credentials and try again.';
+      const msg = err.response?.data?.message || err.message || 'Login failed. Please check your credentials and try again.';
       setServerError(msg);
     } finally {
       setLoading(false);
