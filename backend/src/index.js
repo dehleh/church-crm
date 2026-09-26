@@ -194,14 +194,26 @@ app.use(errorHandler);
 if (process.env.NODE_ENV !== 'test') {
   const PORT = process.env.PORT || 5000;
   const { pool } = require('./config/database');
+  const { runMigrations } = require('./migrations/run');
 
-  initScheduler();
+  (async () => {
+    try {
+      if (process.env.AUTO_MIGRATE !== 'false') {
+        logger.info('Applying pending database migrations...');
+        await runMigrations({ closePool: false });
+      }
+    } catch (err) {
+      logger.error('Database migration failed during startup', { error: err.message });
+      process.exit(1);
+    }
 
-  const server = app.listen(PORT, () => {
-    logger.info(`⛪  ChurchOS API running on port ${PORT}`);
-    logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    logger.info(`Health: http://localhost:${PORT}/health`);
-  });
+    initScheduler();
+
+    const server = app.listen(PORT, () => {
+      logger.info(`⛪  ChurchOS API running on port ${PORT}`);
+      logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Health: http://localhost:${PORT}/health`);
+    });
 
   // Graceful shutdown
   const shutdown = async (signal) => {
@@ -226,6 +238,7 @@ if (process.env.NODE_ENV !== 'test') {
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+  })();
 }
 
 module.exports = app;

@@ -3,7 +3,7 @@ const path = require('path');
 const { pool } = require('../config/database');
 require('dotenv').config();
 
-async function runMigrations() {
+async function runMigrations({ closePool = false } = {}) {
   const client = await pool.connect();
   try {
     // Create migrations tracking table
@@ -48,11 +48,17 @@ async function runMigrations() {
     console.log('\n✅ All migrations completed successfully');
   } finally {
     client.release();
-    await pool.end();
+    if (closePool) {
+      await pool.end();
+    }
   }
 }
 
-runMigrations().catch(err => {
-  console.error('Migration failed:', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  runMigrations({ closePool: true }).catch(err => {
+    console.error('Migration failed:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = { runMigrations };
