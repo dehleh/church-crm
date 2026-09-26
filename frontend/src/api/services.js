@@ -1,8 +1,8 @@
 import axios from 'axios';
-import api from './client';
+import api, { API_BASE } from './client';
 
 const publicApi = axios.create({
-  baseURL: '/api/public',
+  baseURL: `${API_BASE}/public`,
   headers: { 'Content-Type': 'application/json' },
   timeout: 30000,
 });
@@ -232,7 +232,7 @@ export const publicIntakeAPI = {
 };
 
 const contactAxios = axios.create({
-  baseURL: '/api/contact',
+  baseURL: `${API_BASE}/contact`,
   headers: { 'Content-Type': 'application/json' },
   timeout: 15000,
 });
