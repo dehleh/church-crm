@@ -17,6 +17,8 @@ router.use(authenticate);
  *       200: { description: Member stats }
  */
 router.get('/stats', c.getMemberStats);
+router.get('/birthdays', c.getUpcomingBirthdays);
+router.post('/:id/birthday-wish', authorize('head_pastor', 'pastor', 'director', 'hod'), c.sendBirthdayWish);
 
 /**
  * @swagger

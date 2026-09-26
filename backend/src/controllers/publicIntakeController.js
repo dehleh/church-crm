@@ -41,6 +41,22 @@ const getIntakeContext = async (req, res) => {
       [church.id]
     );
 
+    const { rows: departments } = await query(
+      `SELECT id, name, category
+       FROM departments
+       WHERE church_id = $1 AND is_active = true
+       ORDER BY name ASC`,
+      [church.id]
+    );
+
+    const { rows: fellowshipCenters } = await query(
+      `SELECT id, name, city, landmark, meeting_day, meeting_time
+       FROM fellowship_centers
+       WHERE church_id = $1 AND status = 'active'
+       ORDER BY name ASC`,
+      [church.id]
+    );
+
     return res.json({
       success: true,
       data: {
@@ -54,6 +70,8 @@ const getIntakeContext = async (req, res) => {
         },
         branches,
         welfarePackages,
+        departments,
+        fellowshipCenters,
       }
     });
   } catch (err) {

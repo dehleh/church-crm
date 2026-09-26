@@ -222,6 +222,62 @@ async function processAutomatedEventReminders() {
 }
 
 /**
+ * Automatically checks and sends birthday greetings for members celebrating today.
+ */
+async function processAutomatedBirthdayGreetings() {
+  try {
+    const { rows: celebrants } = await query(
+      `SELECT m.*, ch.name as church_name, ch.settings as church_settings
+       FROM members m
+       JOIN churches ch ON ch.id = m.church_id
+       WHERE m.membership_status = 'active'
+         AND m.date_of_birth IS NOT NULL
+         AND EXTRACT(MONTH FROM m.date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE)
+         AND EXTRACT(DAY FROM m.date_of_birth) = EXTRACT(DAY FROM CURRENT_DATE)
+         AND (m.last_birthday_wish_year IS NULL OR m.last_birthday_wish_year < EXTRACT(YEAR FROM CURRENT_DATE)::int)
+         AND (ch.settings->'features'->>'auto_birthday_wishes' IS NULL OR ch.settings->'features'->>'auto_birthday_wishes' = 'true')
+       LIMIT 20`
+    );
+
+    for (const member of celebrants) {
+      try {
+        const churchSettings = member.church_settings?.messaging || {};
+        const greeting = `Happy Birthday, ${member.first_name}! 🎂🎉\n\nThe leadership and entire family of ${member.church_name} celebrate God's amazing grace and goodness in your life today! May this new season bring divine health, peace, favor, and abundance in Jesus' name! Have a glorious celebration! ✨`;
+
+        let sent = false;
+        if (member.phone) {
+          const waRes = await sendWhatsApp({ to: member.phone, body: greeting }, churchSettings);
+          sent = waRes.success;
+        }
+        if (!sent && member.phone) {
+          const smsRes = await sendSMS({ to: member.phone, body: greeting }, churchSettings);
+          sent = smsRes.success;
+        }
+        if (member.email) {
+          await sendEmail({
+            to: member.email,
+            subject: `Happy Birthday from ${member.church_name}! 🎂🎉`,
+            html: `<div style="font-family: sans-serif; padding: 20px; line-height: 1.6;">
+              <h2 style="color: #4f46e5;">Happy Birthday, ${member.first_name}! 🎂🎉</h2>
+              <p>${greeting.replace(/\n/g, '<br/>')}</p>
+              <p style="margin-top: 25px; font-weight: bold;">With love and prayers,<br/>${member.church_name}</p>
+            </div>`,
+          });
+          sent = true;
+        }
+
+        await query('UPDATE members SET last_birthday_wish_year = EXTRACT(YEAR FROM CURRENT_DATE) WHERE id = $1', [member.id]);
+        logger.info('Automated birthday greeting dispatched', { memberId: member.id, name: `${member.first_name} ${member.last_name}` });
+      } catch (memErr) {
+        logger.error('Error sending automated birthday greeting', { memberId: member.id, error: memErr.message });
+      }
+    }
+  } catch (err) {
+    logger.error('Error processing automated birthday greetings', { error: err.message });
+  }
+}
+
+/**
  * Main scheduler loop.
  */
 async function runSchedulerTick() {
@@ -230,6 +286,7 @@ async function runSchedulerTick() {
   try {
     await processScheduledCommunications();
     await processAutomatedEventReminders();
+    await processAutomatedBirthdayGreetings();
   } catch (err) {
     logger.error('Scheduler tick error', { error: err.message });
   } finally {

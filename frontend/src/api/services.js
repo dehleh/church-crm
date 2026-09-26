@@ -26,6 +26,8 @@ export const membersAPI = {
   delete: (id) => api.delete(`/members/${id}`),
   stats: () => api.get('/members/stats'),
   importCsv: (data) => api.post('/members/import', data),
+  birthdays: (params) => api.get('/members/birthdays', { params }),
+  sendBirthdayWish: (id, data = {}) => api.post(`/members/${id}/birthday-wish`, data),
 };
 
 export const firstTimersAPI = {

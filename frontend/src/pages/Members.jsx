@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit2, Trash2, Loader2, ExternalLink, FileSpreadsheet, QrCode, CheckCircle2 } from 'lucide-react';
-import { membersAPI, branchesAPI, departmentsAPI } from '../api/services';
+import {
+  Users, Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit2, Trash2,
+  Loader2, ExternalLink, FileSpreadsheet, QrCode, CheckCircle2, Cake, Baby,
+  Briefcase, Home, Send, MessageCircle, Sparkles, MapPin, Calendar, Check
+} from 'lucide-react';
+import { membersAPI, branchesAPI, departmentsAPI, fellowshipAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import CsvImportModal from '../components/ui/CsvImportModal';
 import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
@@ -11,18 +15,45 @@ import { email as validateEmail, phone as validatePhone } from '../utils/validat
 import { useAuth } from '../context/AuthContext';
 
 const STATUS_BADGE = {
-  active: 'badge-green', inactive: 'badge-gray',
-  transferred: 'badge-blue', deceased: 'badge-red', pending_review: 'badge-yellow',
+  active: 'badge-green',
+  inactive: 'badge-gray',
+  transferred: 'badge-blue',
+  deceased: 'badge-red',
+  pending_review: 'badge-yellow',
 };
 
-function MemberForm({ form, setForm, branches, errors = {} }) {
+const MONTHS = [
+  { value: '1', label: 'January' },
+  { value: '2', label: 'February' },
+  { value: '3', label: 'March' },
+  { value: '4', label: 'April' },
+  { value: '5', label: 'May' },
+  { value: '6', label: 'June' },
+  { value: '7', label: 'July' },
+  { value: '8', label: 'August' },
+  { value: '9', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+];
+
+function MemberForm({ form, setForm, branches = [], departments = [], fellowshipCenters = [], errors = {} }) {
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-h-[72vh] overflow-y-auto pr-1">
       <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">First Name *</label><input className={`input ${errors.firstName ? 'border-red-400' : ''}`} required value={form.firstName || ''} onChange={set('firstName')} />{errors.firstName && <p className="text-xs text-red-500 mt-1">{errors.firstName}</p>}</div>
-        <div><label className="label">Last Name *</label><input className={`input ${errors.lastName ? 'border-red-400' : ''}`} required value={form.lastName || ''} onChange={set('lastName')} />{errors.lastName && <p className="text-xs text-red-500 mt-1">{errors.lastName}</p>}</div>
+        <div>
+          <label className="label">First Name *</label>
+          <input className={`input ${errors.firstName ? 'border-red-400' : ''}`} required value={form.firstName || ''} onChange={set('firstName')} />
+          {errors.firstName && <p className="text-xs text-red-500 mt-1">{errors.firstName}</p>}
+        </div>
+        <div>
+          <label className="label">Last Name *</label>
+          <input className={`input ${errors.lastName ? 'border-red-400' : ''}`} required value={form.lastName || ''} onChange={set('lastName')} />
+          {errors.lastName && <p className="text-xs text-red-500 mt-1">{errors.lastName}</p>}
+        </div>
       </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Email *</label>
@@ -35,6 +66,7 @@ function MemberForm({ form, setForm, branches, errors = {} }) {
           {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
         </div>
       </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Gender *</label>
@@ -45,8 +77,13 @@ function MemberForm({ form, setForm, branches, errors = {} }) {
           </select>
           {errors.gender && <p className="text-xs text-red-500 mt-1">{errors.gender}</p>}
         </div>
-        <div><label className="label">Date of Birth *</label><input type="date" className={`input ${errors.dateOfBirth ? 'border-red-400' : ''}`} value={form.dateOfBirth || ''} onChange={set('dateOfBirth')} />{errors.dateOfBirth && <p className="text-xs text-red-500 mt-1">{errors.dateOfBirth}</p>}</div>
+        <div>
+          <label className="label">Date of Birth * (For Birthday Celebrations)</label>
+          <input type="date" className={`input ${errors.dateOfBirth ? 'border-red-400' : ''}`} value={form.dateOfBirth || ''} onChange={set('dateOfBirth')} />
+          {errors.dateOfBirth && <p className="text-xs text-red-500 mt-1">{errors.dateOfBirth}</p>}
+        </div>
       </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Marital Status *</label>
@@ -70,6 +107,7 @@ function MemberForm({ form, setForm, branches, errors = {} }) {
           </select>
         </div>
       </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Branch</label>
@@ -78,30 +116,158 @@ function MemberForm({ form, setForm, branches, errors = {} }) {
             {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </div>
-        <div><label className="label">Join Date</label><input type="date" className="input" value={form.joinDate || ''} onChange={set('joinDate')} /></div>
+        <div>
+          <label className="label">Join Date</label>
+          <input type="date" className="input" value={form.joinDate || ''} onChange={set('joinDate')} />
+        </div>
       </div>
-      <div><label className="label">Address *</label><input className={`input ${errors.address ? 'border-red-400' : ''}`} value={form.address || ''} onChange={set('address')} />{errors.address && <p className="text-xs text-red-500 mt-1">{errors.address}</p>}</div>
+
+      <div>
+        <label className="label">Residential Address & Landmark *</label>
+        <input className={`input ${errors.address ? 'border-red-400' : ''}`} placeholder="e.g. 12 Victoria Island Way, near Civic Center, Lagos" value={form.address || ''} onChange={set('address')} />
+        {errors.address && <p className="text-xs text-red-500 mt-1">{errors.address}</p>}
+      </div>
+
+      {/* Fellowship Cell / Cluster Auto-Assignment */}
+      <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 space-y-2">
+        <label className="label flex items-center gap-1.5 font-semibold text-indigo-900 mb-0">
+          <Home size={15} className="text-indigo-600" /> Fellowship Cell / House Cluster
+        </label>
+        <select className="input bg-white text-sm" value={form.fellowshipCellId || ''} onChange={set('fellowshipCellId')}>
+          <option value="">⚡ Auto-assign to nearest cell by address/location</option>
+          {fellowshipCenters.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.name} {c.meeting_day ? `(${c.meeting_day} ${c.meeting_time || ''})` : ''} — {c.host_address || c.zone_name || 'No address specified'}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-indigo-700/80">
+          If left on &quot;Auto-assign&quot;, our system analyzes residential landmarks and proximity to match this member to the closest house cell automatically.
+        </p>
+      </div>
+
+      {/* Children & Teenagers Section */}
+      <div className="rounded-xl border border-sky-100 bg-sky-50/40 p-3.5 space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-semibold text-sky-950 flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              className="rounded text-brand-600 focus:ring-brand-500 w-4 h-4"
+              checked={form.hasChildren || false}
+              onChange={e => setForm(f => ({ ...f, hasChildren: e.target.checked }))}
+            />
+            <Baby size={16} className="text-sky-600" />
+            Has Children or Teenagers
+          </label>
+          <span className="text-xs text-sky-700">Church demographic accounting</span>
+        </div>
+
+        {form.hasChildren && (
+          <div className="space-y-3 pt-2 border-t border-sky-200/60">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label text-xs">Children (0–12 years)</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="input bg-white text-sm"
+                  value={form.childrenCount ?? 0}
+                  onChange={e => setForm(f => ({ ...f, childrenCount: parseInt(e.target.value) || 0 }))}
+                />
+              </div>
+              <div>
+                <label className="label text-xs">Teenagers (13–19 years)</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="input bg-white text-sm"
+                  value={form.teenagersCount ?? 0}
+                  onChange={e => setForm(f => ({ ...f, teenagersCount: parseInt(e.target.value) || 0 }))}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="label text-xs">Children / Teenagers Names & Ages (Optional)</label>
+              <input
+                className="input bg-white text-sm"
+                placeholder="e.g. Samuel (7), Miracle (11), David (14)"
+                value={form.childrenDetails || ''}
+                onChange={set('childrenDetails')}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Church Worker & Ministry Unit Section */}
+      <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3.5 space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-semibold text-emerald-950 flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              className="rounded text-brand-600 focus:ring-brand-500 w-4 h-4"
+              checked={form.isWorker || false}
+              onChange={e => setForm(f => ({ ...f, isWorker: e.target.checked }))}
+            />
+            <Briefcase size={16} className="text-emerald-600" />
+            Active Church Worker / Serves in a Unit
+          </label>
+          <span className="text-xs text-emerald-700">Department enrollment</span>
+        </div>
+
+        {form.isWorker && (
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-emerald-200/60">
+            <div>
+              <label className="label text-xs">Department / Service Unit</label>
+              <select className="input bg-white text-sm" value={form.workerUnit || ''} onChange={set('workerUnit')}>
+                <option value="">Select Unit</option>
+                {departments.map(d => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label text-xs">Role in Unit</label>
+              <select className="input bg-white text-sm" value={form.workerRole || 'worker'} onChange={set('workerRole')}>
+                <option value="worker">Worker</option>
+                <option value="assistant_leader">Assistant Leader</option>
+                <option value="leader">Unit Leader / HOD</option>
+                <option value="coordinator">Coordinator</option>
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">Occupation</label><input className="input" value={form.occupation || ''} onChange={set('occupation')} /></div>
-        <div><label className="label">Company</label><input className="input" value={form.employer || ''} onChange={set('employer')} /></div>
+        <div>
+          <label className="label">Occupation</label>
+          <input className="input" value={form.occupation || ''} onChange={set('occupation')} />
+        </div>
+        <div>
+          <label className="label">Company / Employer</label>
+          <input className="input" value={form.employer || ''} onChange={set('employer')} />
+        </div>
       </div>
+
       <div className="grid grid-cols-3 gap-3">
         <div>
-          <label className="label flex items-center gap-2">
+          <label className="label flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={form.waterBaptized || false} onChange={e => setForm(f => ({ ...f, waterBaptized: e.target.checked }))} />
             Water Baptized
           </label>
         </div>
         <div>
-          <label className="label flex items-center gap-2">
+          <label className="label flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={form.holyGhostBaptized || false} onChange={e => setForm(f => ({ ...f, holyGhostBaptized: e.target.checked }))} />
             Holy Ghost Baptized
           </label>
         </div>
       </div>
+
       <div>
-        <label className="label">Notes</label>
-        <textarea className="input min-h-[70px]" value={form.notes || ''} onChange={set('notes')} />
+        <label className="label">Notes / Pastoral Remarks</label>
+        <textarea className="input min-h-[70px]" value={form.notes || ''} onChange={set('notes')} placeholder="Add any background notes..." />
       </div>
     </div>
   );
@@ -112,13 +278,25 @@ export default function Members() {
   const [members, setMembers] = useState([]);
   const [stats, setStats] = useState({});
   const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [fellowshipCenters, setFellowshipCenters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ total: 0, page: 1, totalPages: 1 });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [modal, setModal] = useState(null); // null | 'add' | 'edit' | 'view'
+  const [workerFilter, setWorkerFilter] = useState('');
+  const [childrenFilter, setChildrenFilter] = useState('');
+  const [cellFilter, setCellFilter] = useState('');
+  const [birthdayMonthFilter, setBirthdayMonthFilter] = useState('');
+
+  const [modal, setModal] = useState(null); // null | 'add' | 'edit'
   const [showImport, setShowImport] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showBirthdaysModal, setShowBirthdaysModal] = useState(false);
+  const [upcomingBirthdays, setUpcomingBirthdays] = useState([]);
+  const [loadingBirthdays, setLoadingBirthdays] = useState(false);
+  const [sendingWishId, setSendingWishId] = useState(null);
+
   const [selectedMember, setSelectedMember] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -127,17 +305,68 @@ export default function Members() {
   const fetchMembers = useCallback(async (page = 1) => {
     setLoading(true);
     try {
-      const params = { page, limit: 20, ...(search && { search }), ...(statusFilter && { status: statusFilter }) };
-      const [membersRes, statsRes] = await Promise.all([membersAPI.list(params), membersAPI.stats()]);
+      const params = {
+        page,
+        limit: 20,
+        ...(search && { search }),
+        ...(statusFilter && { status: statusFilter }),
+        ...(workerFilter && { isWorker: workerFilter === 'workers' }),
+        ...(childrenFilter && { hasChildren: true }),
+        ...(cellFilter && { cellId: cellFilter }),
+        ...(birthdayMonthFilter && { birthdayMonth: birthdayMonthFilter }),
+      };
+      const [membersRes, statsRes] = await Promise.all([
+        membersAPI.list(params),
+        membersAPI.stats()
+      ]);
       setMembers(membersRes.data.data);
       setPagination(membersRes.data.pagination);
       setStats(statsRes.data.data);
-    } catch (e) { toast.error('Failed to load members'); }
-    finally { setLoading(false); }
-  }, [search, statusFilter]);
+    } catch {
+      toast.error('Failed to load members');
+    } finally {
+      setLoading(false);
+    }
+  }, [search, statusFilter, workerFilter, childrenFilter, cellFilter, birthdayMonthFilter]);
 
   useEffect(() => { fetchMembers(1); }, [fetchMembers]);
-  useEffect(() => { branchesAPI.list().then(r => setBranches(r.data.data)).catch(() => {}); }, []);
+
+  useEffect(() => {
+    branchesAPI.list().then(r => setBranches(r.data.data || [])).catch(() => {});
+    departmentsAPI.list().then(r => setDepartments(r.data.data || [])).catch(() => {});
+    fellowshipAPI.centers().then(r => setFellowshipCenters(r.data.data || [])).catch(() => {});
+  }, []);
+
+  const loadBirthdays = async (month = null) => {
+    setLoadingBirthdays(true);
+    try {
+      const params = { days: 30, ...(month && { month }) };
+      const res = await membersAPI.birthdays(params);
+      setUpcomingBirthdays(res.data.data || []);
+    } catch {
+      toast.error('Failed to load upcoming birthdays');
+    } finally {
+      setLoadingBirthdays(false);
+    }
+  };
+
+  const openBirthdaysDialog = () => {
+    setShowBirthdaysModal(true);
+    loadBirthdays();
+  };
+
+  const handleSendWish = async (member, channel = 'whatsapp') => {
+    setSendingWishId(member.id);
+    try {
+      await membersAPI.sendBirthdayWish(member.id, { channel });
+      toast.success(`Birthday greeting sent to ${member.first_name}! 🎂`);
+      loadBirthdays();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to dispatch birthday wish');
+    } finally {
+      setSendingWishId(null);
+    }
+  };
 
   const churchSlug = user?.church_slug || user?.churchSlug;
   const publicMemberFormUrl = useMemo(() => {
@@ -146,8 +375,45 @@ export default function Members() {
   }, [churchSlug]);
 
   const navigate = useNavigate();
-  const openAdd = () => { setForm({}); setFormErrors({}); setModal('add'); };
-  const openEdit = (m) => { setForm({ ...m, firstName: m.first_name, lastName: m.last_name, dateOfBirth: m.date_of_birth, maritalStatus: m.marital_status, membershipClass: m.membership_class, joinDate: m.join_date, waterBaptized: m.water_baptized, holyGhostBaptized: m.holy_ghost_baptized, branchId: m.branch_id }); setFormErrors({}); setSelectedMember(m); setModal('edit'); };
+
+  const openAdd = () => {
+    setForm({
+      membershipClass: 'full',
+      hasChildren: false,
+      childrenCount: 0,
+      teenagersCount: 0,
+      isWorker: false,
+      workerRole: 'worker',
+    });
+    setFormErrors({});
+    setModal('add');
+  };
+
+  const openEdit = (m) => {
+    setForm({
+      ...m,
+      firstName: m.first_name,
+      lastName: m.last_name,
+      dateOfBirth: m.date_of_birth ? String(m.date_of_birth).slice(0, 10) : '',
+      maritalStatus: m.marital_status,
+      membershipClass: m.membership_class,
+      joinDate: m.join_date ? String(m.join_date).slice(0, 10) : '',
+      waterBaptized: m.water_baptized,
+      holyGhostBaptized: m.holy_ghost_baptized,
+      branchId: m.branch_id,
+      hasChildren: m.has_children || (m.children_count > 0) || (m.teenagers_count > 0),
+      childrenCount: m.children_count || 0,
+      teenagersCount: m.teenagers_count || 0,
+      childrenDetails: m.children_details || '',
+      isWorker: m.is_worker || false,
+      workerUnit: m.worker_unit || '',
+      workerRole: m.worker_role || 'worker',
+      fellowshipCellId: m.fellowship_cell_id || '',
+    });
+    setFormErrors({});
+    setSelectedMember(m);
+    setModal('edit');
+  };
 
   const handleSave = async () => {
     const errs = {};
@@ -163,19 +429,23 @@ export default function Members() {
     if (!form.address?.trim()) errs.address = 'Address is required';
     setFormErrors(errs);
     if (Object.keys(errs).length > 0) return toast.error('Please fill all required fields');
+
     setSaving(true);
     try {
       if (modal === 'add') {
         await membersAPI.create(form);
-        toast.success('Member added!');
+        toast.success('Member added! Fellowship cell assigned automatically.');
       } else {
         await membersAPI.update(selectedMember.id, form);
         toast.success('Member updated!');
       }
       setModal(null);
       fetchMembers(pagination.page);
-    } catch (e) { toast.error('Failed to save member'); }
-    finally { setSaving(false); }
+    } catch {
+      toast.error('Failed to save member');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async (id) => {
@@ -184,7 +454,9 @@ export default function Members() {
       await membersAPI.delete(id);
       toast.success('Member deactivated');
       fetchMembers(pagination.page);
-    } catch { toast.error('Failed to deactivate member'); }
+    } catch {
+      toast.error('Failed to deactivate member');
+    }
   };
 
   const handleApprove = async (id) => {
@@ -200,14 +472,30 @@ export default function Members() {
   const getInitials = (fn, ln) => `${fn?.[0] || ''}${ln?.[0] || ''}`.toUpperCase();
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="page-title">Members</h1>
-          <p className="text-gray-500 text-sm mt-1">{(stats.active || 0).toLocaleString()} active members</p>
+          <h1 className="page-title flex items-center gap-2.5">
+            Members
+            <span className="text-xs bg-brand-50 text-brand-700 font-semibold px-2.5 py-0.5 rounded-full border border-brand-200">
+              {(stats.active || 0).toLocaleString()} Active
+            </span>
+          </h1>
+          <p className="text-gray-500 text-sm mt-0.5">
+            Manage church membership, track family demographics, church workers, cell clusters, and celebrate birthdays.
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button onClick={openBirthdaysDialog} className="btn-secondary flex items-center gap-1.5 text-pink-700 bg-pink-50 border-pink-200 hover:bg-pink-100">
+            <Cake size={16} className="text-pink-600" />
+            <span>Birthdays</span>
+            {(stats.birthdays_this_month || 0) > 0 && (
+              <span className="bg-pink-600 text-white text-[11px] font-bold px-1.5 py-0.2 rounded-full">
+                {stats.birthdays_this_month}
+              </span>
+            )}
+          </button>
           {publicMemberFormUrl && (
             <button onClick={() => setShowShare(true)} className="btn-secondary flex items-center gap-1.5">
               <QrCode size={16} /> Member Form
@@ -222,18 +510,29 @@ export default function Members() {
         </div>
       </div>
 
-      {/* Mini stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      {/* Mini stats cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { label: 'Active', value: stats.active, color: 'text-emerald-600 bg-emerald-50' },
-          { label: 'Pending Review', value: stats.pending_review, color: 'text-amber-600 bg-amber-50' },
-          { label: 'New This Month', value: stats.new_this_month, color: 'text-brand-600 bg-brand-50' },
-          { label: 'Male', value: stats.male, color: 'text-blue-600 bg-blue-50' },
-          { label: 'Female', value: stats.female, color: 'text-pink-600 bg-pink-50' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="card py-4 px-5">
-            <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">{label}</p>
-            <p className={`text-2xl font-bold font-display rounded-lg ${color}`}>{(value || 0).toLocaleString()}</p>
+          { label: 'Active Members', value: stats.active, icon: Users, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-100' },
+          { label: 'Children (0–12)', value: stats.total_children, icon: Baby, color: 'text-sky-700', bg: 'bg-sky-50 border-sky-100' },
+          { label: 'Teenagers (13–19)', value: stats.total_teenagers, icon: Users, color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-100' },
+          { label: 'Church Workers', value: stats.workers_count, icon: Briefcase, color: 'text-amber-700', bg: 'bg-amber-50 border-amber-100' },
+          { label: 'Birthdays Month', value: stats.birthdays_this_month, icon: Cake, color: 'text-pink-700', bg: 'bg-pink-50 border-pink-100', badge: stats.birthdays_today ? `${stats.birthdays_today} Today!` : null },
+          { label: 'Pending Review', value: stats.pending_review, icon: CheckCircle2, color: 'text-orange-700', bg: 'bg-orange-50 border-orange-100' },
+        ].map(({ label, value, icon: Icon, color, bg, badge }) => (
+          <div key={label} className={`card p-4 border ${bg} transition-all hover:shadow-sm`}>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">{label}</p>
+              <Icon size={15} className={color} />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <p className={`text-2xl font-bold font-display ${color}`}>{(value || 0).toLocaleString()}</p>
+              {badge && (
+                <span className="text-[10px] font-bold bg-pink-600 text-white px-1.5 py-0.5 rounded-full animate-pulse">
+                  {badge}
+                </span>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -241,19 +540,65 @@ export default function Members() {
       {/* Table card */}
       <div className="table-wrapper">
         {/* Filters */}
-        <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-3 items-center bg-white">
-          <div className="relative flex-1 min-w-[220px] max-w-sm">
+        <div className="p-3.5 border-b border-gray-100 flex flex-wrap gap-2.5 items-center bg-white">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input className="input pl-9 py-2 h-9 text-sm" placeholder="Search by name, email, phone…"
-              value={search} onChange={e => setSearch(e.target.value)} />
+            <input
+              className="input pl-9 py-1.5 h-9 text-xs"
+              placeholder="Search name, phone, email, cell..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
-          <select className="input h-9 text-sm w-auto py-2 pr-8" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+
+          <select className="input h-9 text-xs w-auto py-1.5 pr-8" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">All Statuses</option>
             <option value="active">Active</option>
             <option value="pending_review">Pending Review</option>
             <option value="inactive">Inactive</option>
             <option value="transferred">Transferred</option>
           </select>
+
+          <select className="input h-9 text-xs w-auto py-1.5 pr-8" value={workerFilter} onChange={e => setWorkerFilter(e.target.value)}>
+            <option value="">All Service Status</option>
+            <option value="workers">Workers Only</option>
+            <option value="members">Non-Workers</option>
+          </select>
+
+          <select className="input h-9 text-xs w-auto py-1.5 pr-8" value={childrenFilter} onChange={e => setChildrenFilter(e.target.value)}>
+            <option value="">All Families</option>
+            <option value="true">With Children / Teens</option>
+          </select>
+
+          <select className="input h-9 text-xs w-auto py-1.5 pr-8" value={cellFilter} onChange={e => setCellFilter(e.target.value)}>
+            <option value="">All Fellowship Cells</option>
+            {fellowshipCenters.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+
+          <select className="input h-9 text-xs w-auto py-1.5 pr-8" value={birthdayMonthFilter} onChange={e => setBirthdayMonthFilter(e.target.value)}>
+            <option value="">Birthday Month (All)</option>
+            {MONTHS.map(m => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+
+          {(search || statusFilter || workerFilter || childrenFilter || cellFilter || birthdayMonthFilter) && (
+            <button
+              onClick={() => {
+                setSearch('');
+                setStatusFilter('');
+                setWorkerFilter('');
+                setChildrenFilter('');
+                setCellFilter('');
+                setBirthdayMonthFilter('');
+              }}
+              className="text-xs text-brand-600 hover:text-brand-800 font-medium px-2 py-1"
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -261,8 +606,8 @@ export default function Members() {
         ) : members.length === 0 ? (
           <div className="text-center py-16">
             <Users size={40} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500 font-medium">No members found</p>
-            <p className="text-gray-400 text-sm">Add your first church member to get started</p>
+            <p className="text-gray-500 font-medium">No members match your criteria</p>
+            <p className="text-gray-400 text-sm">Add a member or adjust your filter query</p>
             <button onClick={openAdd} className="btn-primary mt-4 inline-flex"><Plus size={15} /> Add Member</button>
           </div>
         ) : (
@@ -272,50 +617,161 @@ export default function Members() {
                 <th>Member</th>
                 <th>ID</th>
                 <th>Contact</th>
-                <th>Class</th>
+                <th>Demographics</th>
+                <th>Worker / Unit</th>
+                <th>Fellowship Cell</th>
                 <th>Status</th>
                 <th>Joined</th>
-                <th></th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {members.map(m => (
-                <tr key={m.id}>
-                  <td>
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-xs font-bold flex-shrink-0">
-                        {getInitials(m.first_name, m.last_name)}
+              {members.map(m => {
+                const hasFamily = (m.children_count > 0) || (m.teenagers_count > 0) || m.has_children;
+                const isBdayToday = m.date_of_birth && (
+                  new Date(m.date_of_birth).getMonth() === new Date().getMonth() &&
+                  new Date(m.date_of_birth).getDate() === new Date().getDate()
+                );
+                return (
+                  <tr key={m.id}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-xs font-bold flex-shrink-0 relative">
+                          {getInitials(m.first_name, m.last_name)}
+                          {isBdayToday && (
+                            <span className="absolute -top-1 -right-1 text-sm" title="Birthday Today!">🎂</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 flex items-center gap-1.5">
+                            {m.first_name} {m.last_name}
+                            {isBdayToday && (
+                              <span className="badge badge-pink text-[10px] py-0 px-1 font-bold">Birthday!</span>
+                            )}
+                          </p>
+                          <p className="text-xs text-gray-400">{m.branch_name || 'Main Sanctuary'}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{m.first_name} {m.last_name}</p>
-                        <p className="text-xs text-gray-400">{m.branch_name || '—'}</p>
+                    </td>
+
+                    <td className="text-xs font-mono text-gray-500">{m.member_number}</td>
+
+                    <td>
+                      <div className="flex flex-col gap-0.5">
+                        {m.email && <span className="flex items-center gap-1 text-xs text-gray-500"><Mail size={11} />{m.email}</span>}
+                        {m.phone && <span className="flex items-center gap-1 text-xs text-gray-500"><Phone size={11} />{m.phone}</span>}
                       </div>
-                    </div>
-                  </td>
-                  <td className="text-xs font-mono text-gray-500">{m.member_number}</td>
-                  <td>
-                    <div className="flex flex-col gap-0.5">
-                      {m.email && <span className="flex items-center gap-1 text-xs text-gray-500"><Mail size={11} />{m.email}</span>}
-                      {m.phone && <span className="flex items-center gap-1 text-xs text-gray-500"><Phone size={11} />{m.phone}</span>}
-                    </div>
-                  </td>
-                  <td><span className="capitalize text-sm">{m.membership_class || '—'}</span></td>
-                  <td><span className={`badge ${STATUS_BADGE[m.membership_status] || 'badge-gray'} capitalize`}>{m.membership_status}</span></td>
-                  <td className="text-sm text-gray-500">{m.join_date ? format(new Date(m.join_date), 'MMM d, yyyy') : '—'}</td>
-                  <td>
-                    <div className="flex items-center gap-1">
-                      {m.membership_status === 'pending_review' && (
-                        <button onClick={() => handleApprove(m.id)} className="p-1.5 rounded hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition-colors" title="Approve member">
-                          <CheckCircle2 size={14} />
-                        </button>
+                    </td>
+
+                    <td>
+                      <div className="flex flex-col gap-1">
+                        <span className="capitalize text-xs font-medium text-gray-700">{m.membership_class || 'Full'}</span>
+                        {hasFamily ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
+                            <Baby size={11} />
+                            {[
+                              m.children_count > 0 ? `${m.children_count} kids` : null,
+                              m.teenagers_count > 0 ? `${m.teenagers_count} teens` : null,
+                            ].filter(Boolean).join(', ') || 'Has children'}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-gray-400">—</span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td>
+                      {m.is_worker ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                            <Briefcase size={11} className="text-emerald-600" />
+                            {m.worker_unit || 'Worker'}
+                          </span>
+                          {m.worker_role && m.worker_role !== 'worker' && (
+                            <span className="text-[10px] text-emerald-600 font-medium capitalize pl-1">
+                              {m.worker_role.replace('_', ' ')}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">Congregant</span>
                       )}
-                      <button onClick={() => navigate(`/members/${m.id}`)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors" title="View profile"><ExternalLink size={14} /></button>
-                      <button onClick={() => openEdit(m)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-brand-600 transition-colors"><Edit2 size={14} /></button>
-                      <button onClick={() => handleDelete(m.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+
+                    <td>
+                      {m.fellowship_cell_name ? (
+                        <div className="flex flex-col gap-0.5 max-w-[170px]">
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md truncate">
+                            <Home size={11} className="text-indigo-600 flex-shrink-0" />
+                            <span className="truncate">{m.fellowship_cell_name}</span>
+                          </span>
+                          {m.fellowship_meeting_day && (
+                            <span className="text-[10px] text-indigo-500 font-medium pl-1">
+                              {m.fellowship_meeting_day} {m.fellowship_meeting_time || ''}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">Unassigned</span>
+                      )}
+                    </td>
+
+                    <td>
+                      <span className={`badge ${STATUS_BADGE[m.membership_status] || 'badge-gray'} capitalize`}>
+                        {m.membership_status}
+                      </span>
+                    </td>
+
+                    <td className="text-xs text-gray-500">
+                      {m.join_date ? format(new Date(m.join_date), 'MMM d, yyyy') : '—'}
+                    </td>
+
+                    <td className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {isBdayToday && (
+                          <button
+                            onClick={() => handleSendWish(m, 'whatsapp')}
+                            className="p-1.5 rounded hover:bg-pink-100 text-pink-600 transition-colors"
+                            title="Send Birthday Greeting via WhatsApp"
+                          >
+                            <Cake size={14} />
+                          </button>
+                        )}
+                        {m.membership_status === 'pending_review' && (
+                          <button
+                            onClick={() => handleApprove(m.id)}
+                            className="p-1.5 rounded hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition-colors"
+                            title="Approve member"
+                          >
+                            <CheckCircle2 size={14} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => navigate(`/members/${m.id}`)}
+                          className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                          title="View profile"
+                        >
+                          <ExternalLink size={14} />
+                        </button>
+                        <button
+                          onClick={() => openEdit(m)}
+                          className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-brand-600 transition-colors"
+                          title="Edit member"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(m.id)}
+                          className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                          title="Deactivate"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -325,24 +781,182 @@ export default function Members() {
           <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
             <span>Showing {members.length} of {pagination.total.toLocaleString()} members</span>
             <div className="flex gap-2">
-              <button disabled={pagination.page <= 1} onClick={() => fetchMembers(pagination.page - 1)}
-                className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40">← Prev</button>
-              <button disabled={pagination.page >= pagination.totalPages} onClick={() => fetchMembers(pagination.page + 1)}
-                className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40">Next →</button>
+              <button
+                disabled={pagination.page <= 1}
+                onClick={() => fetchMembers(pagination.page - 1)}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40"
+              >
+                ← Prev
+              </button>
+              <button
+                disabled={pagination.page >= pagination.totalPages}
+                onClick={() => fetchMembers(pagination.page + 1)}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40"
+              >
+                Next →
+              </button>
             </div>
           </div>
         )}
       </div>
 
       {/* Add/Edit Modal */}
-      <Modal open={!!modal} onClose={() => setModal(null)} title={modal === 'add' ? 'Add New Member' : 'Edit Member'} size="lg"
+      <Modal
+        open={!!modal}
+        onClose={() => setModal(null)}
+        title={modal === 'add' ? 'Add New Member' : 'Edit Member'}
+        size="lg"
         footer={<>
           <button onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
           <button onClick={handleSave} disabled={saving} className="btn-primary">
             {saving ? <Loader2 size={15} className="animate-spin" /> : modal === 'add' ? 'Add Member' : 'Save Changes'}
           </button>
-        </>}>
-        <MemberForm form={form} setForm={setForm} branches={branches} errors={formErrors} />
+        </>}
+      >
+        <MemberForm
+          form={form}
+          setForm={setForm}
+          branches={branches}
+          departments={departments}
+          fellowshipCenters={fellowshipCenters}
+          errors={formErrors}
+        />
+      </Modal>
+
+      {/* Upcoming Birthdays Celebration Modal */}
+      <Modal
+        open={showBirthdaysModal}
+        onClose={() => setShowBirthdaysModal(false)}
+        title="🎂 Member Birthdays & Celebrations"
+        size="lg"
+        footer={<>
+          <button onClick={() => setShowBirthdaysModal(false)} className="btn-secondary">Close</button>
+        </>}
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 bg-pink-50/70 border border-pink-100 p-3.5 rounded-xl">
+            <div className="flex items-center gap-2.5">
+              <Cake className="text-pink-600" size={24} />
+              <div>
+                <p className="text-sm font-bold text-pink-950">Celebrate Church Family Birthdays</p>
+                <p className="text-xs text-pink-800">
+                  ChurchOS automatically schedules daily greetings via WhatsApp/SMS/Email, and you can also send one-click personal wishes right here!
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => loadBirthdays()}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-pink-100 text-pink-800 hover:bg-pink-200"
+            >
+              Upcoming (Next 30 Days)
+            </button>
+            <select
+              className="input text-xs py-1.5 h-8 w-auto pr-7"
+              onChange={e => loadBirthdays(e.target.value)}
+              defaultValue=""
+            >
+              <option value="">Filter by specific month...</option>
+              {MONTHS.map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {loadingBirthdays ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-pink-600" />
+            </div>
+          ) : upcomingBirthdays.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-100">
+              <Cake size={36} className="mx-auto text-gray-300 mb-2" />
+              <p className="text-sm font-medium text-gray-600">No birthdays in this selected window</p>
+              <p className="text-xs text-gray-400">Ensure member birth dates are entered in the system</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 max-h-[50vh] overflow-y-auto pr-1">
+              {upcomingBirthdays.map(b => {
+                const isToday = b.is_today || b.days_until === 0;
+                const formattedDate = b.date_of_birth ? format(new Date(b.date_of_birth), 'MMMM d') : '';
+                return (
+                  <div key={b.id} className="py-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                        isToday ? 'bg-pink-600 text-white shadow-md' : 'bg-pink-100 text-pink-700'
+                      }`}>
+                        {getInitials(b.first_name, b.last_name)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900 text-sm">
+                            {b.first_name} {b.last_name}
+                          </p>
+                          {isToday ? (
+                            <span className="badge badge-pink font-bold text-[10px] animate-bounce">
+                              Today! 🎂
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-500 font-medium">
+                              in {b.days_until} day{b.days_until === 1 ? '' : 's'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+                          <span className="flex items-center gap-1 font-medium text-pink-700">
+                            <Calendar size={12} /> {formattedDate}
+                          </span>
+                          {b.phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone size={11} /> {b.phone}
+                            </span>
+                          )}
+                          {b.email && (
+                            <span className="hidden sm:flex items-center gap-1">
+                              <Mail size={11} /> {b.email}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {b.phone && (
+                        <a
+                          href={`https://wa.me/${b.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                            `Happy Birthday, ${b.first_name}! 🎂🎉\n\nThe leadership and church family celebrate God's grace and blessings over your life today! May this new year overflow with health, joy, and peace in Jesus' name! Have a glorious celebration! ✨`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-secondary text-xs py-1 px-2.5 flex items-center gap-1 text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
+                          title="Open WhatsApp Chat"
+                        >
+                          <MessageCircle size={13} />
+                          <span className="hidden sm:inline">WhatsApp</span>
+                        </a>
+                      )}
+
+                      <button
+                        onClick={() => handleSendWish(b, 'whatsapp')}
+                        disabled={sendingWishId === b.id}
+                        className="btn-primary text-xs py-1 px-3 flex items-center gap-1 bg-pink-600 hover:bg-pink-700 text-white"
+                        title="Dispatch system greeting"
+                      >
+                        {sendingWishId === b.id ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Send size={13} />
+                        )}
+                        <span>Wish</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </Modal>
 
       <CsvImportModal
@@ -357,7 +971,7 @@ export default function Members() {
         open={showShare}
         onClose={() => setShowShare(false)}
         title="Member Registration Form"
-        description="Share this QR code or link with members so they can submit their details directly into the Members page."
+        description="Share this QR code or link with members so they can submit their details, family demographic counts, worker unit, and receive automatic cell cluster assignment."
         url={publicMemberFormUrl}
       />
     </div>
