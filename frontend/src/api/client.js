@@ -34,7 +34,11 @@ api.interceptors.response.use(
   },
   async err => {
     const original = err.config;
-    if (err.response?.status === 401 && !original._retry) {
+    const isAuthRoute = original?.url?.includes('/auth/login') ||
+                        original?.url?.includes('/auth/register') ||
+                        original?.url?.includes('/auth/refresh');
+
+    if (err.response?.status === 401 && !original?._retry && !isAuthRoute) {
       original._retry = true;
       try {
         const refreshToken = localStorage.getItem('refreshToken');
@@ -46,7 +50,11 @@ api.interceptors.response.use(
         return api(original);
       } catch {
         localStorage.clear();
-        window.location.href = '/login';
+        if (window.location.pathname.startsWith('/platform')) {
+          window.location.href = '/platform/login';
+        } else {
+          window.location.href = '/login';
+        }
       }
     }
     if (err.response?.status !== 401) {
