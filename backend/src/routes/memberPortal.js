@@ -10,6 +10,7 @@ router.get('/home', c.getHome);
 router.get('/profile', c.getProfile);
 router.patch('/profile', c.updateProfile);
 router.post('/avatar', uploadFor('avatars'), upload.single('avatar'), c.uploadAvatar);
+router.get('/export', c.exportMemberData);
 
 router.get('/affiliations', c.getAffiliations);
 

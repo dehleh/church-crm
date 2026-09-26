@@ -67,6 +67,7 @@ export const memberPortalAPI = {
   getDiscipleshipCourse: (id) => memberApi.get(`/me/discipleship/courses/${id}`),
   enrollDiscipleshipCourse: (id) => memberApi.post(`/me/discipleship/courses/${id}/enroll`),
   completeLesson: (lessonId, data) => memberApi.post(`/me/discipleship/lessons/${lessonId}/complete`, data || {}),
+  exportData: () => memberApi.get('/me/export'),
 };
 
 

@@ -2,6 +2,7 @@ const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
+const storageService = require('../services/storageService');
 const logger = require('../config/logger');
 
 const PROFILE_FIELDS = [
@@ -219,12 +220,28 @@ const getHome = async (req, res) => {
 const uploadAvatar = async (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
   try {
-    const url = `/uploads/avatars/${req.file.filename}`;
-    // delete old file if it lives in uploads/avatars
-    if (req.member.profile_photo_url && req.member.profile_photo_url.startsWith('/uploads/avatars/')) {
-      const old = path.resolve(process.env.UPLOAD_DIR || 'uploads', 'avatars', path.basename(req.member.profile_photo_url));
-      fs.promises.unlink(old).catch(() => {});
+    let url;
+    if (storageService.isS3Configured) {
+      const fileBuffer = req.file.buffer || fs.readFileSync(req.file.path);
+      const uploaded = await storageService.uploadFile({
+        buffer: fileBuffer,
+        filename: req.file.originalname || req.file.filename,
+        mimetype: req.file.mimetype,
+        folder: 'avatars',
+      });
+      url = uploaded.url;
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+    } else {
+      url = `/uploads/avatars/${req.file.filename}`;
     }
+
+    // Clean up previous avatar if it exists
+    if (req.member.profile_photo_url) {
+      storageService.deleteFile(req.member.profile_photo_url).catch(() => {});
+    }
+
     await query('UPDATE members SET profile_photo_url = $1, updated_at = NOW() WHERE id = $2', [url, req.member.id]);
     return res.json({ success: true, data: { profilePhotoUrl: url } });
   } catch (err) {
@@ -923,6 +940,56 @@ const completeLessonProgress = async (req, res) => {
   }
 };
 
+// GET /api/me/export — GDPR / NDPR compliant member data export
+const exportMemberData = async (req, res) => {
+  try {
+    const memberId = req.member.id;
+
+    const [memberRes, attendanceRes, givingRes, prayerRes, courseRes] = await Promise.all([
+      query('SELECT * FROM members WHERE id = $1', [memberId]),
+      query(
+        `SELECT a.*, e.title as event_title, e.event_date
+         FROM attendance a
+         JOIN events e ON e.id = a.event_id
+         WHERE a.member_id = $1
+         ORDER BY e.event_date DESC`,
+        [memberId]
+      ),
+      query(
+        'SELECT * FROM online_giving_transactions WHERE member_id = $1 ORDER BY created_at DESC',
+        [memberId]
+      ),
+      query(
+        'SELECT id, title, request, status, created_at FROM prayer_requests WHERE member_id = $1 ORDER BY created_at DESC',
+        [memberId]
+      ),
+      query(
+        `SELECT de.*, dc.title as course_title
+         FROM discipleship_enrollments de
+         JOIN discipleship_courses dc ON dc.id = de.course_id
+         WHERE de.member_id = $1`,
+        [memberId]
+      ),
+    ]);
+
+    const archive = {
+      exportedAt: new Date().toISOString(),
+      member: memberRes.rows[0],
+      attendance: attendanceRes.rows,
+      onlineGiving: givingRes.rows,
+      prayerRequests: prayerRes.rows,
+      discipleshipEnrollments: courseRes.rows,
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="member-archive-${memberId}.json"`);
+    return res.json({ success: true, data: archive });
+  } catch (err) {
+    logger.error('exportMemberData error:', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Data export failed' });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -949,6 +1016,7 @@ module.exports = {
   getMyDiscipleshipCourseDetails,
   enrollInDiscipleshipCourse,
   completeLessonProgress,
+  exportMemberData,
 };
 
 

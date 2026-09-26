@@ -172,6 +172,21 @@ const login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
+    // Check if 2FA is enabled on user account
+    if (user.two_factor_enabled) {
+      const twoFactorToken = jwt.sign(
+        { userId: user.id, is2FAPending: true },
+        process.env.JWT_SECRET,
+        { expiresIn: '5m' }
+      );
+      return res.json({
+        success: true,
+        requireTwoFactor: true,
+        twoFactorToken,
+        message: 'Two-factor authentication required. Please enter your 6-digit code.',
+      });
+    }
+
     // Successful login — reset failed attempts
     const { accessToken, refreshToken } = generateTokens(user.id, user.church_id, user.role);
     await query(
@@ -193,6 +208,7 @@ const login = async (req, res) => {
           email: user.email,
           role: user.role,
           isSuperAdmin: user.is_super_admin || false,
+          twoFactorEnabled: Boolean(user.two_factor_enabled),
           churchId: user.church_id,
           churchName: user.church_name,
           churchSlug: user.church_slug,
@@ -251,6 +267,7 @@ const getMe = async (req, res) => {
   const data = {
     ...u,
     isSuperAdmin: u.is_super_admin || false,
+    twoFactorEnabled: Boolean(u.two_factor_enabled),
     churchId: u.church_id,
     churchName: u.church_name,
     churchSlug: u.church_slug,

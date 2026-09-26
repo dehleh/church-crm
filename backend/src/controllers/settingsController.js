@@ -18,7 +18,7 @@ const updateChurchSettings = async (req, res) => {
   const {
     name, address, city, state, country, phone, email, website,
     denomination, timezone, currency, logoUrl, bannerUrl,
-    tagline, mission, vision, socialLinks, pastors, settings
+    tagline, mission, vision, socialLinks, pastors, settings, paymentSettings
   } = req.body;
   try {
     const { rows } = await query(
@@ -41,7 +41,8 @@ const updateChurchSettings = async (req, res) => {
         vision = COALESCE($17, vision),
         social_links = COALESCE($18, social_links),
         pastors = COALESCE($19, pastors),
-        settings = COALESCE($20, settings)
+        settings = COALESCE($20, settings),
+        payment_settings = COALESCE($21, payment_settings)
        WHERE id = $1 RETURNING *`,
       [
         req.churchId, name, address, city, state, country, phone, email, website,
@@ -50,6 +51,7 @@ const updateChurchSettings = async (req, res) => {
         socialLinks ? (typeof socialLinks === 'string' ? socialLinks : JSON.stringify(socialLinks)) : null,
         pastors ? (typeof pastors === 'string' ? pastors : JSON.stringify(pastors)) : null,
         settings ? (typeof settings === 'string' ? settings : JSON.stringify(settings)) : null,
+        paymentSettings ? (typeof paymentSettings === 'string' ? paymentSettings : JSON.stringify(paymentSettings)) : null,
       ]
     );
     return res.json({ success: true, data: rows[0], message: 'Settings updated' });

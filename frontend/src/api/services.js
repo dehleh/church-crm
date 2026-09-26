@@ -293,4 +293,23 @@ export const devotionalsAPI = {
   seedSamples: () => api.post('/devotionals/seed-samples'),
 };
 
+export const givingAPI = {
+  getPublicInfo: (slug) => axios.get(`${API_BASE}/giving/public/${slug}/info`),
+  initialize: (data) => axios.post(`${API_BASE}/giving/public/initialize`, data),
+  verify: (reference, params) => axios.get(`${API_BASE}/giving/public/verify/${reference}`, { params }),
+  listTransactions: (params) => api.get('/giving/transactions', { params }),
+};
+
+export const twoFactorAPI = {
+  getStatus: () => api.get('/auth/2fa/status'),
+  setup: () => api.post('/auth/2fa/setup'),
+  enable: (data) => api.post('/auth/2fa/enable', data),
+  disable: (data) => api.post('/auth/2fa/disable', data),
+  verifyLogin: (data) => axios.post(`${API_BASE}/auth/2fa/verify-login`, data),
+};
+
+export const memberExportAPI = {
+  exportData: () => api.get('/me/export'),
+};
+
 

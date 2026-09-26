@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import {
   Settings as SettingsIcon, Building2, User, Lock, Save, Loader2, CheckCircle,
   Mail, MessageCircle, Phone, Send, ToggleLeft, ToggleRight, Users, Plus, Trash2,
-  Edit3, Image, Globe, Sparkles, AlertCircle
+  Edit3, Image, Globe, Sparkles, AlertCircle, CreditCard, Shield, QrCode, Key,
+  Copy, Check, ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { twoFactorAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import api from '../api/client';
@@ -13,6 +15,8 @@ const TABS = [
   { id: 'church',    label: 'Church Profile & Branding', icon: Building2 },
   { id: 'pastors',   label: 'Pastoral Leadership',       icon: Users },
   { id: 'messaging', label: 'Messaging & WhatsApp',      icon: Mail },
+  { id: 'giving',    label: 'Online Giving & Payments',  icon: CreditCard },
+  { id: 'security',  label: 'Security & 2FA',            icon: Shield },
   { id: 'profile',   label: 'My Profile',                icon: User },
   { id: 'password',  label: 'Change Password',           icon: Lock },
 ];
@@ -44,14 +48,36 @@ export default function Settings() {
   // Pastors management state
   const [pastorModal, setPastorModal] = useState({ open: false, index: null, data: {} });
 
+  // Online Giving & Payments State
+  const [paymentSettings, setPaymentSettings] = useState({
+    paystackPublicKey: '',
+    paystackSecretKey: '',
+    bankDetails: { bankName: '', accountName: '', accountNumber: '' },
+  });
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  // Security & 2FA State
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorModal, setTwoFactorModal] = useState({
+    open: false,
+    step: 'setup',
+    qrCode: '',
+    secret: '',
+    code: '',
+    backupCodes: [],
+  });
+  const [disable2FAModal, setDisable2FAModal] = useState({ open: false, password: '', code: '' });
+
   useEffect(() => {
     Promise.all([
       api.get('/settings'),
       api.get('/settings/stats'),
       api.get('/settings/messaging').catch(() => ({ data: { data: { email: {}, sms: {}, whatsapp: {} } } })),
-    ]).then(([churchRes, statsRes, msgRes]) => {
+      twoFactorAPI.getStatus().catch(() => ({ data: { data: { twoFactorEnabled: false } } })),
+    ]).then(([churchRes, statsRes, msgRes, twoFaRes]) => {
       const c = churchRes.data.data;
       setChurch({
+        slug: c.slug || '',
         name: c.name || '',
         address: c.address || '',
         city: c.city || '',
@@ -73,6 +99,14 @@ export default function Settings() {
       });
       setChurchStats(statsRes.data.data);
       setMessaging(msgRes.data.data || { email: {}, sms: {}, whatsapp: {} });
+      if (c.payment_settings) {
+        setPaymentSettings({
+          paystackPublicKey: c.payment_settings.paystackPublicKey || '',
+          paystackSecretKey: c.payment_settings.paystackSecretKey || '',
+          bankDetails: c.payment_settings.bankDetails || { bankName: '', accountName: '', accountNumber: '' },
+        });
+      }
+      setTwoFactorEnabled(Boolean(twoFaRes.data?.data?.twoFactorEnabled));
     }).catch(() => toast.error('Failed to load settings'))
       .finally(() => setLoading(false));
 
@@ -194,6 +228,78 @@ export default function Settings() {
     const updated = { ...church, pastors: currentPastors };
     setChurch(updated);
     saveChurch(updated);
+  };
+
+  const savePaymentSettings = async () => {
+    setSaving(true);
+    try {
+      await api.put('/settings/church', { paymentSettings });
+      toast.success('Online giving & payment settings saved!');
+    } catch {
+      toast.error('Failed to save payment settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCopyGivingLink = () => {
+    const url = `${window.location.origin}/give/${church.slug || ''}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    toast.success('Public giving link copied to clipboard!');
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleStart2FA = async () => {
+    try {
+      const res = await twoFactorAPI.setup();
+      setTwoFactorModal({
+        open: true,
+        step: 'setup',
+        qrCode: res.data?.data?.qrCode,
+        secret: res.data?.data?.secret,
+        code: '',
+        backupCodes: [],
+      });
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to initiate 2FA setup');
+    }
+  };
+
+  const handleEnable2FA = async () => {
+    if (!twoFactorModal.code.trim()) return toast.error('Enter the 6-digit code');
+    setSaving(true);
+    try {
+      const res = await twoFactorAPI.enable({ code: twoFactorModal.code.trim() });
+      setTwoFactorEnabled(true);
+      setTwoFactorModal(m => ({
+        ...m,
+        step: 'success',
+        backupCodes: res.data?.data?.backupCodes || [],
+      }));
+      toast.success('Two-factor authentication enabled!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Invalid verification code');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDisable2FA = async () => {
+    if (!disable2FAModal.password || !disable2FAModal.code) {
+      return toast.error('Password and verification code are required');
+    }
+    setSaving(true);
+    try {
+      await twoFactorAPI.disable(disable2FAModal);
+      setTwoFactorEnabled(false);
+      setDisable2FAModal({ open: false, password: '', code: '' });
+      toast.success('2FA has been disabled');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to disable 2FA');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const DENOMINATIONS = ['Pentecostal', 'Baptist', 'Anglican', 'Catholic', 'Methodist', 'Presbyterian', 'Evangelical', 'Non-denominational', 'Others'];
@@ -729,8 +835,350 @@ export default function Settings() {
               </div>
             </div>
           )}
+
+          {/* TAB: ONLINE GIVING & PAYMENTS */}
+          {activeTab === 'giving' && (
+            <div className="space-y-6">
+              {/* Public Giving Link Card */}
+              <div className="card bg-gradient-to-r from-brand-900 to-indigo-900 text-white border-0 shadow-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <span className="text-xs uppercase tracking-widest font-semibold px-2.5 py-0.5 rounded-full bg-white/10 text-brand-200 border border-white/20">
+                      Live Kingdom Portal
+                    </span>
+                    <h2 className="text-lg font-bold font-display mt-2">Public Online Giving Link</h2>
+                    <p className="text-xs text-brand-200 mt-1 max-w-xl">
+                      Share this dedicated URL with your church congregation, live stream viewers, and international donors.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyGivingLink}
+                      className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center gap-1.5 transition-all"
+                    >
+                      {copiedLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                      <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
+                    </button>
+                    <a
+                      href={`/give/${church.slug || ''}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-2 rounded-xl bg-white text-brand-900 hover:bg-brand-50 text-xs font-semibold flex items-center gap-1.5 transition-all shadow"
+                    >
+                      <span>Open Giving Page</span>
+                      <ExternalLink size={13} />
+                    </a>
+                  </div>
+                </div>
+                <div className="mt-4 p-2.5 rounded-xl bg-black/25 font-mono text-xs text-brand-100 truncate">
+                  {`${window.location.origin}/give/${church.slug || ''}`}
+                </div>
+              </div>
+
+              {/* Direct Bank Transfer Details */}
+              <div className="card">
+                <h3 className="font-display font-bold text-gray-900 text-base mb-1">Church Bank Transfer Details</h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  These bank details are displayed on the public giving page for members who prefer direct bank transfers.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="label">Bank Name</label>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="e.g. Access Bank, Zenith Bank"
+                      value={paymentSettings.bankDetails?.bankName || ''}
+                      onChange={e => setPaymentSettings(p => ({
+                        ...p,
+                        bankDetails: { ...(p.bankDetails || {}), bankName: e.target.value }
+                      }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Account Name</label>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="e.g. The Baptizing Church Lekki"
+                      value={paymentSettings.bankDetails?.accountName || ''}
+                      onChange={e => setPaymentSettings(p => ({
+                        ...p,
+                        bankDetails: { ...(p.bankDetails || {}), accountName: e.target.value }
+                      }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Account Number</label>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="e.g. 0123456789"
+                      value={paymentSettings.bankDetails?.accountNumber || ''}
+                      onChange={e => setPaymentSettings(p => ({
+                        ...p,
+                        bankDetails: { ...(p.bankDetails || {}), accountNumber: e.target.value }
+                      }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Paystack Integration */}
+              <div className="card">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-display font-bold text-gray-900 text-base">Paystack Payment Gateway</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Enter your church's Paystack API credentials to receive card, USSD, and bank transfers directly into your church account.
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Active Gateway
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Paystack Public Key</label>
+                    <input
+                      type="text"
+                      className="input font-mono text-xs"
+                      placeholder="pk_live_... or pk_test_..."
+                      value={paymentSettings.paystackPublicKey || ''}
+                      onChange={e => setPaymentSettings(p => ({ ...p, paystackPublicKey: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Paystack Secret Key</label>
+                    <input
+                      type="password"
+                      className="input font-mono text-xs"
+                      placeholder="sk_live_... or sk_test_..."
+                      value={paymentSettings.paystackSecretKey || ''}
+                      onChange={e => setPaymentSettings(p => ({ ...p, paystackSecretKey: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-5">
+                  <button onClick={savePaymentSettings} disabled={saving} className="btn-primary">
+                    {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                    <span>Save Giving Settings</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: SECURITY & 2FA */}
+          {activeTab === 'security' && (
+            <div className="space-y-6">
+              <div className="card">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-100">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+                      twoFactorEnabled ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-amber-50 text-amber-600 border border-amber-200'
+                    }`}>
+                      <Shield size={24} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-display font-bold text-gray-900 text-lg">Two-Factor Authentication (2FA)</h2>
+                        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize ${
+                          twoFactorEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {twoFactorEnabled ? 'Active & Protected' : 'Not Configured'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1 max-w-xl">
+                        Add an extra layer of defense to your pastoral or staff account. In addition to your password, you will be required to enter a 6-digit TOTP code generated by Google Authenticator, Authy, or 1Password.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    {twoFactorEnabled ? (
+                      <button
+                        type="button"
+                        onClick={() => setDisable2FAModal({ open: true, password: '', code: '' })}
+                        className="btn-danger text-xs py-2 px-3.5"
+                      >
+                        Disable 2FA
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleStart2FA}
+                        className="btn-primary text-xs py-2 px-3.5 flex items-center gap-1.5"
+                      >
+                        <Shield size={14} /> Enable 2FA
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-5 space-y-3">
+                  <h4 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">Recommended Authenticator Apps</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/60 text-xs">
+                      <p className="font-semibold text-gray-800">Google Authenticator</p>
+                      <p className="text-gray-400 mt-0.5">Free for Android and iOS</p>
+                    </div>
+                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/60 text-xs">
+                      <p className="font-semibold text-gray-800">1Password / Bitwarden</p>
+                      <p className="text-gray-400 mt-0.5">Desktop & Cloud sync</p>
+                    </div>
+                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/60 text-xs">
+                      <p className="font-semibold text-gray-800">Microsoft Authenticator</p>
+                      <p className="text-gray-400 mt-0.5">Secure mobile verification</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* 2FA Setup Modal */}
+      <Modal
+        open={twoFactorModal.open}
+        onClose={() => setTwoFactorModal(m => ({ ...m, open: false }))}
+        title={twoFactorModal.step === 'success' ? '2FA Enabled Successfully' : 'Set Up Two-Factor Authentication'}
+        size="md"
+        footer={
+          twoFactorModal.step === 'success' ? (
+            <button
+              onClick={() => setTwoFactorModal(m => ({ ...m, open: false }))}
+              className="btn-primary"
+            >
+              Done
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => setTwoFactorModal(m => ({ ...m, open: false }))}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEnable2FA}
+                disabled={saving || !twoFactorModal.code}
+                className="btn-primary"
+              >
+                {saving ? <Loader2 size={15} className="animate-spin" /> : <Shield size={15} />}
+                <span>Verify & Activate 2FA</span>
+              </button>
+            </>
+          )
+        }
+      >
+        {twoFactorModal.step === 'success' ? (
+          <div className="space-y-4">
+            <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 text-xs flex items-center gap-2">
+              <CheckCircle size={16} className="text-emerald-600 flex-shrink-0" />
+              <span>Two-Factor Authentication is now actively protecting your account!</span>
+            </div>
+            <div>
+              <h4 className="text-xs font-semibold text-gray-900 uppercase tracking-wider mb-1">
+                Emergency Recovery Backup Codes
+              </h4>
+              <p className="text-xs text-gray-500 mb-3">
+                Save these backup codes in a secure password manager. If you lose your phone, you can use these to regain access. Each code can only be used once.
+              </p>
+              <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded-xl font-mono text-xs text-gray-700">
+                {twoFactorModal.backupCodes?.map((c, i) => (
+                  <div key={i} className="py-1 px-2 bg-white rounded border border-gray-200 text-center font-semibold">
+                    {c}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4 text-center">
+            <p className="text-xs text-gray-500">
+              Scan this QR code with your authenticator app (Google Authenticator, Authy, or 1Password).
+            </p>
+            {twoFactorModal.qrCode && (
+              <div className="flex justify-center p-3 bg-white rounded-2xl border border-gray-200 w-fit mx-auto shadow-sm">
+                <img src={twoFactorModal.qrCode} alt="2FA QR Code" className="w-48 h-48" />
+              </div>
+            )}
+            <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-200 font-mono text-xs text-gray-700">
+              <span className="text-gray-400 block text-[10px] uppercase font-sans font-semibold">Or enter secret key manually:</span>
+              <span className="font-bold text-brand-700">{twoFactorModal.secret}</span>
+            </div>
+
+            <div className="text-left pt-2">
+              <label className="label">Enter 6-Digit Authenticator Code *</label>
+              <input
+                type="text"
+                maxLength={6}
+                autoFocus
+                placeholder="123456"
+                className="input text-center text-lg tracking-widest font-mono font-bold"
+                value={twoFactorModal.code}
+                onChange={e => setTwoFactorModal(m => ({ ...m, code: e.target.value }))}
+              />
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Disable 2FA Modal */}
+      <Modal
+        open={disable2FAModal.open}
+        onClose={() => setDisable2FAModal({ open: false, password: '', code: '' })}
+        title="Disable Two-Factor Authentication"
+        size="sm"
+        footer={
+          <>
+            <button
+              onClick={() => setDisable2FAModal({ open: false, password: '', code: '' })}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDisable2FA}
+              disabled={saving || !disable2FAModal.password || !disable2FAModal.code}
+              className="btn-danger"
+            >
+              {saving ? <Loader2 size={15} className="animate-spin" /> : null}
+              <span>Disable 2FA</span>
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500">
+            For security, please enter your password and a current 2FA security code to disable two-factor authentication.
+          </p>
+          <div>
+            <label className="label">Current Account Password *</label>
+            <input
+              type="password"
+              className="input"
+              value={disable2FAModal.password}
+              onChange={e => setDisable2FAModal(d => ({ ...d, password: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="label">Current 6-Digit Code (or Backup Key) *</label>
+            <input
+              type="text"
+              className="input text-center font-mono font-bold"
+              placeholder="123456 or XXXX-XXXX"
+              value={disable2FAModal.code}
+              onChange={e => setDisable2FAModal(d => ({ ...d, code: e.target.value }))}
+            />
+          </div>
+        </div>
+      </Modal>
 
       {/* Add / Edit Minister Modal */}
       <Modal

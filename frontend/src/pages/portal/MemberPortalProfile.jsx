@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Loader2, Save, Camera } from 'lucide-react';
+import { Loader2, Save, Camera, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { memberPortalAPI } from '../../api/memberClient';
 
@@ -8,6 +8,7 @@ const fmtDate = (d) => d ? String(d).slice(0, 10) : '';
 
 export default function MemberPortalProfile() {
   const { me, refresh } = useOutletContext();
+  const [exporting, setExporting] = useState(false);
   const [form, setForm] = useState({
     phone: me.phone || '',
     phoneAlt: me.phoneAlt || '',
@@ -38,6 +39,29 @@ export default function MemberPortalProfile() {
       toast.error(err.response?.data?.message || 'Update failed');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      const res = await memberPortalAPI.exportData();
+      const blob = new Blob([JSON.stringify(res.data?.data || res.data, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `church-member-data-${me.id || 'archive'}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Your complete personal data archive has been downloaded!');
+    } catch {
+      toast.error('Failed to export personal data');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -144,8 +168,21 @@ export default function MemberPortalProfile() {
             <Field label="Relationship"><input className={inputCls} value={form.nextOfKinRelationship} onChange={set('nextOfKinRelationship')} /></Field>
           </div>
         </div>
-        <div className="flex justify-end pt-2">
-          <button type="submit" disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={handleExportData}
+            disabled={exporting}
+            className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 border border-gray-200 hover:border-gray-300 px-3 py-2 rounded-lg transition-colors w-full sm:w-auto justify-center"
+          >
+            {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            <span>Download My Personal Data (GDPR / NDPR)</span>
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg w-full sm:w-auto justify-center"
+          >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {saving ? 'Saving…' : 'Save changes'}
           </button>

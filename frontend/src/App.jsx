@@ -44,6 +44,7 @@ const PublicMemberForm = lazy(() => import('./pages/PublicMemberForm'));
 const PublicPrayerForm = lazy(() => import('./pages/PublicPrayerForm'));
 const PublicWelfareForm = lazy(() => import('./pages/PublicWelfareForm'));
 const PublicEventCheckIn = lazy(() => import('./pages/PublicEventCheckIn'));
+const PublicGiving = lazy(() => import('./pages/PublicGiving'));
 
 const MemberLogin = lazy(() => import('./pages/portal/MemberLogin'));
 const MemberSetPassword = lazy(() => import('./pages/portal/MemberSetPassword'));
@@ -128,6 +129,8 @@ export default function App() {
           <Route path="/connect/:churchSlug/prayer" element={<L><PublicPrayerForm /></L>} />
           <Route path="/connect/:churchSlug/welfare" element={<L><PublicWelfareForm /></L>} />
           <Route path="/connect/:churchSlug/events/:eventId/check-in" element={<L><PublicEventCheckIn /></L>} />
+          <Route path="/give/:slug" element={<L><PublicGiving /></L>} />
+          <Route path="/give" element={<L><PublicGiving /></L>} />
 
           {/* Member-facing portal */}
           <Route path="/portal/:churchSlug/login" element={<L><MemberLogin /></L>} />
