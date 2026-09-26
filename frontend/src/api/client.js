@@ -1,8 +1,12 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
+export const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL.replace(/\/+$/, '')}/api`
+  : '/api';
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
   timeout: 30000,
 });
@@ -24,7 +28,7 @@ api.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         if (!refreshToken) throw new Error('No refresh token');
-        const { data } = await axios.post('/api/auth/refresh', { refreshToken });
+        const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken });
         localStorage.setItem('accessToken', data.data.accessToken);
         localStorage.setItem('refreshToken', data.data.refreshToken);
         original.headers.Authorization = `Bearer ${data.data.accessToken}`;
@@ -43,7 +47,7 @@ api.interceptors.response.use(
         }
         return Promise.reject(err);
       }
-      let msg = data?.message || 'Something went wrong';
+      let msg = data?.message || (err.message === 'Network Error' ? 'Unable to reach backend server. Please verify backend is online.' : 'Something went wrong');
       // Show field-level validation errors if present
       if (data?.errors?.length) {
         msg = data.errors.map(e => `${e.field}: ${e.message}`).join(', ');

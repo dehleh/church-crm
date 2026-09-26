@@ -64,7 +64,17 @@ export default function Register() {
       toast.success('Church registered! Welcome to The Mobile Missionaries 🎉');
       navigate('/dashboard');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Registration failed');
+      const data = err.response?.data;
+      let msg = data?.message;
+      if (!msg && data?.errors?.length) {
+        msg = data.errors.map(e => `${e.field}: ${e.message}`).join(', ');
+      }
+      if (!msg) {
+        msg = err.message === 'Network Error'
+          ? 'Network Error: Cannot connect to backend. Please ensure the backend service is running.'
+          : (err.message || 'Registration failed');
+      }
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

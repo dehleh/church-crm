@@ -67,13 +67,22 @@ if (isProduction) {
   });
 }
 
-// CORS — allow multiple origins (comma-separated APP_URL)
-const allowedOrigins = (process.env.APP_URL || 'http://localhost:3000')
+// CORS — allow multiple origins (comma-separated APP_URL) + railway / custom domains
+const allowedOrigins = (process.env.APP_URL || 'http://localhost:3000,http://localhost:5173')
   .split(',')
   .map(o => o.trim());
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) return cb(null, true);
+    if (
+      origin.includes('railway.app') ||
+      origin.includes('themobilemissionary.org') ||
+      origin.includes('localhost')
+    ) {
+      return cb(null, true);
+    }
+    logger.warn(`Blocked by CORS: ${origin}`);
     cb(null, false);
   },
   credentials: true
