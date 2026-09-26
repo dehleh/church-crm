@@ -36,6 +36,9 @@ const PlatformAdmin = lazy(() => import('./pages/PlatformAdmin'));
 const PlatformAuditLog = lazy(() => import('./pages/PlatformAuditLog'));
 const PlatformLicenseRequests = lazy(() => import('./pages/PlatformLicenseRequests'));
 const PlatformLayout = lazy(() => import('./components/layout/PlatformLayout'));
+const PlatformLogin = lazy(() => import('./pages/PlatformLogin'));
+const DailyDevotionals = lazy(() => import('./pages/DailyDevotionals'));
+const Discipleship = lazy(() => import('./pages/Discipleship'));
 const PublicFirstTimerForm = lazy(() => import('./pages/PublicFirstTimerForm'));
 const PublicMemberForm = lazy(() => import('./pages/PublicMemberForm'));
 const PublicPrayerForm = lazy(() => import('./pages/PublicPrayerForm'));
@@ -55,6 +58,8 @@ const MemberPortalPrayer = lazy(() => import('./pages/portal/MemberPortalPrayer'
 const MemberPortalGroups = lazy(() => import('./pages/portal/MemberPortalGroups'));
 const MemberPortalCounseling = lazy(() => import('./pages/portal/MemberPortalCounseling'));
 const MemberPortalWelfare = lazy(() => import('./pages/portal/MemberPortalWelfare'));
+const MemberPortalDevotional = lazy(() => import('./pages/portal/MemberPortalDevotional'));
+const MemberPortalDiscipleship = lazy(() => import('./pages/portal/MemberPortalDiscipleship'));
 
 function PageLoader() {
   return (
@@ -114,6 +119,7 @@ export default function App() {
     <AuthProvider>
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/platform/login" element={<PublicRoute><PlatformLogin /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
           <Route path="/get-started" element={<L><GetStarted /></L>} />
           <Route path="/license-expired" element={<L><LicenseExpired /></L>} />
@@ -130,6 +136,8 @@ export default function App() {
             <Route index element={<Navigate to="home" replace />} />
             <Route path="home" element={<L><MemberHome /></L>} />
             <Route path="profile" element={<L><MemberPortalProfile /></L>} />
+            <Route path="devotionals" element={<L><MemberPortalDevotional /></L>} />
+            <Route path="discipleship" element={<L><MemberPortalDiscipleship /></L>} />
             <Route path="fellowship" element={<L><MemberPortalFellowship /></L>} />
             <Route path="giving" element={<L><MemberPortalGiving /></L>} />
             <Route path="events" element={<L><MemberPortalEvents /></L>} />
@@ -155,6 +163,8 @@ export default function App() {
             <Route path="events" element={<L><Events /></L>} />
             <Route path="events/:eventId/attendance" element={<L><Attendance /></L>} />
             <Route path="attendance" element={<L><Attendance /></L>} />
+            <Route path="devotionals" element={<L><DailyDevotionals /></L>} />
+            <Route path="discipleship" element={<L><Discipleship /></L>} />
             <Route path="finance" element={<L><Finance /></L>} />
             <Route path="budgets" element={<L><Budgets /></L>} />
             <Route path="departments" element={<L><Departments /></L>} />

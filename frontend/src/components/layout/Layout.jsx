@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, Bell, Menu,
   MessageSquare, ShieldCheck, BarChart2, PiggyBank, CheckSquare,
   Settings, PhoneCall, Users2, Package, HandHeart, Heart,
-  User, KeyRound, ClipboardList, Globe, Home
+  User, KeyRound, ClipboardList, Globe, Home, BookOpen, GraduationCap
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import GlobalSearch from '../ui/GlobalSearch';
@@ -26,6 +26,8 @@ const NAV = [
 
   { group: 'Church', items: [
     { to: '/events',         icon: CalendarDays,   label: 'Events' },
+    { to: '/devotionals',    icon: BookOpen,       label: 'Daily Devotionals' },
+    { to: '/discipleship',   icon: GraduationCap,  label: 'Discipleship & School' },
     { to: '/attendance',     icon: CheckSquare,    label: 'Attendance' },
     { to: '/communications', icon: MessageSquare,  label: 'Communications' },
     { to: '/follow-ups',     icon: PhoneCall,      label: 'Follow-ups' },

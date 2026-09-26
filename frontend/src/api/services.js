@@ -267,3 +267,30 @@ export const fellowshipAPI = {
   reviewJoinRequest: (id, data) => api.patch(`/fellowship/join-requests/${id}`, data),
 };
 
+export const discipleshipAPI = {
+  listCourses: (params) => api.get('/discipleship/courses', { params }),
+  getCourse: (id) => api.get(`/discipleship/courses/${id}`),
+  createCourse: (data) => api.post('/discipleship/courses', data),
+  updateCourse: (id, data) => api.put(`/discipleship/courses/${id}`, data),
+  deleteCourse: (id) => api.delete(`/discipleship/courses/${id}`),
+  createLesson: (courseId, data) => api.post(`/discipleship/courses/${courseId}/lessons`, data),
+  updateLesson: (lessonId, data) => api.put(`/discipleship/lessons/${lessonId}`, data),
+  deleteLesson: (lessonId) => api.delete(`/discipleship/lessons/${lessonId}`),
+  enrollMember: (courseId, data) => api.post(`/discipleship/courses/${courseId}/enroll`, data),
+  seedDefaults: () => api.post('/discipleship/seed-default'),
+};
+
+export const devotionalsAPI = {
+  list: (params) => api.get('/devotionals', { params }),
+  getByDate: (date) => api.get(`/devotionals/date/${date}`),
+  get: (id) => api.get(`/devotionals/${id}`),
+  create: (data) => api.post('/devotionals', data),
+  update: (id, data) => api.put(`/devotionals/${id}`, data),
+  delete: (id) => api.delete(`/devotionals/${id}`),
+  broadcast: (id, data) => api.post(`/devotionals/${id}/broadcast`, data),
+  getSettings: () => api.get('/devotionals/settings'),
+  updateSettings: (data) => api.put('/devotionals/settings', data),
+  seedSamples: () => api.post('/devotionals/seed-samples'),
+};
+
+

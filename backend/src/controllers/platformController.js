@@ -20,26 +20,51 @@ const audit = async (actorUserId, action, targetChurchId, details = {}) => {
 // GET /api/platform/stats
 const getPlatformStats = async (req, res) => {
   try {
-    const [{ rows: churchStats }, { rows: userStats }, { rows: recent }] = await Promise.all([
+    const [{ rows: churchStats }, { rows: userStats }, { rows: recent }, { rows: totals }] = await Promise.all([
       query(`SELECT
         COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE is_active = true) AS active,
-        COUNT(*) FILTER (WHERE is_active = false) AS suspended,
-        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') AS new_30d
-      FROM churches`),
+        COUNT(*) FILTER (WHERE c.is_active = true) AS active,
+        COUNT(*) FILTER (WHERE c.is_active = false) AS suspended,
+        COUNT(*) FILTER (WHERE c.created_at >= NOW() - INTERVAL '30 days') AS new_30d,
+        COUNT(DISTINCT c.id) FILTER (
+          WHERE EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= CURRENT_DATE)
+        ) AS logged_in_today,
+        COUNT(DISTINCT c.id) FILTER (
+          WHERE EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= NOW() - INTERVAL '7 days')
+        ) AS logged_in_7d,
+        COUNT(DISTINCT c.id) FILTER (
+          WHERE EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= NOW() - INTERVAL '30 days')
+        ) AS logged_in_30d,
+        COUNT(DISTINCT c.id) FILTER (
+          WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at IS NOT NULL)
+        ) AS never_logged_in
+      FROM churches c`),
       query(`SELECT
         COUNT(*) AS total_users,
         COUNT(*) FILTER (WHERE last_login_at >= NOW() - INTERVAL '30 days') AS active_30d
       FROM users WHERE is_super_admin = false`),
       query(`SELECT id, name, slug, denomination, is_active, created_at
              FROM churches ORDER BY created_at DESC LIMIT 5`),
+      query(`SELECT
+        (SELECT COUNT(*) FROM members)::int AS total_members,
+        (SELECT COUNT(*) FROM first_timers)::int AS total_first_timers,
+        (SELECT COUNT(*) FROM events)::int AS total_events`)
     ]);
+
     return res.json({
       success: true,
       data: {
         churches: churchStats[0],
         users: userStats[0],
+        totals: totals[0],
         recentChurches: recent,
+        systemHealth: {
+          status: 'operational',
+          uptimeHours: Math.round((process.uptime() / 3600) * 10) / 10,
+          memoryMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+          nodeVersion: process.version,
+          dbStatus: 'connected',
+        },
       },
     });
   } catch (err) {
@@ -50,27 +75,49 @@ const getPlatformStats = async (req, res) => {
 
 // GET /api/platform/churches
 const listChurches = async (req, res) => {
-  const { search, status, page = 1, limit = 20 } = req.query;
+  const { search, status, activity, page = 1, limit = 20 } = req.query;
   const offset = (page - 1) * limit;
   const conditions = [];
   const params = [];
   let i = 1;
+
   if (search) {
     conditions.push(`(c.name ILIKE $${i} OR c.slug ILIKE $${i} OR c.denomination ILIKE $${i})`);
     params.push(`%${search}%`); i++;
   }
   if (status === 'active') conditions.push('c.is_active = true');
   if (status === 'suspended') conditions.push('c.is_active = false');
+
+  if (activity === 'today') {
+    conditions.push(`EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= CURRENT_DATE)`);
+  } else if (activity === 'week') {
+    conditions.push(`EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= NOW() - INTERVAL '7 days')`);
+  } else if (activity === 'never') {
+    conditions.push(`NOT EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at IS NOT NULL)`);
+  } else if (activity === 'dormant') {
+    conditions.push(`(
+      EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at IS NOT NULL) AND
+      NOT EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= NOW() - INTERVAL '30 days')
+    )`);
+  }
+
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   try {
     const countRes = await query(`SELECT COUNT(*) FROM churches c ${where}`, params);
     params.push(parseInt(limit), offset);
     const { rows } = await query(
       `SELECT c.*,
-        (SELECT COUNT(*) FROM users u WHERE u.church_id = c.id AND u.is_super_admin = false) AS user_count,
-        (SELECT COUNT(*) FROM members m WHERE m.church_id = c.id) AS member_count,
-        (SELECT COUNT(*) FROM branches b WHERE b.church_id = c.id) AS branch_count,
-        (SELECT MAX(u.last_login_at) FROM users u WHERE u.church_id = c.id) AS last_login_at
+        (SELECT COUNT(*) FROM users u WHERE u.church_id = c.id AND u.is_super_admin = false)::int AS user_count,
+        (SELECT COUNT(*) FROM members m WHERE m.church_id = c.id)::int AS member_count,
+        (SELECT COUNT(*) FROM branches b WHERE b.church_id = c.id)::int AS branch_count,
+        (SELECT MAX(u.last_login_at) FROM users u WHERE u.church_id = c.id) AS last_login_at,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= CURRENT_DATE) THEN 'active_today'
+          WHEN EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= NOW() - INTERVAL '7 days') THEN 'active_week'
+          WHEN EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= NOW() - INTERVAL '30 days') THEN 'active_month'
+          WHEN EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at IS NOT NULL) THEN 'dormant'
+          ELSE 'never_logged_in'
+        END AS login_activity_status
       FROM churches c
       ${where}
       ORDER BY c.created_at DESC
@@ -92,6 +139,7 @@ const listChurches = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
 
 // GET /api/platform/churches/:id
 const getChurch = async (req, res) => {

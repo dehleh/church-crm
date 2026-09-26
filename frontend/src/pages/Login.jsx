@@ -111,8 +111,18 @@ export default function Login() {
             New church?{' '}
             <Link to="/register" className="text-brand-600 font-medium hover:underline">Register your church</Link>
           </p>
+
+          <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+            <Link
+              to="/platform/login"
+              className="text-xs text-gray-400 hover:text-brand-600 font-medium inline-flex items-center gap-1.5 transition-colors"
+            >
+              <span>Platform Developer & Super Admin Console →</span>
+            </Link>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+

@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate, useParams, Navigate } from 'react-router-dom';
-import { Home, User, DollarSign, Calendar, HandHeart, LogOut, Loader2, Heart, MessageCircle, Users, Menu, X, MapPin } from 'lucide-react';
+import { Home, User, DollarSign, Calendar, HandHeart, LogOut, Loader2, Heart, MessageCircle, Users, Menu, X, MapPin, BookOpen, GraduationCap } from 'lucide-react';
 import { memberPortalAPI } from '../../api/memberClient';
 
 const NAV = [
-  { to: 'home',       label: 'Home',       icon: Home },
-  { to: 'profile',    label: 'Profile',    icon: User },
-  { to: 'fellowship', label: 'Fellowship', icon: MapPin },
-  { to: 'groups',     label: 'My Groups',  icon: Users },
-  { to: 'giving',     label: 'My Giving',  icon: DollarSign },
-  { to: 'events',     label: 'Events',     icon: Calendar },
-  { to: 'prayer',     label: 'Prayer',     icon: HandHeart },
-  { to: 'counseling', label: 'Counseling', icon: MessageCircle },
-  { to: 'welfare',    label: 'Welfare',    icon: Heart },
+  { to: 'home',         label: 'Home',                 icon: Home },
+  { to: 'devotionals',  label: 'Daily Devotionals',    icon: BookOpen },
+  { to: 'discipleship', label: 'Discipleship School',  icon: GraduationCap },
+  { to: 'fellowship',   label: 'Fellowship / Cells',   icon: MapPin },
+  { to: 'groups',       label: 'My Groups',            icon: Users },
+  { to: 'giving',       label: 'My Giving',            icon: DollarSign },
+  { to: 'events',       label: 'Events & Services',    icon: Calendar },
+  { to: 'prayer',       label: 'Prayer Requests',      icon: HandHeart },
+  { to: 'counseling',   label: 'Pastoral Counseling',  icon: MessageCircle },
+  { to: 'welfare',      label: 'Welfare Support',      icon: Heart },
+  { to: 'profile',      label: 'My Profile',           icon: User },
 ];
 
 

@@ -60,7 +60,15 @@ export const memberPortalAPI = {
   browseNearbyFellowships: () => memberApi.get('/me/fellowship/browse'),
   joinFellowship: (data) => memberApi.post('/me/fellowship/join', data),
   submitCellReport: (data) => memberApi.post('/me/fellowship/reports', data),
+  todayDevotional: () => memberApi.get('/me/devotionals/today'),
+  listDevotionals: (params) => memberApi.get('/me/devotionals', { params }),
+  getDevotionalByDate: (date) => memberApi.get(`/me/devotionals/${date}`),
+  listDiscipleshipCourses: () => memberApi.get('/me/discipleship/courses'),
+  getDiscipleshipCourse: (id) => memberApi.get(`/me/discipleship/courses/${id}`),
+  enrollDiscipleshipCourse: (id) => memberApi.post(`/me/discipleship/courses/${id}/enroll`),
+  completeLesson: (lessonId, data) => memberApi.post(`/me/discipleship/lessons/${lessonId}/complete`, data || {}),
 };
+
 
 
 export default memberApi;

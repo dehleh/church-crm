@@ -31,5 +31,17 @@ router.get('/fellowship/browse', c.browseNearbyFellowships);
 router.post('/fellowship/join', c.submitFellowshipJoinRequest);
 router.post('/fellowship/reports', c.submitMemberCellReport);
 
+// Daily Devotionals
+router.get('/devotionals/today', c.getTodayDevotional);
+router.get('/devotionals', c.listDevotionals);
+router.get('/devotionals/:date', c.getDevotionalByDate);
+
+// Discipleship & Training
+router.get('/discipleship/courses', c.listMyDiscipleshipCourses);
+router.get('/discipleship/courses/:id', c.getMyDiscipleshipCourseDetails);
+router.post('/discipleship/courses/:id/enroll', c.enrollInDiscipleshipCourse);
+router.post('/discipleship/lessons/:lessonId/complete', c.completeLessonProgress);
+
 module.exports = router;
+
 

@@ -278,6 +278,101 @@ async function processAutomatedBirthdayGreetings() {
 }
 
 /**
+ * Checks and dispatches automated daily morning/night devotional reminders to members.
+ */
+async function processAutomatedDevotionalReminders() {
+  try {
+    const now = new Date();
+    const currentHour = now.getHours(); // 0 to 23
+
+    // Determine current window: 'morning' (6-8am) or 'night' (20-22pm)
+    const isMorning = currentHour >= 6 && currentHour <= 8;
+    const isNight = currentHour >= 20 && currentHour <= 22;
+
+    if (!isMorning && !isNight) return;
+
+    // Find churches with active devotional reminders and today's published devotional
+    const { rows: churches } = await query(
+      `SELECT c.id, c.name, c.settings,
+              d.id as devotional_id, d.title, d.theme_scripture, d.scripture_text,
+              d.content, d.confession, d.prayer_point, d.bible_reading_plan,
+              d.reminder_sent_at
+       FROM churches c
+       JOIN daily_devotionals d ON d.church_id = c.id AND d.date = CURRENT_DATE AND d.is_published = true
+       WHERE (c.settings->'devotional_reminders'->>'enabled')::boolean = true
+         AND (d.reminder_sent_at IS NULL OR d.reminder_sent_at::date < CURRENT_DATE)
+       LIMIT 10`
+    );
+
+    for (const church of churches) {
+      const devConfig = church.settings?.devotional_reminders || {};
+      const schedule = devConfig.schedule || 'morning'; // 'morning', 'night', 'both'
+
+      const shouldTrigger =
+        (schedule === 'morning' && isMorning) ||
+        (schedule === 'night' && isNight) ||
+        (schedule === 'both' && (isMorning || isNight));
+
+      if (!shouldTrigger) continue;
+
+      logger.info('Dispatching automated devotional broadcast', {
+        churchId: church.id,
+        churchName: church.name,
+        devotionalTitle: church.title,
+        slot: isMorning ? 'morning' : 'night'
+      });
+
+      const { rows: members } = await query(
+        `SELECT first_name, last_name, email, phone
+         FROM members
+         WHERE church_id = $1 AND membership_status = 'active' AND (phone IS NOT NULL OR email IS NOT NULL)
+         LIMIT 200`,
+        [church.id]
+      );
+
+      const churchMessaging = church.settings?.messaging || {};
+      const channels = devConfig.channels || ['whatsapp'];
+
+      const broadcastMsg = `📖 *${church.name} Daily Devotional*\n*${church.title}*\n\n` +
+        `📜 *Scripture:* ${church.theme_scripture}\n` +
+        (church.scripture_text ? `_"${church.scripture_text}"_\n\n` : '\n') +
+        `${church.content.slice(0, 450)}...\n\n` +
+        (church.confession ? `✨ *Declaration:* ${church.confession}\n\n` : '') +
+        (church.prayer_point ? `🙏 *Prayer Point:* ${church.prayer_point}\n\n` : '') +
+        (church.bible_reading_plan ? `📚 *Today's Bible Reading:* ${church.bible_reading_plan}\n\n` : '') +
+        `May God's presence and peace guide your day! ✨`;
+
+      for (const m of members) {
+        if (channels.includes('whatsapp') && m.phone) {
+          await sendWhatsApp({ to: m.phone, body: broadcastMsg }, churchMessaging);
+        } else if (channels.includes('email') && m.email) {
+          await sendEmail({
+            to: m.email,
+            subject: `Daily Devotional: ${church.title} - ${church.name}`,
+            html: `<div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; line-height: 1.6;">
+              <h2 style="color: #4f46e5;">${church.title}</h2>
+              <p><strong>Scripture:</strong> ${church.theme_scripture}</p>
+              ${church.scripture_text ? `<blockquote style="background: #f3f4f6; padding: 12px; border-left: 4px solid #4f46e5;"><em>"${church.scripture_text}"</em></blockquote>` : ''}
+              <div>${church.content.replace(/\n/g, '<br/>')}</div>
+              ${church.confession ? `<p><strong>Faith Declaration:</strong> ${church.confession}</p>` : ''}
+              ${church.prayer_point ? `<p><strong>Prayer Point:</strong> ${church.prayer_point}</p>` : ''}
+              ${church.bible_reading_plan ? `<p><strong>Bible Reading:</strong> ${church.bible_reading_plan}</p>` : ''}
+            </div>`
+          }, churchMessaging);
+        }
+      }
+
+      await query(
+        `UPDATE daily_devotionals SET reminder_sent_at = NOW() WHERE id = $1`,
+        [church.devotional_id]
+      );
+    }
+  } catch (err) {
+    logger.error('Error processing automated devotional reminders', { error: err.message });
+  }
+}
+
+/**
  * Main scheduler loop.
  */
 async function runSchedulerTick() {
@@ -287,6 +382,7 @@ async function runSchedulerTick() {
     await processScheduledCommunications();
     await processAutomatedEventReminders();
     await processAutomatedBirthdayGreetings();
+    await processAutomatedDevotionalReminders();
   } catch (err) {
     logger.error('Scheduler tick error', { error: err.message });
   } finally {
@@ -315,4 +411,7 @@ module.exports = {
   runSchedulerTick,
   processScheduledCommunications,
   processAutomatedEventReminders,
+  processAutomatedBirthdayGreetings,
+  processAutomatedDevotionalReminders,
 };
+

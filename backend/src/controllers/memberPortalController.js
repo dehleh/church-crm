@@ -141,7 +141,7 @@ const submitPrayerRequest = async (req, res) => {
 // GET /api/me/home — quick dashboard stats
 const getHome = async (req, res) => {
   try {
-    const [giveRes, evtRes, deptRes, grpRes, prayerRes, churchRes] = await Promise.all([
+    const [giveRes, evtRes, deptRes, grpRes, prayerRes, churchRes, devRes, discRes] = await Promise.all([
       query(
         `SELECT COALESCE(SUM(amount), 0) as ytd, COUNT(*) as count
          FROM transactions
@@ -178,6 +178,24 @@ const getHome = async (req, res) => {
          FROM churches WHERE id = $1`,
         [req.churchId]
       ),
+      query(
+        `SELECT id, date, title, theme_scripture, scripture_text, content, confession, prayer_point, author
+         FROM daily_devotionals
+         WHERE church_id = $1 AND (date = CURRENT_DATE OR date <= CURRENT_DATE) AND is_published = true
+         ORDER BY (date = CURRENT_DATE) DESC, date DESC LIMIT 1`,
+        [req.churchId]
+      ),
+      query(
+        `SELECT c.id, c.title, c.category, c.level, e.progress_percent, e.status, e.certificate_code,
+          COUNT(DISTINCT l.id)::int as total_lessons
+         FROM discipleship_enrollments e
+         JOIN discipleship_courses c ON c.id = e.course_id
+         LEFT JOIN discipleship_lessons l ON l.course_id = c.id
+         WHERE e.member_id = $1 AND e.church_id = $2
+         GROUP BY c.id, c.title, c.category, c.level, e.progress_percent, e.status, e.certificate_code
+         ORDER BY e.updated_at DESC LIMIT 3`,
+        [req.member.id, req.churchId]
+      )
     ]);
     return res.json({
       success: true,
@@ -188,6 +206,8 @@ const getHome = async (req, res) => {
         departments: deptRes.rows,
         groups: grpRes.rows,
         openPrayers: prayerRes.rows[0]?.open || 0,
+        todayDevotional: devRes.rows[0] || null,
+        activeCourses: discRes.rows,
       },
     });
   } catch (err) {
@@ -620,6 +640,289 @@ const submitMemberCellReport = async (req, res) => {
   }
 };
 
+// ── DAILY DEVOTIONALS FOR MEMBERS ───────────────────────────
+
+// GET /api/me/devotionals/today
+const getTodayDevotional = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT d.*
+       FROM daily_devotionals d
+       WHERE d.church_id = $1 AND d.date = CURRENT_DATE AND d.is_published = true
+       LIMIT 1`,
+      [req.churchId]
+    );
+
+    // If no devotional for today, fetch the most recent published one
+    if (!rows[0]) {
+      const { rows: fallback } = await query(
+        `SELECT d.* FROM daily_devotionals d
+         WHERE d.church_id = $1 AND d.is_published = true
+         ORDER BY d.date DESC LIMIT 1`,
+        [req.churchId]
+      );
+      return res.json({ success: true, data: fallback[0] || null });
+    }
+
+    return res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    logger.error('getTodayDevotional error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/me/devotionals
+const listDevotionals = async (req, res) => {
+  const { month, year, limit = 31 } = req.query;
+  try {
+    let conditions = ['d.church_id = $1', 'd.is_published = true'];
+    let params = [req.churchId];
+    let idx = 2;
+
+    if (month) {
+      conditions.push(`EXTRACT(MONTH FROM d.date) = $${idx++}`);
+      params.push(parseInt(month));
+    }
+    if (year) {
+      conditions.push(`EXTRACT(YEAR FROM d.date) = $${idx++}`);
+      params.push(parseInt(year));
+    }
+
+    const { rows } = await query(
+      `SELECT d.id, d.date, d.title, d.theme_scripture, d.author, d.created_at
+       FROM daily_devotionals d
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY d.date DESC
+       LIMIT $${idx}`,
+      [...params, parseInt(limit)]
+    );
+
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    logger.error('listDevotionals error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/me/devotionals/:date
+const getDevotionalByDate = async (req, res) => {
+  const { date } = req.params;
+  try {
+    const { rows } = await query(
+      `SELECT d.* FROM daily_devotionals d
+       WHERE d.church_id = $1 AND d.date = $2 AND d.is_published = true
+       LIMIT 1`,
+      [req.churchId, date]
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Devotional not found' });
+    return res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    logger.error('getDevotionalByDate error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ── DISCIPLESHIP TRAINING FOR MEMBERS ────────────────────────
+
+// GET /api/me/discipleship/courses
+const listMyDiscipleshipCourses = async (req, res) => {
+  try {
+    // 1. All published courses for this church
+    const { rows: courses } = await query(
+      `SELECT c.*,
+        COUNT(DISTINCT l.id)::int as lesson_count,
+        e.id as enrollment_id,
+        e.status as enrollment_status,
+        e.progress_percent,
+        e.enrolled_at,
+        e.completed_at,
+        e.certificate_code
+       FROM discipleship_courses c
+       LEFT JOIN discipleship_lessons l ON l.course_id = c.id
+       LEFT JOIN discipleship_enrollments e ON e.course_id = c.id AND e.member_id = $2
+       WHERE c.church_id = $1 AND c.is_published = true
+       GROUP BY c.id, e.id, e.status, e.progress_percent, e.enrolled_at, e.completed_at, e.certificate_code
+       ORDER BY e.status IS NOT NULL DESC, c.created_at DESC`,
+      [req.churchId, req.member.id]
+    );
+
+    return res.json({ success: true, data: courses });
+  } catch (err) {
+    logger.error('listMyDiscipleshipCourses error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/me/discipleship/courses/:id
+const getMyDiscipleshipCourseDetails = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows: courseRows } = await query(
+      `SELECT c.*,
+        e.id as enrollment_id,
+        e.status as enrollment_status,
+        e.progress_percent,
+        e.enrolled_at,
+        e.completed_at,
+        e.certificate_code
+       FROM discipleship_courses c
+       LEFT JOIN discipleship_enrollments e ON e.course_id = c.id AND e.member_id = $2
+       WHERE c.id = $1 AND c.church_id = $3 AND c.is_published = true`,
+      [id, req.member.id, req.churchId]
+    );
+
+    if (!courseRows[0]) {
+      return res.status(404).json({ success: false, message: 'Course not found' });
+    }
+
+    const enrollmentId = courseRows[0].enrollment_id;
+
+    const { rows: lessons } = await query(
+      `SELECT l.*,
+        COALESCE(p.is_completed, false) as is_completed,
+        p.completed_at,
+        p.reflection_notes
+       FROM discipleship_lessons l
+       LEFT JOIN discipleship_lesson_progress p ON p.lesson_id = l.id AND p.member_id = $2
+       WHERE l.course_id = $1 AND l.church_id = $3
+       ORDER BY l.order_num ASC, l.created_at ASC`,
+      [id, req.member.id, req.churchId]
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        ...courseRows[0],
+        lessons
+      }
+    });
+  } catch (err) {
+    logger.error('getMyDiscipleshipCourseDetails error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// POST /api/me/discipleship/courses/:id/enroll
+const enrollInDiscipleshipCourse = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await query(
+      `INSERT INTO discipleship_enrollments (
+        church_id, course_id, member_id, status, progress_percent
+      ) VALUES ($1, $2, $3, 'in_progress', 0)
+      ON CONFLICT (course_id, member_id) DO UPDATE SET
+        status = 'in_progress',
+        updated_at = NOW()
+      RETURNING *`,
+      [req.churchId, id, req.member.id]
+    );
+
+    return res.status(201).json({
+      success: true,
+      data: rows[0],
+      message: 'Enrolled in discipleship course successfully!'
+    });
+  } catch (err) {
+    logger.error('enrollInDiscipleshipCourse error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// POST /api/me/discipleship/lessons/:lessonId/complete
+const completeLessonProgress = async (req, res) => {
+  const { lessonId } = req.params;
+  const { reflectionNotes } = req.body;
+
+  try {
+    // 1. Find lesson and course
+    const { rows: lessonRows } = await query(
+      `SELECT l.*, c.id as course_id
+       FROM discipleship_lessons l
+       JOIN discipleship_courses c ON c.id = l.course_id
+       WHERE l.id = $1 AND l.church_id = $2`,
+      [lessonId, req.churchId]
+    );
+
+    if (!lessonRows[0]) return res.status(404).json({ success: false, message: 'Lesson not found' });
+    const courseId = lessonRows[0].course_id;
+
+    // 2. Ensure member is enrolled
+    let { rows: enrollRows } = await query(
+      `SELECT * FROM discipleship_enrollments WHERE course_id = $1 AND member_id = $2`,
+      [courseId, req.member.id]
+    );
+
+    let enrollmentId;
+    if (!enrollRows[0]) {
+      const { rows: newEnroll } = await query(
+        `INSERT INTO discipleship_enrollments (church_id, course_id, member_id, status, progress_percent)
+         VALUES ($1, $2, $3, 'in_progress', 0) RETURNING *`,
+        [req.churchId, courseId, req.member.id]
+      );
+      enrollmentId = newEnroll[0].id;
+    } else {
+      enrollmentId = enrollRows[0].id;
+    }
+
+    // 3. Mark lesson completed
+    await query(
+      `INSERT INTO discipleship_lesson_progress (
+        church_id, enrollment_id, lesson_id, member_id, is_completed, reflection_notes, completed_at
+      ) VALUES ($1, $2, $3, $4, true, $5, NOW())
+      ON CONFLICT (enrollment_id, lesson_id) DO UPDATE SET
+        is_completed = true,
+        reflection_notes = COALESCE($5, discipleship_lesson_progress.reflection_notes),
+        completed_at = NOW()`,
+      [req.churchId, enrollmentId, lessonId, req.member.id, reflectionNotes || null]
+    );
+
+    // 4. Calculate total progress percent
+    const { rows: totalLessons } = await query(
+      `SELECT COUNT(*)::int as total FROM discipleship_lessons WHERE course_id = $1`,
+      [courseId]
+    );
+    const { rows: completedLessons } = await query(
+      `SELECT COUNT(*)::int as completed FROM discipleship_lesson_progress
+       WHERE enrollment_id = $1 AND is_completed = true`,
+      [enrollmentId]
+    );
+
+    const total = totalLessons[0].total || 1;
+    const completed = completedLessons[0].completed || 0;
+    const percent = Math.min(100, Math.round((completed / total) * 100));
+    const isFinished = percent === 100;
+
+    let certCode = null;
+    if (isFinished) {
+      certCode = `CERT-DISC-${Math.floor(100000 + Math.random() * 900000)}`;
+    }
+
+    await query(
+      `UPDATE discipleship_enrollments SET
+        progress_percent = $1,
+        status = CASE WHEN $1 = 100 THEN 'completed' ELSE 'in_progress' END,
+        completed_at = CASE WHEN $1 = 100 THEN NOW() ELSE completed_at END,
+        certificate_code = COALESCE($2, certificate_code),
+        updated_at = NOW()
+       WHERE id = $3`,
+      [percent, certCode, enrollmentId]
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        progressPercent: percent,
+        isCompleted: isFinished,
+        certificateCode: certCode
+      },
+      message: isFinished ? '🎉 Congratulations! You have completed this discipleship course!' : 'Lesson marked as complete!'
+    });
+  } catch (err) {
+    logger.error('completeLessonProgress error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -639,5 +942,13 @@ module.exports = {
   browseNearbyFellowships,
   submitFellowshipJoinRequest,
   submitMemberCellReport,
+  getTodayDevotional,
+  listDevotionals,
+  getDevotionalByDate,
+  listMyDiscipleshipCourses,
+  getMyDiscipleshipCourseDetails,
+  enrollInDiscipleshipCourse,
+  completeLessonProgress,
 };
+
 

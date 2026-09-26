@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext, Link, useParams } from 'react-router-dom';
-import { Loader2, Calendar, DollarSign, ArrowRight, Users, HandHeart, MessageCircle, Heart, MapPin, Video, Sparkles } from 'lucide-react';
+import { Loader2, Calendar, DollarSign, ArrowRight, Users, HandHeart, MessageCircle, Heart, MapPin, Video, Sparkles, BookOpen, GraduationCap, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { memberPortalAPI } from '../../api/memberClient';
 
 const fmtCurrency = (n) => '₦' + Number(n || 0).toLocaleString();
 
 const QUICK = [
-  { to: 'prayer',     icon: HandHeart,     label: 'Pray',       hue: 'from-rose-500 to-rose-600' },
-  { to: 'counseling', icon: MessageCircle, label: 'Counsel',    hue: 'from-violet-500 to-violet-600' },
-  { to: 'welfare',    icon: Heart,         label: 'Welfare',    hue: 'from-emerald-500 to-emerald-600' },
-  { to: 'giving',     icon: DollarSign,    label: 'Give',       hue: 'from-amber-500 to-amber-600' },
+  { to: 'devotionals', icon: BookOpen,      label: 'Devotional', hue: 'from-amber-500 to-orange-600' },
+  { to: 'discipleship', icon: GraduationCap, label: 'Discipleship', hue: 'from-blue-600 to-indigo-700' },
+  { to: 'fellowship',   icon: Users,        label: 'Cell / Group', hue: 'from-teal-500 to-emerald-600' },
+  { to: 'prayer',       icon: HandHeart,    label: 'Pray',         hue: 'from-rose-500 to-rose-600' },
+  { to: 'counseling',   icon: MessageCircle, label: 'Counsel',      hue: 'from-violet-500 to-violet-600' },
+  { to: 'giving',       icon: DollarSign,    label: 'Give',         hue: 'from-amber-500 to-amber-600' },
 ];
 
 export default function MemberHome() {
@@ -62,14 +64,14 @@ export default function MemberHome() {
       </div>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
         {QUICK.map(({ to, icon: Icon, label, hue }) => (
           <Link key={to} to={`/portal/${churchSlug}/${to}`}
-            className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col items-center gap-2 hover:shadow-md transition-shadow">
+            className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col items-center gap-2 hover:shadow-md transition-shadow text-center">
             <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${hue} text-white flex items-center justify-center`}>
               <Icon size={18} />
             </div>
-            <div className="text-xs font-semibold text-gray-700">{label}</div>
+            <div className="text-xs font-semibold text-gray-700 leading-tight">{label}</div>
           </Link>
         ))}
       </div>
@@ -78,6 +80,121 @@ export default function MemberHome() {
         <div className="flex items-center justify-center py-16"><Loader2 size={28} className="animate-spin text-brand-500" /></div>
       ) : (
         <>
+          {/* Today's Devotional Spotlight Card */}
+          {data?.todayDevotional ? (
+            <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-5 sm:p-6 text-white shadow-md relative overflow-hidden">
+              <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-44 h-44 rounded-full bg-white/10 blur-xl pointer-events-none" />
+              <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1.5 max-w-2xl">
+                  <div className="flex items-center gap-2 text-amber-100 text-xs font-bold uppercase tracking-wider">
+                    <BookOpen size={14} />
+                    <span>Today's Daily Word</span>
+                    <span>·</span>
+                    <span>{format(new Date(), 'EEEE, MMMM d')}</span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-bold leading-tight drop-shadow-xs">
+                    {data.todayDevotional.title}
+                  </h3>
+                  <div className="text-amber-100 text-xs sm:text-sm font-medium italic">
+                    "{data.todayDevotional.scripture_reference}" — {data.todayDevotional.scripture_text ? `"${data.todayDevotional.scripture_text.slice(0, 110)}..."` : ''}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
+                  <Link
+                    to={`/portal/${churchSlug}/devotionals`}
+                    className="w-full sm:w-auto text-center px-4 py-2.5 rounded-xl bg-white text-amber-900 font-bold text-xs hover:bg-amber-50 shadow-sm transition"
+                  >
+                    Read & Listen Now →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-amber-200/60 bg-amber-50/60 p-4 sm:p-5 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <BookOpen size={20} />
+                </div>
+                <div>
+                  <div className="text-xs font-bold uppercase text-amber-800 tracking-wider">Daily Devotional</div>
+                  <div className="text-sm font-semibold text-slate-800">Start your day with Scripture, faith confessions, and prayers</div>
+                </div>
+              </div>
+              <Link
+                to={`/portal/${churchSlug}/devotionals`}
+                className="px-3.5 py-2 rounded-xl bg-amber-600 text-white font-semibold text-xs hover:bg-amber-700 transition shrink-0"
+              >
+                Browse Devotionals
+              </Link>
+            </div>
+          )}
+
+          {/* Discipleship Training Spotlight if available */}
+          {data?.activeCourses?.length > 0 && (
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <GraduationCap size={18} className="text-blue-600" />
+                  <h3 className="font-bold text-gray-900 text-sm sm:text-base">Discipleship & Foundation Training</h3>
+                </div>
+                <Link
+                  to={`/portal/${churchSlug}/discipleship`}
+                  className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                >
+                  View All Courses <ArrowRight size={12} />
+                </Link>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-3">
+                {data.activeCourses.slice(0, 2).map((crs) => {
+                  const pct = Math.round(Number(crs.progress_percent || 0));
+                  const isComplete = pct === 100 || crs.enrollment_status === 'completed';
+                  return (
+                    <div
+                      key={crs.id}
+                      className="p-3.5 rounded-xl border border-gray-100 bg-slate-50/60 flex flex-col justify-between gap-2"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
+                            {crs.level || 'Foundation'}
+                          </span>
+                          {isComplete ? (
+                            <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                              <CheckCircle2 size={12} /> Completed
+                            </span>
+                          ) : crs.enrollment_id ? (
+                            <span className="text-[11px] font-semibold text-blue-600">
+                              {pct}% finished
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-medium text-slate-400">Not enrolled</span>
+                          )}
+                        </div>
+                        <div className="font-bold text-slate-900 text-sm mt-1">{crs.title}</div>
+                        <div className="text-xs text-slate-500 line-clamp-1">{crs.description}</div>
+                      </div>
+
+                      <div className="pt-1">
+                        {crs.enrollment_id && (
+                          <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden mb-2">
+                            <div className="bg-blue-600 h-full transition-all duration-300" style={{ width: `${pct}%` }} />
+                          </div>
+                        )}
+                        <Link
+                          to={`/portal/${churchSlug}/discipleship`}
+                          className="text-xs font-bold text-blue-600 hover:text-blue-800 transition inline-flex items-center gap-1"
+                        >
+                          {crs.enrollment_id ? 'Continue Learning' : 'Start Course'} →
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Stat icon={DollarSign} label="Giving YTD" value={fmtCurrency(data?.givingYtd?.ytd)} hue="text-amber-600 bg-amber-50" />
