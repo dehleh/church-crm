@@ -126,9 +126,9 @@ const login = async (req, res) => {
          c.name as church_name, c.slug as church_slug, c.is_active as church_active,
          c.multi_branch_enabled, c.is_whitelisted, c.subscription_plan, c.subscription_expires_at,
          c.branch_limit, c.member_limit
-       FROM users u JOIN churches c ON c.id = u.church_id
-       WHERE u.email = $1`,
-      [email]
+       FROM users u LEFT JOIN churches c ON c.id = u.church_id
+       WHERE LOWER(u.email) = LOWER($1)`,
+      [(email || '').trim()]
     );
 
     if (!rows[0]) {
@@ -139,7 +139,7 @@ const login = async (req, res) => {
     if (!user.is_active) {
       return res.status(403).json({ success: false, message: 'Account disabled' });
     }
-    if (!user.church_active) {
+    if (user.church_id && !user.church_active && !user.is_super_admin) {
       return res.status(403).json({ success: false, message: 'Church account suspended' });
     }
 

@@ -213,8 +213,12 @@ if (process.env.NODE_ENV !== 'test') {
         logger.info('Applying pending database migrations...');
         await runMigrations({ closePool: false });
       }
+
+      // Auto-provision or verify platform super admin credentials
+      const { ensureSuperAdmin } = require('./scripts/initSuperAdmin');
+      await ensureSuperAdmin();
     } catch (err) {
-      logger.error('Database migration failed during startup', { error: err.message });
+      logger.error('Database initialization failed during startup', { error: err.message });
       process.exit(1);
     }
 
