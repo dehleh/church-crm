@@ -84,12 +84,18 @@ const createTransaction = async (req, res) => {
 
     // Update account balance atomically
     if (accountId) {
-      const balanceChange = transactionType === 'income' ? amount : -amount;
-      await client.query(
-        'UPDATE finance_accounts SET balance = balance + $1 WHERE id = $2',
-        [balanceChange, accountId]
+      const numAmount = parseFloat(amount);
+      const balanceChange = transactionType === 'income' ? numAmount : -numAmount;
+      const accRes = await client.query(
+        'UPDATE finance_accounts SET balance = balance + $1 WHERE id = $2 AND church_id = $3 RETURNING id',
+        [balanceChange, accountId, req.churchId]
       );
+      if (!accRes.rows[0]) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'Finance account not found in this church' });
+      }
     }
+
 
     await client.query('COMMIT');
     return res.status(201).json({ success: true, data: rows[0] });

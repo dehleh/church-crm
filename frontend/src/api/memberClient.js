@@ -49,6 +49,11 @@ export const memberPortalAPI = {
   submitWelfare: (data) => memberApi.post('/me/welfare/applications', data),
   myCounseling: () => memberApi.get('/me/counseling'),
   submitCounseling: (data) => memberApi.post('/me/counseling', data),
+  myFellowship: () => memberApi.get('/me/fellowship'),
+  browseNearbyFellowships: () => memberApi.get('/me/fellowship/browse'),
+  joinFellowship: (data) => memberApi.post('/me/fellowship/join', data),
+  submitCellReport: (data) => memberApi.post('/me/fellowship/reports', data),
 };
+
 
 export default memberApi;

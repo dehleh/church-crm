@@ -89,26 +89,47 @@ const createMember = async (req, res) => {
   }
 };
 
+const ALLOWED_MEMBER_FIELDS = [
+  'branch_id', 'first_name', 'last_name', 'middle_name', 'email', 'phone', 'phone_alt',
+  'date_of_birth', 'gender', 'marital_status', 'address', 'city', 'state', 'country',
+  'occupation', 'employer', 'profile_photo_url', 'membership_status', 'membership_class',
+  'join_date', 'baptism_date', 'water_baptized', 'holy_spirit_baptized', 'tithe_number',
+  'emergency_contact_name', 'emergency_contact_phone', 'notes'
+];
+
 // PUT /api/members/:id
 const updateMember = async (req, res) => {
   const { id } = req.params;
-  const updates = req.body;
+  const updates = req.body || {};
   try {
-    const fields = Object.keys(updates);
-    const snakeFields = fields.map(f => f.replace(/[A-Z]/g, l => `_${l.toLowerCase()}`));
-    const setClause = snakeFields.map((f, i) => `${f} = $${i + 3}`).join(', ');
-    const values = fields.map(f => updates[f]);
+    const validUpdates = {};
+    Object.entries(updates).forEach(([k, v]) => {
+      const snake = k.replace(/[A-Z]/g, l => `_${l.toLowerCase()}`);
+      if (ALLOWED_MEMBER_FIELDS.includes(snake)) {
+        validUpdates[snake] = v === '' ? null : v;
+      }
+    });
+
+    const fields = Object.keys(validUpdates);
+    if (!fields.length) {
+      return res.status(400).json({ success: false, message: 'No editable fields provided' });
+    }
+
+    const setClause = fields.map((f, i) => `${f} = $${i + 3}`).join(', ');
+    const values = fields.map(f => validUpdates[f]);
 
     const { rows } = await query(
-      `UPDATE members SET ${setClause} WHERE id = $1 AND church_id = $2 RETURNING *`,
+      `UPDATE members SET ${setClause}, updated_at = NOW() WHERE id = $1 AND church_id = $2 RETURNING *`,
       [id, req.churchId, ...values]
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Member not found' });
     return res.json({ success: true, data: rows[0] });
   } catch (err) {
+    logger.error('updateMember failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
 
 // DELETE /api/members/:id (soft delete)
 const deleteMember = async (req, res) => {

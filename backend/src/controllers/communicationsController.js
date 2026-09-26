@@ -32,13 +32,23 @@ const createCommunication = async (req, res) => {
   const { title, body, channel, audience, audienceFilter, scheduledAt, branchId, imageUrl } = req.body;
   try {
     const id = uuidv4();
+    const finalBranch = req.branchId || branchId || null;
+    const initialStatus = scheduledAt && new Date(scheduledAt) > new Date() ? 'scheduled' : 'draft';
+
     const { rows } = await query(
       `INSERT INTO communications (id, church_id, branch_id, title, body, channel, audience, audience_filter, scheduled_at, created_by, status, image_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft',$11) RETURNING *`,
-      [id, req.churchId, branchId||null, title, body, channel, audience||'all', audienceFilter ? JSON.stringify(audienceFilter) : '{}', scheduledAt||null, req.user.id, imageUrl||null]
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      [
+        id, req.churchId, finalBranch, title, body, channel,
+        audience || 'all', audienceFilter ? JSON.stringify(audienceFilter) : '{}',
+        scheduledAt || null, req.user.id, initialStatus, imageUrl || null
+      ]
     );
     return res.status(201).json({ success: true, data: rows[0] });
-  } catch (err) { logger.error('createCommunication failed', { error: err.message }); return res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) {
+    logger.error('createCommunication failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
 };
 
 // Resolve communication audience -> [{ email, phone, first_name, last_name }]
@@ -174,7 +184,13 @@ const sendCommunication = async (req, res) => {
         if (emails.length) await sendEmail({ to: emails, subject: c.title, html: safeHtml }, churchSettings);
       } else if (c.channel === 'whatsapp') {
         const phones = recipients.map((r) => r.phone).filter(Boolean);
-        if (phones.length) await sendWhatsApp({ to: phones, body: `${c.title}\n\n${c.body}` }, churchSettings);
+        if (phones.length) {
+          await sendWhatsApp({
+            to: phones,
+            body: `*${c.title}*\n\n${c.body}`,
+            mediaUrl: c.image_url || null,
+          }, churchSettings);
+        }
       } else if (c.channel === 'sms') {
         const phones = recipients.map((r) => r.phone).filter(Boolean);
         if (phones.length) await sendSMS({ to: phones, body: `${c.title}\n\n${c.body}` }, churchSettings);

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate, useParams, Navigate } from 'react-router-dom';
-import { Home, User, DollarSign, Calendar, HandHeart, LogOut, Loader2, Heart, MessageCircle, Users, Menu, X } from 'lucide-react';
+import { Home, User, DollarSign, Calendar, HandHeart, LogOut, Loader2, Heart, MessageCircle, Users, Menu, X, MapPin } from 'lucide-react';
 import { memberPortalAPI } from '../../api/memberClient';
 
 const NAV = [
   { to: 'home',       label: 'Home',       icon: Home },
   { to: 'profile',    label: 'Profile',    icon: User },
+  { to: 'fellowship', label: 'Fellowship', icon: MapPin },
   { to: 'groups',     label: 'My Groups',  icon: Users },
   { to: 'giving',     label: 'My Giving',  icon: DollarSign },
   { to: 'events',     label: 'Events',     icon: Calendar },
@@ -13,6 +14,7 @@ const NAV = [
   { to: 'counseling', label: 'Counseling', icon: MessageCircle },
   { to: 'welfare',    label: 'Welfare',    icon: Heart },
 ];
+
 
 export default function MemberPortalLayout() {
   const { churchSlug } = useParams();

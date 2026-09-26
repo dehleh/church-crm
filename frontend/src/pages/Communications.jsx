@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, Plus, Send, Trash2, Loader2, Mail, Phone, Bell, ImagePlus, X, Users } from 'lucide-react';
+import { MessageSquare, Plus, Send, Trash2, Loader2, Mail, Phone, Bell, ImagePlus, X, Users, Clock } from 'lucide-react';
 import { communicationsAPI, departmentsAPI, groupsAPI, branchesAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
@@ -98,7 +98,7 @@ export default function Communications() {
     setSaving(true);
     try {
       await communicationsAPI.create(form);
-      toast.success('Message saved as draft!');
+      toast.success(form.scheduledAt ? 'Broadcast scheduled successfully!' : 'Message saved as draft!');
       setModal(null); fetch();
     } catch { toast.error('Failed to save'); }
     finally { setSaving(false); }
@@ -199,17 +199,25 @@ export default function Communications() {
                       </span>
                     </td>
                     <td><span className="text-sm text-gray-600 capitalize">{AUDIENCE_LABEL[item.audience] || item.audience?.replace('_', ' ')}</span></td>
-                    <td><span className={`badge capitalize ${STATUS_BADGE[item.status] || 'badge-gray'}`}>{item.status}</span></td>
+                    <td>
+                      {item.status === 'scheduled' && item.scheduled_at ? (
+                        <span className="badge badge-yellow flex items-center gap-1 w-fit whitespace-nowrap">
+                          <Clock size={11} /> {format(new Date(item.scheduled_at), 'MMM d, h:mm a')}
+                        </span>
+                      ) : (
+                        <span className={`badge capitalize ${STATUS_BADGE[item.status] || 'badge-gray'}`}>{item.status}</span>
+                      )}
+                    </td>
                     <td className="text-sm text-gray-600">{item.sent_count > 0 ? `${item.sent_count.toLocaleString()} recipients` : '—'}</td>
                     <td className="text-sm text-gray-500 whitespace-nowrap">{format(new Date(item.created_at), 'MMM d, yyyy')}</td>
                     <td onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
-                        {item.status === 'draft' && (
+                        {(item.status === 'draft' || item.status === 'scheduled') && (
                           <>
-                            <button onClick={() => handleSend(item.id)} className="p-1.5 rounded hover:bg-brand-50 text-gray-400 hover:text-brand-600 transition-colors" title="Send now">
+                            <button onClick={() => handleSend(item.id)} className="p-1.5 rounded hover:bg-brand-50 text-gray-400 hover:text-brand-600 transition-colors" title={item.status === 'scheduled' ? 'Send immediately now' : 'Send now'}>
                               <Send size={14} />
                             </button>
-                            <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors" title="Delete draft">
+                            <button onClick={() => handleDelete(item.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors" title="Delete">
                               <Trash2 size={14} />
                             </button>
                           </>
@@ -226,7 +234,7 @@ export default function Communications() {
 
       {/* Compose Modal */}
       <Modal open={modal === 'compose'} onClose={() => setModal(null)} title="Compose Message" size="lg"
-        footer={<><button onClick={() => setModal(null)} className="btn-secondary">Cancel</button><button onClick={handleCompose} disabled={saving} className="btn-primary">{saving ? <Loader2 size={15} className="animate-spin" /> : 'Save as Draft'}</button></>}>
+        footer={<><button onClick={() => setModal(null)} className="btn-secondary">Cancel</button><button onClick={handleCompose} disabled={saving} className="btn-primary">{saving ? <Loader2 size={15} className="animate-spin" /> : form.scheduledAt ? 'Schedule Broadcast' : 'Save as Draft'}</button></>}>
         <div className="space-y-4">
           <div><label className="label">Subject / Title *</label><input className="input" placeholder="Sunday Service Reminder" value={form.title||''} onChange={set('title')} /></div>
           <div className="grid grid-cols-2 gap-3">
@@ -337,7 +345,7 @@ export default function Communications() {
       <Modal open={modal === 'preview'} onClose={() => setModal(null)} title={selected?.title || 'Message Preview'} size="md"
         footer={<>
           <button onClick={() => setModal(null)} className="btn-secondary">Close</button>
-          {selected?.status === 'draft' && (
+          {(selected?.status === 'draft' || selected?.status === 'scheduled') && (
             <button onClick={() => { handleSend(selected.id); setModal(null); }} className="btn-primary"><Send size={14} /> Send Now</button>
           )}
         </>}>
@@ -348,6 +356,11 @@ export default function Communications() {
               <span className={`badge capitalize ${STATUS_BADGE[selected.status] || 'badge-gray'}`}>{selected.status}</span>
               <span className="badge badge-gray capitalize">{selected.audience}</span>
             </div>
+            {selected.scheduled_at && selected.status === 'scheduled' && (
+              <p className="text-xs text-amber-600 font-semibold flex items-center gap-1">
+                <Clock size={12} /> Scheduled for {format(new Date(selected.scheduled_at), 'MMM d, yyyy h:mm a')}
+              </p>
+            )}
             {selected.sent_at && <p className="text-xs text-gray-400">Sent {format(new Date(selected.sent_at), 'MMM d, yyyy h:mm a')} · {selected.sent_count} recipients</p>}
             {selected.image_url && (
               <img src={selected.image_url} alt="Attachment" className="w-full max-h-64 object-contain rounded-lg border" />

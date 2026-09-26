@@ -1,21 +1,27 @@
 import { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Building2, User, Lock, Save, Loader2, CheckCircle, Mail, MessageCircle, Phone, Send, ToggleLeft, ToggleRight } from 'lucide-react';
+import {
+  Settings as SettingsIcon, Building2, User, Lock, Save, Loader2, CheckCircle,
+  Mail, MessageCircle, Phone, Send, ToggleLeft, ToggleRight, Users, Plus, Trash2,
+  Edit3, Image, Globe, Sparkles, AlertCircle
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 
 const TABS = [
-  { id: 'church',    label: 'Church Profile',  icon: Building2 },
-  { id: 'messaging', label: 'Messaging',        icon: Mail },
-  { id: 'profile',   label: 'My Profile',       icon: User },
-  { id: 'password',  label: 'Change Password',  icon: Lock },
+  { id: 'church',    label: 'Church Profile & Branding', icon: Building2 },
+  { id: 'pastors',   label: 'Pastoral Leadership',       icon: Users },
+  { id: 'messaging', label: 'Messaging & WhatsApp',      icon: Mail },
+  { id: 'profile',   label: 'My Profile',                icon: User },
+  { id: 'password',  label: 'Change Password',           icon: Lock },
 ];
 
 function TabButton({ tab, active, onClick }) {
   const Icon = tab.icon;
   return (
     <button onClick={() => onClick(tab.id)}
-      className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium w-full transition-all
+      className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium w-full transition-all text-left
         ${active ? 'bg-brand-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>
       <Icon size={16} /> {tab.label}
     </button>
@@ -35,6 +41,9 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Pastors management state
+  const [pastorModal, setPastorModal] = useState({ open: false, index: null, data: {} });
+
   useEffect(() => {
     Promise.all([
       api.get('/settings'),
@@ -43,9 +52,24 @@ export default function Settings() {
     ]).then(([churchRes, statsRes, msgRes]) => {
       const c = churchRes.data.data;
       setChurch({
-        name: c.name, address: c.address, city: c.city, state: c.state,
-        country: c.country, phone: c.phone, email: c.email, website: c.website,
-        denomination: c.denomination, timezone: c.timezone, currency: c.currency,
+        name: c.name || '',
+        address: c.address || '',
+        city: c.city || '',
+        state: c.state || '',
+        country: c.country || '',
+        phone: c.phone || '',
+        email: c.email || '',
+        website: c.website || '',
+        denomination: c.denomination || '',
+        timezone: c.timezone || 'Africa/Lagos',
+        currency: c.currency || 'NGN',
+        logoUrl: c.logo_url || '',
+        bannerUrl: c.banner_url || '',
+        tagline: c.tagline || '',
+        mission: c.mission || '',
+        vision: c.vision || '',
+        socialLinks: c.social_links || { facebook: '', instagram: '', youtube: '', twitter: '' },
+        pastors: Array.isArray(c.pastors) ? c.pastors : [],
       });
       setChurchStats(statsRes.data.data);
       setMessaging(msgRes.data.data || { email: {}, sms: {}, whatsapp: {} });
@@ -60,29 +84,39 @@ export default function Settings() {
   }, [user]);
 
   const setC = k => e => setChurch(f => ({ ...f, [k]: e.target.value }));
+  const setSocial = k => e => setChurch(f => ({
+    ...f,
+    socialLinks: { ...(f.socialLinks || {}), [k]: e.target.value }
+  }));
   const setP = k => e => setProfile(f => ({ ...f, [k]: e.target.value }));
   const setPw = k => e => setPasswords(f => ({ ...f, [k]: e.target.value }));
 
-  const saveChurch = async () => {
+  const saveChurch = async (customChurchObj) => {
     setSaving(true);
     try {
-      await api.put('/settings/church', church);
-      toast.success('Church settings saved!');
-    } catch { toast.error('Failed to save'); }
-    finally { setSaving(false); }
+      const payload = customChurchObj || church;
+      await api.put('/settings/church', payload);
+      toast.success('Church profile & branding saved!');
+    } catch {
+      toast.error('Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const saveProfile = async () => {
     setSaving(true);
     try {
       const res = await api.put('/settings/profile', profile);
-      // Update auth context user
       const updated = res.data.data;
       const tokens = { accessToken: localStorage.getItem('accessToken'), refreshToken: localStorage.getItem('refreshToken') };
       login({ ...user, firstName: updated.first_name, lastName: updated.last_name, phone: updated.phone }, tokens);
       toast.success('Profile updated!');
-    } catch { toast.error('Failed to save profile'); }
-    finally { setSaving(false); }
+    } catch {
+      toast.error('Failed to save profile');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const savePassword = async () => {
@@ -98,18 +132,29 @@ export default function Settings() {
       setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to change password');
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const setM = (section, key) => e => setMessaging(m => ({ ...m, [section]: { ...m[section], [key]: e.target.type === 'checkbox' ? e.target.checked : e.target.value } }));
+  const setM = (section, key) => e => setMessaging(m => ({
+    ...m,
+    [section]: {
+      ...m[section],
+      [key]: e.target.type === 'checkbox' ? e.target.checked : e.target.value
+    }
+  }));
 
   const saveMessaging = async () => {
     setSaving(true);
     try {
       await api.put('/settings/messaging', messaging);
       toast.success('Messaging settings saved!');
-    } catch { toast.error('Failed to save messaging settings'); }
-    finally { setSaving(false); }
+    } catch {
+      toast.error('Failed to save messaging settings');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleTest = async (channel) => {
@@ -121,7 +166,34 @@ export default function Settings() {
       toast.success(res.data.message || 'Test sent!');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Test failed');
-    } finally { setTesting(''); }
+    } finally {
+      setTesting('');
+    }
+  };
+
+  // Pastors Handlers
+  const handleSavePastor = () => {
+    if (!pastorModal.data.name || !pastorModal.data.role) {
+      return toast.error('Name and Role/Title are required');
+    }
+    const currentPastors = [...(church.pastors || [])];
+    if (pastorModal.index !== null) {
+      currentPastors[pastorModal.index] = pastorModal.data;
+    } else {
+      currentPastors.push(pastorModal.data);
+    }
+    const updated = { ...church, pastors: currentPastors };
+    setChurch(updated);
+    setPastorModal({ open: false, index: null, data: {} });
+    saveChurch(updated);
+  };
+
+  const handleDeletePastor = (idx) => {
+    if (!window.confirm('Are you sure you want to remove this minister from the roster?')) return;
+    const currentPastors = (church.pastors || []).filter((_, i) => i !== idx);
+    const updated = { ...church, pastors: currentPastors };
+    setChurch(updated);
+    saveChurch(updated);
   };
 
   const DENOMINATIONS = ['Pentecostal', 'Baptist', 'Anglican', 'Catholic', 'Methodist', 'Presbyterian', 'Evangelical', 'Non-denominational', 'Others'];
@@ -133,17 +205,17 @@ export default function Settings() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="page-title">Settings</h1>
-        <p className="text-gray-500 text-sm mt-1">Manage your church and account preferences</p>
+        <h1 className="page-title">Settings & Configuration</h1>
+        <p className="text-gray-500 text-sm mt-1">Manage your church branding, pastoral team, automated messaging, and account</p>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col md:flex-row gap-6">
         {/* Sidebar */}
-        <div className="w-52 flex-shrink-0 space-y-1">
+        <div className="w-full md:w-60 flex-shrink-0 space-y-1">
           {TABS.map(tab => <TabButton key={tab.id} tab={tab} active={activeTab === tab.id} onClick={setActiveTab} />)}
 
           {/* Church stats */}
-          <div className="mt-6 pt-4 border-t border-gray-100">
+          <div className="mt-6 pt-4 border-t border-gray-100 hidden md:block">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 px-1">Overview</p>
             {[
               { label: 'Members', value: churchStats.active_members },
@@ -161,19 +233,71 @@ export default function Settings() {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
+          {/* TAB 1: CHURCH PROFILE & BRANDING */}
           {activeTab === 'church' && (
-            <div className="card">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-2xl bg-brand-100 flex items-center justify-center text-brand-600 text-2xl">⛪</div>
-                <div>
-                  <h2 className="font-display font-bold text-gray-900 text-lg">{church.name}</h2>
-                  <p className="text-xs text-gray-400">Church profile and preferences</p>
+            <div className="card space-y-6">
+              {/* Header preview */}
+              <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gradient-to-r from-brand-800 to-indigo-950 text-white min-h-[140px] flex items-end p-6">
+                {church.bannerUrl && (
+                  <img src={church.bannerUrl} alt="Cover Banner" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+                )}
+                <div className="relative z-10 flex items-center gap-4">
+                  {church.logoUrl ? (
+                    <img src={church.logoUrl} alt="Logo" className="w-16 h-16 rounded-2xl bg-white p-1 object-contain border-2 border-white/30 shadow-md" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-3xl border border-white/30">⛪</div>
+                  )}
+                  <div>
+                    <h2 className="font-display font-bold text-white text-xl sm:text-2xl drop-shadow-sm">{church.name || 'Your Church Name'}</h2>
+                    <p className="text-brand-200 text-sm italic">{church.tagline || 'Add a church tagline or motto below'}</p>
+                  </div>
                 </div>
               </div>
-              <div className="space-y-4">
+
+              {/* Visual Branding Section */}
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-brand-600 mb-3 flex items-center gap-2">
+                  <Sparkles size={16} /> Visual Branding & Cover Graphics
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Church Banner / Cover Photo URL</label>
+                    <input className="input" placeholder="https://images.unsplash.com/... or uploaded URL" value={church.bannerUrl || ''} onChange={setC('bannerUrl')} />
+                    <p className="text-xs text-gray-400 mt-1">Displayed in Member Portal header & event reminder emails (16:9 ratio recommended)</p>
+                  </div>
+                  <div>
+                    <label className="label">Church Logo URL</label>
+                    <input className="input" placeholder="https://mychurch.org/logo.png" value={church.logoUrl || ''} onChange={setC('logoUrl')} />
+                    <p className="text-xs text-gray-400 mt-1">Square or circular transparent PNG recommended</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="label">Church Tagline / Motto</label>
+                    <input className="input" placeholder="Transforming Lives, Impacting Nations" value={church.tagline || ''} onChange={setC('tagline')} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Mission & Vision */}
+              <div className="pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3">Mission & Vision</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Mission Statement</label>
+                    <textarea className="input min-h-[90px]" placeholder="To preach the gospel of grace..." value={church.mission || ''} onChange={setC('mission')} />
+                  </div>
+                  <div>
+                    <label className="label">Vision Statement</label>
+                    <textarea className="input min-h-[90px]" placeholder="To raise passionate disciples..." value={church.vision || ''} onChange={setC('vision')} />
+                  </div>
+                </div>
+              </div>
+
+              {/* General Church Profile Details */}
+              <div className="pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3">General Information</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <label className="label">Church Name</label>
+                    <label className="label">Church Name *</label>
                     <input className="input" value={church.name || ''} onChange={setC('name')} />
                   </div>
                   <div>
@@ -184,11 +308,11 @@ export default function Settings() {
                     </select>
                   </div>
                   <div>
-                    <label className="label">Phone</label>
+                    <label className="label">Official Phone</label>
                     <input className="input" value={church.phone || ''} onChange={setC('phone')} />
                   </div>
                   <div className="col-span-2">
-                    <label className="label">Email</label>
+                    <label className="label">Official Email</label>
                     <input type="email" className="input" value={church.email || ''} onChange={setC('email')} />
                   </div>
                   <div className="col-span-2">
@@ -196,7 +320,7 @@ export default function Settings() {
                     <input type="url" className="input" placeholder="https://mychurch.org" value={church.website || ''} onChange={setC('website')} />
                   </div>
                   <div className="col-span-2">
-                    <label className="label">Address</label>
+                    <label className="label">Headquarters Address</label>
                     <input className="input" value={church.address || ''} onChange={setC('address')} />
                   </div>
                   <div>
@@ -204,7 +328,7 @@ export default function Settings() {
                     <input className="input" value={church.city || ''} onChange={setC('city')} />
                   </div>
                   <div>
-                    <label className="label">State</label>
+                    <label className="label">State / Region</label>
                     <input className="input" value={church.state || ''} onChange={setC('state')} />
                   </div>
                   <div>
@@ -220,101 +344,198 @@ export default function Settings() {
                     </select>
                   </div>
                 </div>
-                <div className="flex justify-end pt-2">
-                  <button onClick={saveChurch} disabled={saving} className="btn-primary">
-                    {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Changes
-                  </button>
-                </div>
               </div>
-            </div>
-          )}
 
-          {activeTab === 'profile' && (
-            <div className="card">
-              <h2 className="font-display font-bold text-gray-900 text-lg mb-6">My Profile</h2>
-              <div className="flex items-center gap-4 mb-6 pb-6 border-b border-gray-100">
-                <div className="w-16 h-16 rounded-2xl bg-brand-100 flex items-center justify-center text-brand-700 text-2xl font-bold">
-                  {(user?.firstName?.[0] || '') + (user?.lastName?.[0] || '')}
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">{user?.firstName} {user?.lastName}</p>
-                  <p className="text-sm text-gray-500">{user?.email}</p>
-                  <span className="text-xs bg-brand-100 text-brand-700 font-semibold px-2 py-0.5 rounded-full capitalize mt-1 inline-block">
-                    {user?.role?.replace('_', ' ')}
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-4">
+              {/* Social Media Links */}
+              <div className="pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3 flex items-center gap-2">
+                  <Globe size={16} /> Social Media Channels
+                </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="label">First Name</label>
-                    <input className="input" value={profile.firstName || ''} onChange={setP('firstName')} />
+                    <label className="label">Facebook Page URL</label>
+                    <input className="input" placeholder="https://facebook.com/mychurch" value={church.socialLinks?.facebook || ''} onChange={setSocial('facebook')} />
                   </div>
                   <div>
-                    <label className="label">Last Name</label>
-                    <input className="input" value={profile.lastName || ''} onChange={setP('lastName')} />
+                    <label className="label">Instagram URL</label>
+                    <input className="input" placeholder="https://instagram.com/mychurch" value={church.socialLinks?.instagram || ''} onChange={setSocial('instagram')} />
                   </div>
-                  <div className="col-span-2">
-                    <label className="label">Phone</label>
-                    <input type="tel" className="input" value={profile.phone || ''} onChange={setP('phone')} />
+                  <div>
+                    <label className="label">YouTube Channel</label>
+                    <input className="input" placeholder="https://youtube.com/@mychurch" value={church.socialLinks?.youtube || ''} onChange={setSocial('youtube')} />
                   </div>
-                  <div className="col-span-2">
-                    <label className="label">Email</label>
-                    <input value={user?.email || ''} disabled className="input bg-gray-50 text-gray-400 cursor-not-allowed" />
-                    <p className="text-xs text-gray-400 mt-1">Email cannot be changed. Contact your admin.</p>
+                  <div>
+                    <label className="label">Twitter / X Profile</label>
+                    <input className="input" placeholder="https://x.com/mychurch" value={church.socialLinks?.twitter || ''} onChange={setSocial('twitter')} />
                   </div>
                 </div>
-                <div className="flex justify-end pt-2">
-                  <button onClick={saveProfile} disabled={saving} className="btn-primary">
-                    {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Profile
-                  </button>
-                </div>
+              </div>
+
+              <div className="flex justify-end pt-3">
+                <button onClick={() => saveChurch()} disabled={saving} className="btn-primary">
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Church Branding
+                </button>
               </div>
             </div>
           )}
 
-          {activeTab === 'password' && (
-            <div className="card">
-              <h2 className="font-display font-bold text-gray-900 text-lg mb-2">Change Password</h2>
-              <p className="text-sm text-gray-500 mb-6">Choose a strong password with at least 8 characters.</p>
-              <div className="space-y-4 max-w-md">
+          {/* TAB 2: PASTORAL LEADERSHIP */}
+          {activeTab === 'pastors' && (
+            <div className="card space-y-6">
+              <div className="flex items-center justify-between">
                 <div>
-                  <label className="label">Current Password</label>
-                  <input type="password" className="input" value={passwords.currentPassword} onChange={setPw('currentPassword')} />
+                  <h2 className="font-display font-bold text-gray-900 text-lg">Pastoral Team & Leadership Roster</h2>
+                  <p className="text-xs text-gray-400">Showcase your senior pastors, campus pastors, and ministers across platforms</p>
                 </div>
-                <div>
-                  <label className="label">New Password</label>
-                  <input type="password" className="input" value={passwords.newPassword} onChange={setPw('newPassword')} />
-                </div>
-                <div>
-                  <label className="label">Confirm New Password</label>
-                  <input type="password" className="input" value={passwords.confirmPassword} onChange={setPw('confirmPassword')} />
-                  {passwords.confirmPassword && passwords.newPassword !== passwords.confirmPassword && (
-                    <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
-                  )}
-                  {passwords.confirmPassword && passwords.newPassword === passwords.confirmPassword && passwords.newPassword.length >= 8 && (
-                    <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><CheckCircle size={11} /> Passwords match</p>
-                  )}
-                </div>
-                <div className="pt-2">
-                  <button onClick={savePassword} disabled={saving || !passwords.currentPassword || !passwords.newPassword || passwords.newPassword !== passwords.confirmPassword} className="btn-primary">
-                    {saving ? <Loader2 size={15} className="animate-spin" /> : <Lock size={15} />} Change Password
+                <button onClick={() => setPastorModal({ open: true, index: null, data: {} })} className="btn-primary">
+                  <Plus size={15} /> Add Minister
+                </button>
+              </div>
+
+              {(!church.pastors || church.pastors.length === 0) ? (
+                <div className="text-center py-12 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/50">
+                  <Users size={36} className="mx-auto text-gray-300 mb-2" />
+                  <p className="text-gray-600 font-semibold">No pastors or ministers added yet</p>
+                  <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">Add your lead pastor, resident pastors, or associate ministers so members can know and connect with them.</p>
+                  <button onClick={() => setPastorModal({ open: true, index: null, data: {} })} className="btn-primary mt-4 inline-flex">
+                    <Plus size={14} /> Add First Minister
                   </button>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {church.pastors.map((p, idx) => (
+                    <div key={idx} className="p-4 rounded-xl border border-gray-200/80 bg-white hover:shadow-md transition-shadow relative group">
+                      <div className="flex items-start gap-3.5">
+                        {p.photoUrl ? (
+                          <img src={p.photoUrl} alt={p.name} className="w-14 h-14 rounded-2xl object-cover border border-gray-200 shadow-sm flex-shrink-0" />
+                        ) : (
+                          <div className="w-14 h-14 rounded-2xl bg-brand-50 text-brand-700 flex items-center justify-center font-bold text-lg border border-brand-100 flex-shrink-0">
+                            {(p.name || 'P')[0]}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-gray-900 text-base leading-snug truncate">{p.name}</h4>
+                          <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-50 text-brand-700">
+                            {p.role || 'Minister'}
+                          </span>
+                          {p.bio && <p className="text-xs text-gray-500 line-clamp-2 mt-1.5 leading-relaxed">{p.bio}</p>}
+                          <div className="flex flex-col gap-0.5 mt-2 text-xs text-gray-400">
+                            {p.phone && <span>📞 {p.phone}</span>}
+                            {p.email && <span>✉️ {p.email}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 absolute top-3 right-3 opacity-90 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setPastorModal({ open: true, index: idx, data: { ...p } })}
+                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-brand-600 transition-colors" title="Edit">
+                          <Edit3 size={14} />
+                        </button>
+                        <button onClick={() => handleDeletePastor(idx)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors" title="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
+          {/* TAB 3: MESSAGING (WHATSAPP, EMAIL, SMS) */}
           {activeTab === 'messaging' && (
             <div className="space-y-5">
+              {/* WhatsApp Configuration */}
+              <div className="card">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600"><MessageCircle size={22} /></div>
+                    <div>
+                      <h3 className="font-display font-bold text-gray-900">WhatsApp Broadcast & Reminders</h3>
+                      <p className="text-xs text-gray-400">Direct Meta WhatsApp Business Cloud API or Twilio WhatsApp</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setMessaging(m => ({ ...m, whatsapp: { ...m.whatsapp, enabled: !m.whatsapp?.enabled } }))}
+                    className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${messaging.whatsapp?.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {messaging.whatsapp?.enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                    {messaging.whatsapp?.enabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="label">WhatsApp Integration Provider</label>
+                    <select className="input" value={messaging.whatsapp?.provider || 'meta'} onChange={setM('whatsapp', 'provider')}>
+                      <option value="meta">Meta WhatsApp Cloud API (Recommended — 1,000 free conversations/month)</option>
+                      <option value="twilio">Twilio WhatsApp Business API</option>
+                    </select>
+                  </div>
+
+                  {messaging.whatsapp?.provider === 'meta' ? (
+                    <div className="space-y-3 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+                      <div className="flex items-start gap-2 text-xs text-emerald-800">
+                        <AlertCircle size={15} className="flex-shrink-0 mt-0.5 text-emerald-600" />
+                        <div>
+                          <strong>Meta WhatsApp Cloud API</strong> provides direct delivery without third-party markups. Obtain your Phone Number ID and Permanent Access Token from <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" className="underline font-semibold">developers.facebook.com</a>.
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="label">Meta Phone Number ID *</label>
+                          <input className="input font-mono text-sm" placeholder="1058472918274..." value={messaging.whatsapp?.metaPhoneNumberId || ''} onChange={setM('whatsapp', 'metaPhoneNumberId')} />
+                        </div>
+                        <div>
+                          <label className="label">WhatsApp Business Account ID (WABA)</label>
+                          <input className="input font-mono text-sm" placeholder="1029384756..." value={messaging.whatsapp?.metaBusinessAccountId || ''} onChange={setM('whatsapp', 'metaBusinessAccountId')} />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="label">System User Permanent Access Token *</label>
+                          <input type="password" className="input font-mono text-sm" placeholder="EAAB..." value={messaging.whatsapp?.metaAccessToken || ''} onChange={setM('whatsapp', 'metaAccessToken')} />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                      <p className="text-xs text-gray-500">Twilio WhatsApp uses your Twilio Account SID, Auth Token, and registered WhatsApp Sender Number.</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="label">Twilio SID (optional if set in SMS)</label>
+                          <input className="input font-mono text-sm" placeholder="ACxxxxxxxxxxxx" value={messaging.whatsapp?.twilioSid || ''} onChange={setM('whatsapp', 'twilioSid')} />
+                        </div>
+                        <div>
+                          <label className="label">Twilio Auth Token</label>
+                          <input type="password" className="input font-mono text-sm" value={messaging.whatsapp?.twilioAuthToken || ''} onChange={setM('whatsapp', 'twilioAuthToken')} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="label">Sender WhatsApp Number</label>
+                    <input className="input" placeholder="+2348012345678" value={messaging.whatsapp?.whatsappNumber || ''} onChange={setM('whatsapp', 'whatsappNumber')} />
+                    <p className="text-xs text-gray-400 mt-1">E.164 formatted registered church WhatsApp number</p>
+                  </div>
+
+                  <div className="flex items-end gap-2 pt-2 border-t border-gray-100">
+                    <div className="flex-1">
+                      <label className="label">Send Test WhatsApp</label>
+                      <input type="tel" className="input" placeholder="+2348012345678" value={testRecipient.whatsapp} onChange={e => setTestRecipient(r => ({ ...r, whatsapp: e.target.value }))} />
+                    </div>
+                    <button onClick={() => handleTest('whatsapp')} disabled={testing === 'whatsapp'} className="btn-secondary h-[42px] whitespace-nowrap">
+                      {testing === 'whatsapp' ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send Test
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* Email Configuration */}
               <div className="card">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600"><Mail size={20} /></div>
                     <div>
-                      <h3 className="font-display font-bold text-gray-900">Email Notifications</h3>
-                      <p className="text-xs text-gray-400">SendGrid or SMTP for email delivery</p>
+                      <h3 className="font-display font-bold text-gray-900">Email Notifications & Broadcasts</h3>
+                      <p className="text-xs text-gray-400">SendGrid or custom SMTP for automated email delivery</p>
                     </div>
                   </div>
                   <button onClick={() => setMessaging(m => ({ ...m, email: { ...m.email, enabled: !m.email?.enabled } }))}
@@ -327,17 +548,17 @@ export default function Settings() {
                   <div>
                     <label className="label">Provider</label>
                     <select className="input" value={messaging.email?.provider || 'smtp'} onChange={setM('email', 'provider')}>
-                      <option value="smtp">SMTP (Nodemailer)</option>
+                      <option value="smtp">SMTP (Google Workspace, Zoho, Microsoft 365, Mailgun)</option>
                       <option value="sendgrid">SendGrid</option>
                     </select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="label">From Email</label>
+                      <label className="label">From Email Address</label>
                       <input className="input" placeholder="noreply@mychurch.org" value={messaging.email?.fromEmail || ''} onChange={setM('email', 'fromEmail')} />
                     </div>
                     <div>
-                      <label className="label">From Name</label>
+                      <label className="label">From Display Name</label>
                       <input className="input" placeholder="My Church" value={messaging.email?.fromName || ''} onChange={setM('email', 'fromName')} />
                     </div>
                   </div>
@@ -370,8 +591,8 @@ export default function Settings() {
                   {/* Test email */}
                   <div className="flex items-end gap-2 pt-2 border-t border-gray-100">
                     <div className="flex-1">
-                      <label className="label">Test Email</label>
-                      <input type="email" className="input" placeholder="test@example.com" value={testRecipient.email} onChange={e => setTestRecipient(r => ({ ...r, email: e.target.value }))} />
+                      <label className="label">Test Email Address</label>
+                      <input type="email" className="input" placeholder="pastor@example.com" value={testRecipient.email} onChange={e => setTestRecipient(r => ({ ...r, email: e.target.value }))} />
                     </div>
                     <button onClick={() => handleTest('email')} disabled={testing === 'email'} className="btn-secondary h-[42px] whitespace-nowrap">
                       {testing === 'email' ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send Test
@@ -387,7 +608,7 @@ export default function Settings() {
                     <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-600"><Phone size={20} /></div>
                     <div>
                       <h3 className="font-display font-bold text-gray-900">SMS Notifications</h3>
-                      <p className="text-xs text-gray-400">Twilio for SMS message delivery</p>
+                      <p className="text-xs text-gray-400">Twilio for quick SMS delivery</p>
                     </div>
                   </div>
                   <button onClick={() => setMessaging(m => ({ ...m, sms: { ...m.sms, enabled: !m.sms?.enabled } }))}
@@ -409,8 +630,7 @@ export default function Settings() {
                   </div>
                   <div>
                     <label className="label">Twilio Phone Number</label>
-                    <input className="input" placeholder="+2341234567890" value={messaging.sms?.twilioPhone || ''} onChange={setM('sms', 'twilioPhone')} />
-                    <p className="text-xs text-gray-400 mt-1">Get your credentials from <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline">Twilio Console</a></p>
+                    <input className="input" placeholder="+1234567890" value={messaging.sms?.twilioPhone || ''} onChange={setM('sms', 'twilioPhone')} />
                   </div>
                   <div className="flex items-end gap-2 pt-2 border-t border-gray-100">
                     <div className="flex-1">
@@ -424,43 +644,6 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* WhatsApp Configuration */}
-              <div className="card">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600"><MessageCircle size={20} /></div>
-                    <div>
-                      <h3 className="font-display font-bold text-gray-900">WhatsApp Notifications</h3>
-                      <p className="text-xs text-gray-400">Via Twilio WhatsApp Business API</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setMessaging(m => ({ ...m, whatsapp: { ...m.whatsapp, enabled: !m.whatsapp?.enabled } }))}
-                    className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${messaging.whatsapp?.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {messaging.whatsapp?.enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-                    {messaging.whatsapp?.enabled ? 'Enabled' : 'Disabled'}
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-700">
-                    WhatsApp uses the same Twilio credentials configured above in SMS. Ensure your Twilio account has the WhatsApp sandbox or Business API enabled.
-                  </div>
-                  <div>
-                    <label className="label">WhatsApp Number</label>
-                    <input className="input" placeholder="+14155238886" value={messaging.whatsapp?.whatsappNumber || ''} onChange={setM('whatsapp', 'whatsappNumber')} />
-                    <p className="text-xs text-gray-400 mt-1">Your Twilio WhatsApp-enabled number or sandbox number</p>
-                  </div>
-                  <div className="flex items-end gap-2 pt-2 border-t border-gray-100">
-                    <div className="flex-1">
-                      <label className="label">Test WhatsApp</label>
-                      <input type="tel" className="input" placeholder="+2348012345678" value={testRecipient.whatsapp} onChange={e => setTestRecipient(r => ({ ...r, whatsapp: e.target.value }))} />
-                    </div>
-                    <button onClick={() => handleTest('whatsapp')} disabled={testing === 'whatsapp'} className="btn-secondary h-[42px] whitespace-nowrap">
-                      {testing === 'whatsapp' ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Send Test
-                    </button>
-                  </div>
-                </div>
-              </div>
-
               <div className="flex justify-end">
                 <button onClick={saveMessaging} disabled={saving} className="btn-primary">
                   {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Messaging Settings
@@ -468,8 +651,129 @@ export default function Settings() {
               </div>
             </div>
           )}
+
+          {/* TAB 4: MY PROFILE */}
+          {activeTab === 'profile' && (
+            <div className="card">
+              <h2 className="font-display font-bold text-gray-900 text-lg mb-6">My Profile</h2>
+              <div className="flex items-center gap-4 mb-6 pb-6 border-b border-gray-100">
+                <div className="w-16 h-16 rounded-2xl bg-brand-100 flex items-center justify-center text-brand-700 text-2xl font-bold">
+                  {(user?.firstName?.[0] || '') + (user?.lastName?.[0] || '')}
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">{user?.firstName} {user?.lastName}</p>
+                  <p className="text-sm text-gray-500">{user?.email}</p>
+                  <span className="text-xs bg-brand-100 text-brand-700 font-semibold px-2 py-0.5 rounded-full capitalize mt-1 inline-block">
+                    {user?.role?.replace('_', ' ')}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">First Name</label>
+                    <input className="input" value={profile.firstName || ''} onChange={setP('firstName')} />
+                  </div>
+                  <div>
+                    <label className="label">Last Name</label>
+                    <input className="input" value={profile.lastName || ''} onChange={setP('lastName')} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="label">Phone</label>
+                    <input type="tel" className="input" value={profile.phone || ''} onChange={setP('phone')} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="label">Email</label>
+                    <input value={user?.email || ''} disabled className="input bg-gray-50 text-gray-400 cursor-not-allowed" />
+                    <p className="text-xs text-gray-400 mt-1">Email cannot be changed. Contact your system admin.</p>
+                  </div>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <button onClick={saveProfile} disabled={saving} className="btn-primary">
+                    {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Profile
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: CHANGE PASSWORD */}
+          {activeTab === 'password' && (
+            <div className="card">
+              <h2 className="font-display font-bold text-gray-900 text-lg mb-2">Change Password</h2>
+              <p className="text-sm text-gray-500 mb-6">Choose a strong password with at least 8 characters.</p>
+              <div className="space-y-4 max-w-md">
+                <div>
+                  <label className="label">Current Password</label>
+                  <input type="password" className="input" value={passwords.currentPassword} onChange={setPw('currentPassword')} />
+                </div>
+                <div>
+                  <label className="label">New Password</label>
+                  <input type="password" className="input" value={passwords.newPassword} onChange={setPw('newPassword')} />
+                </div>
+                <div>
+                  <label className="label">Confirm New Password</label>
+                  <input type="password" className="input" value={passwords.confirmPassword} onChange={setPw('confirmPassword')} />
+                  {passwords.confirmPassword && passwords.newPassword !== passwords.confirmPassword && (
+                    <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                  )}
+                  {passwords.confirmPassword && passwords.newPassword === passwords.confirmPassword && passwords.newPassword.length >= 8 && (
+                    <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><CheckCircle size={11} /> Passwords match</p>
+                  )}
+                </div>
+                <div className="pt-2">
+                  <button onClick={savePassword} disabled={saving || !passwords.currentPassword || !passwords.newPassword || passwords.newPassword !== passwords.confirmPassword} className="btn-primary">
+                    {saving ? <Loader2 size={15} className="animate-spin" /> : <Lock size={15} />} Change Password
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Add / Edit Minister Modal */}
+      <Modal
+        open={pastorModal.open}
+        onClose={() => setPastorModal({ open: false, index: null, data: {} })}
+        title={pastorModal.index !== null ? 'Edit Minister' : 'Add Minister / Pastor'}
+        size="md"
+        footer={
+          <>
+            <button onClick={() => setPastorModal({ open: false, index: null, data: {} })} className="btn-secondary">Cancel</button>
+            <button onClick={handleSavePastor} className="btn-primary">Save Minister</button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="label">Minister Full Name *</label>
+            <input className="input" placeholder="Pastor David Adeleke" value={pastorModal.data.name || ''} onChange={e => setPastorModal(m => ({ ...m, data: { ...m.data, name: e.target.value } }))} />
+          </div>
+          <div>
+            <label className="label">Role / Designation *</label>
+            <input className="input" placeholder="Lead Pastor, Resident Pastor, Youth Minister..." value={pastorModal.data.role || ''} onChange={e => setPastorModal(m => ({ ...m, data: { ...m.data, role: e.target.value } }))} />
+          </div>
+          <div>
+            <label className="label">Photo / Picture URL</label>
+            <input className="input" placeholder="https://images.unsplash.com/... or uploaded photo URL" value={pastorModal.data.photoUrl || ''} onChange={e => setPastorModal(m => ({ ...m, data: { ...m.data, photoUrl: e.target.value } }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Phone Number</label>
+              <input className="input" placeholder="+234..." value={pastorModal.data.phone || ''} onChange={e => setPastorModal(m => ({ ...m, data: { ...m.data, phone: e.target.value } }))} />
+            </div>
+            <div>
+              <label className="label">Email Address</label>
+              <input type="email" className="input" placeholder="pastor@church.org" value={pastorModal.data.email || ''} onChange={e => setPastorModal(m => ({ ...m, data: { ...m.data, email: e.target.value } }))} />
+            </div>
+          </div>
+          <div>
+            <label className="label">Brief Bio / Overview</label>
+            <textarea className="input min-h-[80px]" placeholder="Serving as Lead Pastor since 2018..." value={pastorModal.data.bio || ''} onChange={e => setPastorModal(m => ({ ...m, data: { ...m.data, bio: e.target.value } }))} />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

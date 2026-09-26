@@ -10,9 +10,22 @@ router.get('/stats', c.getEventStats);
 router.get('/', c.getEvents);
 router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), [
   body('title').notEmpty().trim().escape(),
-  body('eventType').notEmpty().trim(),
-  body('startDate').notEmpty().isISO8601(),
+  body().custom((value) => {
+    if (!value.startDate && !value.startDatetime) {
+      throw new Error('Start date/time is required');
+    }
+    return true;
+  }),
 ], handleValidationErrors, c.createEvent);
+
+router.put('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), [
+  body('title').optional().trim().escape(),
+], handleValidationErrors, c.updateEvent);
+
+router.delete('/:id', authorize('head_pastor', 'pastor', 'director'), c.deleteEvent);
+
+router.post('/:id/remind', authorize('head_pastor', 'pastor', 'director', 'hod'), c.triggerEventReminder);
+
 router.post('/:id/attendance', authorize('head_pastor', 'pastor', 'director', 'hod'), [
   body('memberIds').isArray({ min: 1 }),
 ], handleValidationErrors, c.recordAttendance);

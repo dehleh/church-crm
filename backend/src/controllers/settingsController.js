@@ -17,7 +17,8 @@ const getChurchSettings = async (req, res) => {
 const updateChurchSettings = async (req, res) => {
   const {
     name, address, city, state, country, phone, email, website,
-    denomination, timezone, currency, logoUrl, settings
+    denomination, timezone, currency, logoUrl, bannerUrl,
+    tagline, mission, vision, socialLinks, pastors, settings
   } = req.body;
   try {
     const { rows } = await query(
@@ -34,13 +35,28 @@ const updateChurchSettings = async (req, res) => {
         timezone = COALESCE($11, timezone),
         currency = COALESCE($12, currency),
         logo_url = COALESCE($13, logo_url),
-        settings = COALESCE($14, settings)
+        banner_url = COALESCE($14, banner_url),
+        tagline = COALESCE($15, tagline),
+        mission = COALESCE($16, mission),
+        vision = COALESCE($17, vision),
+        social_links = COALESCE($18, social_links),
+        pastors = COALESCE($19, pastors),
+        settings = COALESCE($20, settings)
        WHERE id = $1 RETURNING *`,
-      [req.churchId, name, address, city, state, country, phone, email, website,
-       denomination, timezone, currency, logoUrl, settings ? JSON.stringify(settings) : null]
+      [
+        req.churchId, name, address, city, state, country, phone, email, website,
+        denomination, timezone, currency, logoUrl, bannerUrl,
+        tagline, mission, vision,
+        socialLinks ? (typeof socialLinks === 'string' ? socialLinks : JSON.stringify(socialLinks)) : null,
+        pastors ? (typeof pastors === 'string' ? pastors : JSON.stringify(pastors)) : null,
+        settings ? (typeof settings === 'string' ? settings : JSON.stringify(settings)) : null,
+      ]
     );
     return res.json({ success: true, data: rows[0], message: 'Settings updated' });
-  } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) {
+    logger.error('updateChurchSettings failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
 };
 
 const changePassword = async (req, res) => {
@@ -129,12 +145,26 @@ const getMessagingConfig = async (req, res) => {
     }
     if (messaging.whatsapp) {
       masked.whatsapp = {
+        provider: messaging.whatsapp.provider || 'meta',
+        metaAccessToken: messaging.whatsapp.metaAccessToken ? '••••••••' : '',
+        metaPhoneNumberId: messaging.whatsapp.metaPhoneNumberId || '',
+        metaBusinessAccountId: messaging.whatsapp.metaBusinessAccountId || '',
         whatsappNumber: messaging.whatsapp.whatsappNumber || '',
+        twilioSid: messaging.whatsapp.twilioSid ? messaging.whatsapp.twilioSid.substring(0, 8) + '••••••••' : '',
+        twilioAuthToken: messaging.whatsapp.twilioAuthToken ? '••••••••' : '',
         enabled: messaging.whatsapp.enabled ?? false,
-        usesTwilio: true,
       };
     } else {
-      masked.whatsapp = { whatsappNumber: '', enabled: false, usesTwilio: true };
+      masked.whatsapp = {
+        provider: 'meta',
+        metaAccessToken: '',
+        metaPhoneNumberId: '',
+        metaBusinessAccountId: '',
+        whatsappNumber: '',
+        twilioSid: '',
+        twilioAuthToken: '',
+        enabled: false,
+      };
     }
     return res.json({ success: true, data: masked });
   } catch (err) {
@@ -183,7 +213,13 @@ const updateMessagingConfig = async (req, res) => {
     if (whatsapp) {
       const prev = currentMessaging.whatsapp || {};
       newMessaging.whatsapp = {
+        provider: whatsapp.provider || prev.provider || 'meta',
+        metaAccessToken: (whatsapp.metaAccessToken && !whatsapp.metaAccessToken.includes('••')) ? whatsapp.metaAccessToken : prev.metaAccessToken,
+        metaPhoneNumberId: whatsapp.metaPhoneNumberId ?? prev.metaPhoneNumberId,
+        metaBusinessAccountId: whatsapp.metaBusinessAccountId ?? prev.metaBusinessAccountId,
         whatsappNumber: whatsapp.whatsappNumber ?? prev.whatsappNumber,
+        twilioSid: (whatsapp.twilioSid && !whatsapp.twilioSid.includes('••')) ? whatsapp.twilioSid : prev.twilioSid,
+        twilioAuthToken: (whatsapp.twilioAuthToken && !whatsapp.twilioAuthToken.includes('••')) ? whatsapp.twilioAuthToken : prev.twilioAuthToken,
         enabled: whatsapp.enabled ?? prev.enabled ?? false,
       };
     } else {

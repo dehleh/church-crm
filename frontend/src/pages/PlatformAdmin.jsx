@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Building2, Users, ShieldAlert, ShieldCheck, Trash2,
-  Search, Loader2, BarChart3, Eye, RefreshCw, Plus, Copy, CheckCircle2, KeyRound, Settings as SettingsIcon
+  Search, Loader2, BarChart3, Eye, RefreshCw, Plus, Copy, CheckCircle2, KeyRound,
+  Settings as SettingsIcon, ArrowRightCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { platformAPI } from '../api/services';
+import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 
 export default function PlatformAdmin() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [stats, setStats] = useState(null);
   const [churches, setChurches] = useState([]);
   const [search, setSearch] = useState('');
@@ -95,6 +100,21 @@ export default function PlatformAdmin() {
       setConfirmDelete(null);
       loadAll();
     } catch { toast.error('Failed'); } finally { setBusyId(null); }
+  };
+
+  const handleAccess = async (church) => {
+    setBusyId(church.id);
+    try {
+      const res = await platformAPI.impersonate(church.id);
+      const { user: switchedUser, accessToken, refreshToken } = res.data.data;
+      login(switchedUser, { accessToken, refreshToken });
+      toast.success(`Accessing ${church.name}...`);
+      navigate('/dashboard');
+    } catch (err) {
+      toast.error('Failed to access church');
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const showDetail = async (church) => {
@@ -285,7 +305,11 @@ export default function PlatformAdmin() {
                         : <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700">Suspended</span>}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-1 justify-end">
+                      <div className="flex gap-1 justify-end items-center">
+                        <button onClick={()=>handleAccess(c)} disabled={busyId===c.id}
+                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-xs font-semibold flex items-center gap-1 transition-colors" title="Access Church Dashboard as Admin">
+                          <ArrowRightCircle size={13}/> Access
+                        </button>
                         <button onClick={()=>showDetail(c)} disabled={busyId===c.id}
                           className="p-1.5 hover:bg-gray-100 rounded text-gray-600" title="View"><Eye size={14}/></button>
                         <button onClick={()=>openSettings(c)} disabled={busyId===c.id}

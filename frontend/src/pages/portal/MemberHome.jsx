@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext, Link, useParams } from 'react-router-dom';
-import { Loader2, Calendar, DollarSign, ArrowRight, Users, HandHeart, MessageCircle, Heart, MapPin } from 'lucide-react';
+import { Loader2, Calendar, DollarSign, ArrowRight, Users, HandHeart, MessageCircle, Heart, MapPin, Video, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { memberPortalAPI } from '../../api/memberClient';
 
@@ -23,28 +23,46 @@ export default function MemberHome() {
     memberPortalAPI.home().then(r => setData(r.data.data)).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
+  const church = data?.church;
+  const pastors = Array.isArray(church?.pastors) ? church.pastors : [];
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
-      {/* Hero */}
-      <div className="bg-gradient-to-br from-brand-600 via-brand-700 to-brand-900 rounded-2xl text-white p-6 sm:p-8 shadow-lg">
-        <div className="flex items-center gap-4">
-          {me.profilePhotoUrl ? (
-            <img src={me.profilePhotoUrl} alt="" className="w-16 h-16 rounded-full object-cover border-2 border-white/30" />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-white/15 backdrop-blur flex items-center justify-center font-bold text-xl">
-              {(me.firstName?.[0] || '') + (me.lastName?.[0] || '')}
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-4">
+      {/* Branded Church Hero Banner */}
+      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-brand-700 via-brand-800 to-slate-950 text-white p-6 sm:p-8 shadow-lg border border-brand-600/30">
+        {church?.banner_url && (
+          <img
+            src={church.banner_url}
+            alt="Church Cover"
+            className="absolute inset-0 w-full h-full object-cover opacity-25 filter blur-[0.5px]"
+          />
+        )}
+        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            {me.profilePhotoUrl ? (
+              <img src={me.profilePhotoUrl} alt="" className="w-16 h-16 rounded-full object-cover border-2 border-white/50 shadow-md" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-xl border-2 border-white/40">
+                {(me.firstName?.[0] || '') + (me.lastName?.[0] || '')}
+              </div>
+            )}
+            <div>
+              <div className="text-brand-200 text-xs uppercase tracking-wider font-semibold">Welcome back</div>
+              <div className="text-2xl sm:text-3xl font-bold mt-0.5 drop-shadow-sm">{me.firstName} {me.lastName}</div>
+              <div className="text-brand-100 text-sm mt-0.5 font-medium flex items-center gap-2">
+                <span>{church?.name || me.churchName}</span>
+                {church?.tagline && <span className="text-brand-300 italic hidden sm:inline">· {church.tagline}</span>}
+              </div>
             </div>
-          )}
-          <div>
-            <div className="text-brand-200 text-xs uppercase tracking-wide font-semibold">Welcome back</div>
-            <div className="text-2xl sm:text-3xl font-bold mt-0.5">{me.firstName} {me.lastName}</div>
-            <div className="text-brand-100 text-sm mt-0.5">{me.churchName}</div>
           </div>
+          {church?.logo_url && (
+            <img src={church.logo_url} alt="" className="w-14 h-14 rounded-2xl bg-white/95 p-1 object-contain border border-white/40 shadow-sm hidden sm:block" />
+          )}
         </div>
       </div>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-4 gap-2 sm:gap-3 mt-4">
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
         {QUICK.map(({ to, icon: Icon, label, hue }) => (
           <Link key={to} to={`/portal/${churchSlug}/${to}`}
             className="bg-white border border-gray-100 rounded-xl p-3 flex flex-col items-center gap-2 hover:shadow-md transition-shadow">
@@ -61,26 +79,34 @@ export default function MemberHome() {
       ) : (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Stat icon={DollarSign} label="Giving YTD" value={fmtCurrency(data?.givingYtd?.ytd)} hue="text-amber-600 bg-amber-50" />
             <Stat icon={Calendar} label="Upcoming" value={data?.upcomingEvents?.length || 0} hue="text-sky-600 bg-sky-50" suffix="events" />
             <Stat icon={Users} label="My Groups" value={(data?.departments?.length || 0) + (data?.groups?.length || 0)} hue="text-violet-600 bg-violet-50" />
             <Stat icon={HandHeart} label="Open Prayers" value={data?.openPrayers || 0} hue="text-rose-600 bg-rose-50" />
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-4 mt-4">
-            {/* Upcoming events */}
-            <Card title="Upcoming Events" linkTo={`/portal/${churchSlug}/events`}>
+          <div className="grid lg:grid-cols-2 gap-4">
+            {/* Upcoming events with promotional flyers */}
+            <Card title="Upcoming Events & Services" linkTo={`/portal/${churchSlug}/events`}>
               {data?.upcomingEvents?.length ? (
                 <ul className="space-y-3">
                   {data.upcomingEvents.map(ev => (
-                    <li key={ev.id} className="flex gap-3">
-                      <DateBadge dt={ev.start_datetime} />
+                    <li key={ev.id} className="flex gap-3 items-start border-b border-gray-50 pb-3 last:border-b-0 last:pb-0">
+                      {ev.banner_url ? (
+                        <img src={ev.banner_url} alt="" className="w-14 h-14 rounded-xl object-cover border border-gray-200 flex-shrink-0 shadow-xs" />
+                      ) : (
+                        <DateBadge dt={ev.start_datetime} />
+                      )}
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold text-gray-900 text-sm truncate">{ev.title}</div>
-                        <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
-                          {format(new Date(ev.start_datetime), 'p')}
-                          {ev.location && <><span className="mx-1">·</span><MapPin size={11} />{ev.location}</>}
+                        <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap items-center gap-1.5">
+                          <span>{format(new Date(ev.start_datetime), 'EEE, MMM d · p')}</span>
+                          {ev.is_online ? (
+                            <span className="text-purple-600 font-medium inline-flex items-center gap-0.5">· <Video size={11} /> Online</span>
+                          ) : ev.location ? (
+                            <span className="inline-flex items-center gap-0.5">· <MapPin size={11} />{ev.location}</span>
+                          ) : null}
                         </div>
                       </div>
                     </li>
@@ -107,6 +133,37 @@ export default function MemberHome() {
               ) : <Empty label="You haven't joined any unit yet." />}
             </Card>
           </div>
+
+          {/* Pastoral Leadership Showcase */}
+          {pastors.length > 0 && (
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={18} className="text-brand-600" />
+                  <h3 className="font-bold text-gray-900 text-base">Pastoral Leadership</h3>
+                </div>
+                <span className="text-xs text-gray-400 font-medium">Your spiritual shepherds</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {pastors.map((p, idx) => (
+                  <div key={idx} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50/60">
+                    {p.photoUrl ? (
+                      <img src={p.photoUrl} alt={p.name} className="w-12 h-12 rounded-xl object-cover border border-gray-200 shadow-xs flex-shrink-0" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-base flex-shrink-0">
+                        {(p.name || 'P')[0]}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-gray-900 text-sm truncate">{p.name}</div>
+                      <div className="text-xs text-brand-600 font-medium truncate">{p.role}</div>
+                      {p.bio && <div className="text-[11px] text-gray-400 line-clamp-1 mt-0.5">{p.bio}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

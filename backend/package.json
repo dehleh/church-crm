@@ -10,7 +10,8 @@
     "seed": "node src/migrations/seed.js",
     "test": "jest --setupFiles ./tests/setup.js",
     "test:watch": "jest --watch --setupFiles ./tests/setup.js",
-    "test:coverage": "jest --coverage --setupFiles ./tests/setup.js"
+    "test:coverage": "jest --coverage --setupFiles ./tests/setup.js",
+    "promote:superadmin": "node src/scripts/promoteSuperAdmin.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
@@ -32,9 +33,11 @@
     "sanitize-html": "^2.17.2",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
+    "twilio": "^5.2.0",
     "uuid": "^10.0.0",
     "winston": "^3.13.0"
   },
+
   "devDependencies": {
     "jest": "^29.7.0",
     "nodemon": "^3.1.4",

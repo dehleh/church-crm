@@ -31,6 +31,7 @@ const Assets = lazy(() => import('./pages/Assets'));
 const Counseling = lazy(() => import('./pages/Counseling'));
 const Welfare = lazy(() => import('./pages/Welfare'));
 const Procurement = lazy(() => import('./pages/Procurement'));
+const Fellowship = lazy(() => import('./pages/Fellowship'));
 const PlatformAdmin = lazy(() => import('./pages/PlatformAdmin'));
 const PlatformAuditLog = lazy(() => import('./pages/PlatformAuditLog'));
 const PlatformLicenseRequests = lazy(() => import('./pages/PlatformLicenseRequests'));
@@ -46,7 +47,9 @@ const MemberSetPassword = lazy(() => import('./pages/portal/MemberSetPassword'))
 const MemberPortalLayout = lazy(() => import('./pages/portal/MemberPortalLayout'));
 const MemberHome = lazy(() => import('./pages/portal/MemberHome'));
 const MemberPortalProfile = lazy(() => import('./pages/portal/MemberPortalProfile'));
+const MemberPortalFellowship = lazy(() => import('./pages/portal/MemberPortalFellowship'));
 const MemberPortalGiving = lazy(() => import('./pages/portal/MemberPortalGiving'));
+
 const MemberPortalEvents = lazy(() => import('./pages/portal/MemberPortalEvents'));
 const MemberPortalPrayer = lazy(() => import('./pages/portal/MemberPortalPrayer'));
 const MemberPortalGroups = lazy(() => import('./pages/portal/MemberPortalGroups'));
@@ -127,6 +130,7 @@ export default function App() {
             <Route index element={<Navigate to="home" replace />} />
             <Route path="home" element={<L><MemberHome /></L>} />
             <Route path="profile" element={<L><MemberPortalProfile /></L>} />
+            <Route path="fellowship" element={<L><MemberPortalFellowship /></L>} />
             <Route path="giving" element={<L><MemberPortalGiving /></L>} />
             <Route path="events" element={<L><MemberPortalEvents /></L>} />
             <Route path="prayer" element={<L><MemberPortalPrayer /></L>} />
@@ -154,7 +158,9 @@ export default function App() {
             <Route path="finance" element={<L><Finance /></L>} />
             <Route path="budgets" element={<L><Budgets /></L>} />
             <Route path="departments" element={<L><Departments /></L>} />
+            <Route path="fellowship" element={<L><Fellowship /></L>} />
             <Route path="groups" element={<L><Groups /></L>} />
+
             <Route path="branches" element={<L><Branches /></L>} />
             <Route path="media" element={<L><Media /></L>} />
             <Route path="prayer" element={<L><Prayer /></L>} />

@@ -53,6 +53,8 @@ describe('authenticate middleware', () => {
       rows: [{
         id: 'u1', church_id: 'c1', role: 'admin',
         is_active: true, church_active: true,
+        subscription_plan: 'starter',
+        subscription_expires_at: new Date(Date.now() + 86400000),
       }],
     });
 
@@ -60,6 +62,7 @@ describe('authenticate middleware', () => {
     expect(next).toHaveBeenCalled();
     expect(req.user).toBeDefined();
     expect(req.churchId).toBe('c1');
+
   });
 
   it('should return 401 for inactive user', async () => {

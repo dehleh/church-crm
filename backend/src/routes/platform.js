@@ -32,6 +32,7 @@ router.post('/churches/:id/reset-admin-password', idParam, [
   body('newPassword').optional({ values: 'falsy' }).isLength({ min: 8, max: 128 }),
   handleValidationErrors,
 ], ctrl.resetChurchAdminPassword);
+router.post('/churches/:id/impersonate', idParam, ctrl.impersonateChurch);
 router.delete('/churches/:id', idParam, ctrl.deleteChurch);
 router.patch('/churches/:id/settings', idParam, [
   body('subscriptionPlan').optional({ nullable: true }).isString(),

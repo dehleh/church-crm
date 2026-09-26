@@ -142,12 +142,16 @@ app.use('/api/contact',        require('./routes/contact'));
 app.use('/api/jobs',           require('./routes/jobs'));
 app.use('/api/member-auth',    require('./routes/memberAuth'));
 app.use('/api/me',             require('./routes/memberPortal'));
+app.use('/api/fellowship',     require('./routes/fellowship'));
 
 // Initialize background job queue (BullMQ if REDIS_URL set, in-process otherwise).
 // Importing csvImportController here also registers the CSV processors.
 const { initQueue } = require('./queue');
 require('./controllers/csvImportController');
 initQueue();
+
+// Initialize automated broadcast and event reminder scheduler
+const { initScheduler, stopScheduler } = require('./services/schedulerService');
 
 // Health check — with DB verification
 const { healthCheck } = require('./config/database');
@@ -191,6 +195,8 @@ if (process.env.NODE_ENV !== 'test') {
   const PORT = process.env.PORT || 5000;
   const { pool } = require('./config/database');
 
+  initScheduler();
+
   const server = app.listen(PORT, () => {
     logger.info(`⛪  ChurchOS API running on port ${PORT}`);
     logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -200,6 +206,7 @@ if (process.env.NODE_ENV !== 'test') {
   // Graceful shutdown
   const shutdown = async (signal) => {
     logger.info(`${signal} received — shutting down gracefully`);
+    stopScheduler();
     server.close(async () => {
       logger.info('HTTP server closed');
       try {

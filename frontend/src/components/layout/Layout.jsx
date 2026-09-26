@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, Bell, Menu,
   MessageSquare, ShieldCheck, BarChart2, PiggyBank, CheckSquare,
   Settings, PhoneCall, Users2, Package, HandHeart, Heart,
-  User, KeyRound, ClipboardList, Globe
+  User, KeyRound, ClipboardList, Globe, Home
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import GlobalSearch from '../ui/GlobalSearch';
@@ -20,8 +20,10 @@ const NAV = [
     { to: '/members',      icon: Users,         label: 'Members' },
     { to: '/first-timers', icon: UserPlus,      label: 'First Timers' },
     { to: '/departments',  icon: Building2,     label: 'Departments' },
+    { to: '/fellowship',   icon: Home,          label: 'Fellowship / Cells' },
     { to: '/groups',       icon: Users2,        label: 'Groups' },
   ]},
+
   { group: 'Church', items: [
     { to: '/events',         icon: CalendarDays,   label: 'Events' },
     { to: '/attendance',     icon: CheckSquare,    label: 'Attendance' },
@@ -43,6 +45,7 @@ const NAV = [
     { to: '/users',    icon: ShieldCheck, label: 'Users' },
     { to: '/reports',  icon: BarChart2,   label: 'Reports' },
     { to: '/settings', icon: Settings,    label: 'Settings' },
+    { to: '/platform', icon: Globe,       label: 'Platform Console', requiresSuperAdmin: true },
   ]},
 ];
 
@@ -103,7 +106,11 @@ export default function Layout() {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2">
           {NAV.map(group => {
-            const items = group.items.filter(it => !it.requiresMultiBranch || user?.multiBranchEnabled || user?.isWhitelisted);
+            const items = group.items.filter(it => {
+              if (it.requiresSuperAdmin && !user?.isSuperAdmin) return false;
+              if (it.requiresMultiBranch && !user?.multiBranchEnabled && !user?.isWhitelisted) return false;
+              return true;
+            });
             if (!items.length) return null;
             return (
             <div key={group.group} className="mb-1">
@@ -217,6 +224,11 @@ export default function Layout() {
                   <div className="text-xs text-gray-400 capitalize">{user?.role?.replace('_', ' ')}</div>
                 </div>
                 <div className="py-1">
+                  {user?.isSuperAdmin && (
+                    <button onClick={() => { setShowProfileMenu(false); navigate('/platform'); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-indigo-700 bg-indigo-50/60 hover:bg-indigo-50 transition-colors font-semibold border-b border-gray-100">
+                      <Globe size={15} /> Platform Console
+                    </button>
+                  )}
                   <button onClick={() => { setShowProfileMenu(false); navigate('/settings'); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                     <User size={15} /> My Profile
                   </button>
@@ -236,6 +248,22 @@ export default function Layout() {
             )}
           </div>
         </header>
+
+        {/* SuperAdmin Impersonation Banner */}
+        {user?.isSuperAdmin && user?.isImpersonating && (
+          <div className="bg-indigo-900 text-white text-xs px-6 py-2 flex items-center justify-between border-b border-indigo-950 flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>Platform Super Admin · Currently viewing <strong>{user.churchName}</strong></span>
+            </div>
+            <button
+              onClick={() => navigate('/platform')}
+              className="text-xs font-semibold bg-indigo-800 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              <Globe size={12} /> Return to Platform Console
+            </button>
+          </div>
+        )}
 
         {/* Page */}
         <main className="flex-1 overflow-y-auto">

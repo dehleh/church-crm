@@ -26,4 +26,10 @@ router.post('/welfare/applications', c.submitWelfareRequest);
 router.get('/counseling', c.listMyCounselingSessions);
 router.post('/counseling', c.submitCounselingRequest);
 
+router.get('/fellowship', c.getMyFellowship);
+router.get('/fellowship/browse', c.browseNearbyFellowships);
+router.post('/fellowship/join', c.submitFellowshipJoinRequest);
+router.post('/fellowship/reports', c.submitMemberCellReport);
+
 module.exports = router;
+

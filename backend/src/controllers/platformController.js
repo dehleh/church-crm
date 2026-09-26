@@ -372,6 +372,57 @@ const updateChurchSettings = async (req, res) => {
   }
 };
 
+// POST /api/platform/churches/:id/impersonate
+const impersonateChurch = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows: churches } = await query('SELECT * FROM churches WHERE id = $1', [id]);
+    if (!churches[0]) return res.status(404).json({ success: false, message: 'Church not found' });
+    const targetChurch = churches[0];
+
+    const jwt = require('jsonwebtoken');
+    const accessToken = jwt.sign(
+      { userId: req.user.id, churchId: targetChurch.id, role: 'head_pastor' },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '2h' }
+    );
+    const refreshToken = jwt.sign(
+      { userId: req.user.id, churchId: targetChurch.id },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+    );
+
+    await audit(req.user.id, 'impersonate_church', targetChurch.id, {
+      churchName: targetChurch.name,
+      churchSlug: targetChurch.slug,
+    });
+
+    return res.json({
+      success: true,
+      message: `Switched into ${targetChurch.name}`,
+      data: {
+        accessToken,
+        refreshToken,
+        user: {
+          id: req.user.id,
+          firstName: req.user.first_name,
+          lastName: req.user.last_name,
+          email: req.user.email,
+          role: 'head_pastor',
+          churchId: targetChurch.id,
+          churchName: targetChurch.name,
+          churchSlug: targetChurch.slug,
+          isSuperAdmin: true,
+          isImpersonating: true,
+        },
+      },
+    });
+  } catch (err) {
+    logger.error('impersonateChurch error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   getPlatformStats,
   listChurches,
@@ -384,4 +435,5 @@ module.exports = {
   getAuditLog,
   getPlans,
   updateChurchSettings,
+  impersonateChurch,
 };

@@ -41,6 +41,9 @@ export const firstTimersAPI = {
 export const eventsAPI = {
   list: (params) => api.get('/events', { params }),
   create: (data) => api.post('/events', data),
+  update: (id, data) => api.put(`/events/${id}`, data),
+  delete: (id) => api.delete(`/events/${id}`),
+  sendReminder: (id) => api.post(`/events/${id}/remind`),
   stats: () => api.get('/events/stats'),
   recordAttendance: (id, data) => api.post(`/events/${id}/attendance`, data),
   getAttendance: (id) => api.get(`/events/${id}/attendance`),
@@ -207,6 +210,7 @@ export const platformAPI = {
   listLicenseRequests: (params) => api.get('/platform/license-requests', { params }),
   updateLicenseRequest: (id, data) => api.patch(`/platform/license-requests/${id}`, data),
   auditLog: (params) => api.get('/platform/audit-log', { params }),
+  impersonate: (id) => api.post(`/platform/churches/${id}/impersonate`),
 };
 
 export const licenseAPI = {
@@ -238,3 +242,26 @@ export const contactAPI = {
   list: (params) => api.get('/contact', { params }),
   update: (id, data) => api.patch(`/contact/${id}`, data),
 };
+
+export const fellowshipAPI = {
+  getSettings: () => api.get('/fellowship/settings'),
+  updateSettings: (data) => api.put('/fellowship/settings', data),
+  stats: () => api.get('/fellowship/stats'),
+  zones: () => api.get('/fellowship/zones'),
+  createZone: (data) => api.post('/fellowship/zones', data),
+  updateZone: (id, data) => api.put(`/fellowship/zones/${id}`, data),
+  centers: (params) => api.get('/fellowship/centers', { params }),
+  getCenter: (id) => api.get(`/fellowship/centers/${id}`),
+  createCenter: (data) => api.post('/fellowship/centers', data),
+  updateCenter: (id, data) => api.put(`/fellowship/centers/${id}`, data),
+  centerMembers: (id) => api.get(`/fellowship/centers/${id}/members`),
+  addMember: (id, data) => api.post(`/fellowship/centers/${id}/members`, data),
+  removeMember: (id, memberId) => api.delete(`/fellowship/centers/${id}/members/${memberId}`),
+  unassignedMembers: (params) => api.get('/fellowship/unassigned-members', { params }),
+  proximityMatch: (data) => api.post('/fellowship/proximity-match', data),
+  reports: (params) => api.get('/fellowship/reports', { params }),
+  submitReport: (data) => api.post('/fellowship/reports', data),
+  joinRequests: () => api.get('/fellowship/join-requests'),
+  reviewJoinRequest: (id, data) => api.patch(`/fellowship/join-requests/${id}`, data),
+};
+
