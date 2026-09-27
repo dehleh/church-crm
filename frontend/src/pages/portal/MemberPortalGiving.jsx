@@ -21,6 +21,7 @@ export default function MemberPortalGiving() {
   const [givingType, setGivingType] = useState('Offering');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedEvent, setSelectedEvent] = useState('');
+  const [selectedCampaign, setSelectedCampaign] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('paystack');
   const [transferRef, setTransferRef] = useState('');
@@ -65,6 +66,7 @@ export default function MemberPortalGiving() {
         amount: numAmount,
         purpose: givingType,
         categoryId: selectedCategory || undefined,
+        campaignId: selectedCampaign || undefined,
         eventId: selectedEvent || undefined,
         paymentMethod: paymentMethod === 'transfer' ? 'transfer' : 'card',
         reference: paymentMethod === 'transfer' && transferRef ? transferRef : undefined,
@@ -123,6 +125,71 @@ export default function MemberPortalGiving() {
           <p className="text-xs text-gray-400 mt-1">Lifetime recorded kingdom investments</p>
         </div>
       </div>
+
+      {/* Church Projects & Campaigns */}
+      {givingOptions?.campaigns?.length > 0 && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <Sparkles size={16} />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">Active Church Projects & Campaigns</h3>
+                <p className="text-xs text-gray-400">Partner with our church vision by sowing into specific projects</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {givingOptions.campaigns.map((c) => (
+              <div
+                key={c.id}
+                className="p-4 rounded-xl border border-gray-100 bg-slate-50/60 hover:bg-slate-50 transition flex flex-col justify-between gap-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+                    <span className="capitalize font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                      {c.type}
+                    </span>
+                    <span>{c.progress_percent || 0}% funded</span>
+                  </div>
+                  <h4 className="font-bold text-gray-900 text-sm mt-1 line-clamp-1">{c.title}</h4>
+                  {c.scripture_text && (
+                    <p className="text-[11px] text-emerald-800 italic mt-0.5 line-clamp-1">"{c.scripture_text}"</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-emerald-600 h-full rounded-full transition-all duration-300"
+                      style={{ width: `${c.progress_percent || 0}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-gray-500">
+                    <span>{fmt(c.amount_raised)} raised</span>
+                    <span>Goal: {c.target_amount > 0 ? fmt(c.target_amount) : 'Open'}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGivingType('Project');
+                      setSelectedCampaign(c.id);
+                      if (c.category_id) setSelectedCategory(c.category_id);
+                      setShowModal(true);
+                    }}
+                    className="w-full mt-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition"
+                  >
+                    Give to this Project →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white border border-gray-100 rounded-2xl shadow-xs overflow-hidden">
@@ -223,6 +290,30 @@ export default function MemberPortalGiving() {
                     <option value="">General Event Seed</option>
                     {givingOptions.events.map(ev => (
                       <option key={ev.id} value={ev.id}>{ev.title}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Project / Campaign Selector */}
+              {givingOptions?.campaigns?.length > 0 && (givingType === 'Project' || selectedCampaign) && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Target Project / Campaign</label>
+                  <select
+                    className="w-full text-xs p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand-500 font-medium"
+                    value={selectedCampaign}
+                    onChange={e => {
+                      const cid = e.target.value;
+                      setSelectedCampaign(cid);
+                      const found = givingOptions.campaigns.find(c => c.id === cid);
+                      if (found?.category_id) setSelectedCategory(found.category_id);
+                    }}
+                  >
+                    <option value="">General Church Project Fund</option>
+                    {givingOptions.campaigns.map(cp => (
+                      <option key={cp.id} value={cp.id}>
+                        {cp.title} ({cp.progress_percent || 0}% funded)
+                      </option>
                     ))}
                   </select>
                 </div>

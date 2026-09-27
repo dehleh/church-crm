@@ -312,4 +312,15 @@ export const memberExportAPI = {
   exportData: () => api.get('/me/export'),
 };
 
+export const campaignsAPI = {
+  list: (params) => api.get('/campaigns', { params }),
+  get: (id) => api.get(`/campaigns/${id}`),
+  create: (data) => api.post('/campaigns', data),
+  update: (id, data) => api.put(`/campaigns/${id}`, data),
+  delete: (id) => api.delete(`/campaigns/${id}`),
+  recordDonation: (id, data) => api.post(`/campaigns/${id}/record-donation`, data),
+  getPublicCampaigns: (churchSlug) => axios.get(`${API_BASE}/campaigns/public/${churchSlug}`),
+  getPublicCampaign: (churchSlug, campaignSlug) => axios.get(`${API_BASE}/campaigns/public/${churchSlug}/${campaignSlug}`),
+};
+
 

@@ -155,6 +155,7 @@ app.use('/api/fellowship',     require('./routes/fellowship'));
 app.use('/api/discipleship',    require('./routes/discipleship'));
 app.use('/api/devotionals',     require('./routes/devotionals'));
 app.use('/api/giving',          require('./routes/giving'));
+app.use('/api/campaigns',       require('./routes/campaigns'));
 app.use('/api/auth/2fa',        require('./routes/twoFactor'));
 
 // Initialize background job queue (BullMQ if REDIS_URL set, in-process otherwise).

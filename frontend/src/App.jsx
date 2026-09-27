@@ -46,6 +46,7 @@ const PublicPrayerForm = lazy(() => import('./pages/PublicPrayerForm'));
 const PublicWelfareForm = lazy(() => import('./pages/PublicWelfareForm'));
 const PublicEventCheckIn = lazy(() => import('./pages/PublicEventCheckIn'));
 const PublicGiving = lazy(() => import('./pages/PublicGiving'));
+const GivingCampaigns = lazy(() => import('./pages/GivingCampaigns'));
 
 const MemberLogin = lazy(() => import('./pages/portal/MemberLogin'));
 const MemberSetPassword = lazy(() => import('./pages/portal/MemberSetPassword'));
@@ -175,7 +176,8 @@ export default function App() {
             <Route path="attendance" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Attendance /></L></RoleRoute>} />
             <Route path="devotionals" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><DailyDevotionals /></L></RoleRoute>} />
             <Route path="discipleship" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Discipleship /></L></RoleRoute>} />
-            <Route path="finance" element={<RoleRoute allowedRoles={['admin', 'finance']}><L><Finance /></L></RoleRoute>} />
+            <Route path="finance" element={<RoleRoute allowedRoles={['admin', 'pastor', 'finance']}><L><Finance /></L></RoleRoute>} />
+            <Route path="giving-campaigns" element={<RoleRoute allowedRoles={['admin', 'pastor', 'finance']}><L><GivingCampaigns /></L></RoleRoute>} />
             <Route path="budgets" element={<RoleRoute allowedRoles={['admin', 'pastor', 'finance']}><L><Budgets /></L></RoleRoute>} />
             <Route path="departments" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Departments /></L></RoleRoute>} />
             <Route path="fellowship" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Fellowship /></L></RoleRoute>} />

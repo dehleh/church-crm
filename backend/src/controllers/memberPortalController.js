@@ -1134,21 +1134,49 @@ const getMediaItem = async (req, res) => {
   }
 };
 
-// GET /api/me/giving/options — categories for offering, projects, events
+// GET /api/me/giving/options — categories for offering, projects, events, campaigns
 const getGivingOptions = async (req, res) => {
   try {
-    const [catRes, churchRes, evtRes] = await Promise.all([
+    const [catRes, churchRes, evtRes, campRes] = await Promise.all([
       query('SELECT id, name, description FROM giving_categories WHERE church_id = $1 ORDER BY name ASC', [req.churchId]),
       query('SELECT currency, settings FROM churches WHERE id = $1', [req.churchId]),
-      query("SELECT id, title, start_datetime FROM events WHERE church_id = $1 AND status IN ('upcoming', 'ongoing') ORDER BY start_datetime ASC LIMIT 10", [req.churchId])
+      query("SELECT id, title, start_datetime FROM events WHERE church_id = $1 AND status IN ('upcoming', 'ongoing') ORDER BY start_datetime ASC LIMIT 10", [req.churchId]),
+      query(
+        `SELECT
+          c.id, c.title, c.slug, c.type, c.description, c.scripture_text,
+          c.target_amount, c.currency, c.banner_url, c.end_date, c.is_featured,
+          COALESCE((
+            SELECT SUM(t.amount) FROM transactions t
+            WHERE t.campaign_id = c.id AND t.transaction_type = 'income' AND t.status = 'completed'
+          ), 0) + COALESCE((
+            SELECT SUM(og.amount) FROM online_giving_transactions og
+            WHERE og.campaign_id = c.id AND og.status = 'successful'
+          ), 0) AS amount_raised
+         FROM giving_campaigns c
+         WHERE c.church_id = $1 AND c.status = 'active' AND c.allow_member_portal = true
+         ORDER BY c.is_featured DESC, c.created_at DESC`,
+        [req.churchId]
+      ).catch(() => ({ rows: [] }))
     ]);
     const church = churchRes.rows[0];
     const settings = church?.settings || {};
+    const formattedCampaigns = (campRes?.rows || []).map(c => {
+      const target = Number(c.target_amount || 0);
+      const raised = Number(c.amount_raised || 0);
+      return {
+        ...c,
+        target_amount: target,
+        amount_raised: raised,
+        progress_percent: target > 0 ? Math.min(100, Math.round((raised / target) * 100)) : 0,
+      };
+    });
+
     return res.json({
       success: true,
       data: {
         categories: catRes.rows,
         events: evtRes.rows,
+        campaigns: formattedCampaigns,
         currency: church?.currency || 'NGN',
         bankAccounts: settings.bank_accounts || settings.bankAccounts || [],
         paystackPublicKey: settings.payment?.paystack_public_key || process.env.PAYSTACK_PUBLIC_KEY || '',
@@ -1160,9 +1188,9 @@ const getGivingOptions = async (req, res) => {
   }
 };
 
-// POST /api/me/giving/initiate — give for offering, projects, events
+// POST /api/me/giving/initiate — give for offering, projects, events, campaigns
 const initiatePortalGiving = async (req, res) => {
-  const { amount, categoryId, purpose, eventId, paymentMethod = 'paystack', notes, reference: clientRef } = req.body;
+  const { amount, categoryId, campaignId, purpose, eventId, paymentMethod = 'paystack', notes, reference: clientRef } = req.body;
   if (!amount || Number(amount) <= 0) {
     return res.status(400).json({ success: false, message: 'Valid amount is required' });
   }
@@ -1173,15 +1201,17 @@ const initiatePortalGiving = async (req, res) => {
 
     const { rows } = await query(
       `INSERT INTO transactions (
-         id, church_id, member_id, category_id, transaction_type,
+         id, church_id, member_id, category_id, campaign_id, event_id, transaction_type,
          amount, payment_method, reference, description, status, transaction_date
-       ) VALUES ($1, $2, $3, $4, 'income', $5, $6, $7, $8, 'completed', CURRENT_DATE)
+       ) VALUES ($1, $2, $3, $4, $5, $6, 'income', $7, $8, $9, $10, 'completed', CURRENT_DATE)
        RETURNING *`,
       [
         uuidv4(),
         req.churchId,
         member.id,
         categoryId || null,
+        campaignId || null,
+        eventId || null,
         Number(amount),
         paymentMethod,
         ref,

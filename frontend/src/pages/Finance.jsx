@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { DollarSign, Plus, TrendingUp, TrendingDown, Wallet, Loader2, ArrowUpRight, ArrowDownRight, FileSpreadsheet } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { DollarSign, Plus, TrendingUp, TrendingDown, Wallet, Loader2, ArrowUpRight, ArrowDownRight, FileSpreadsheet, HeartHandshake } from 'lucide-react';
 import { financeAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import CsvImportModal from '../components/ui/CsvImportModal';
@@ -122,8 +123,15 @@ export default function Finance() {
           <h1 className="page-title">Finance</h1>
           <p className="text-gray-500 text-sm mt-1">Track giving, expenses, and financial health</p>
         </div>
-        <div className="flex gap-2">
-          <select className="input h-9 text-sm w-auto py-2" value={period} onChange={e => setPeriod(e.target.value)}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/giving-campaigns"
+            className="h-9 px-3.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+          >
+            <HeartHandshake size={15} className="text-emerald-600" />
+            <span>Projects & Campaigns</span>
+          </Link>
+          <select className="input h-9 text-sm w-auto py-1" value={period} onChange={e => setPeriod(e.target.value)}>
             <option value="week">This Week</option>
             <option value="month">This Month</option>
             <option value="year">This Year</option>
@@ -135,6 +143,30 @@ export default function Finance() {
             <Plus size={16} /> Record Transaction
           </button>
         </div>
+      </div>
+
+      {/* Campaign Spotlight Banner */}
+      <div className="mb-6 p-4 rounded-2xl bg-linear-to-r from-emerald-900 via-teal-900 to-brand-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-emerald-300 shrink-0">
+            <HeartHandshake size={22} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              Church Giving Projects & Special Campaigns
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-medium">Fundraising Hub</span>
+            </h3>
+            <p className="text-xs text-white/70 mt-0.5">
+              Launch targeted campaigns for building expansions, event sponsorships, harvest seeds, missions, and community welfare.
+            </p>
+          </div>
+        </div>
+        <Link
+          to="/giving-campaigns"
+          className="shrink-0 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-sm transition-all text-center"
+        >
+          Manage Projects →
+        </Link>
       </div>
 
       {/* Summary cards */}

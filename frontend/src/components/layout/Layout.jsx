@@ -39,9 +39,10 @@ const NAV = [
     { to: '/assets',         icon: Package,        label: 'Inventory',              allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
   ]},
   { group: 'Finance', items: [
-    { to: '/finance',     icon: DollarSign,    label: 'Finance',     allowedRoles: ['admin', 'finance'] },
-    { to: '/budgets',     icon: PiggyBank,     label: 'Budgets',     allowedRoles: ['admin', 'pastor', 'finance'] },
-    { to: '/procurement', icon: ClipboardList, label: 'Procurement', allowedRoles: ['admin', 'pastor', 'director', 'finance', 'hod'] },
+    { to: '/finance',          icon: DollarSign,     label: 'Finance & Giving',    allowedRoles: ['admin', 'pastor', 'finance'] },
+    { to: '/giving-campaigns', icon: HeartHandshake, label: 'Campaigns & Projects', allowedRoles: ['admin', 'pastor', 'finance'] },
+    { to: '/budgets',          icon: PiggyBank,      label: 'Budgets',             allowedRoles: ['admin', 'pastor', 'finance'] },
+    { to: '/procurement',      icon: ClipboardList,  label: 'Procurement',         allowedRoles: ['admin', 'pastor', 'director', 'finance', 'hod'] },
   ]},
   { group: 'Admin', items: [
     { to: '/branches', icon: GitBranch,   label: 'Branches',         allowedRoles: ['admin'], requiresMultiBranch: true },

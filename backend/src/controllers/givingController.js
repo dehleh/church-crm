@@ -37,6 +37,39 @@ const getPublicGivingInfo = async (req, res) => {
     const bankDetails = church.settings?.bank_details || church.payment_settings?.bank_details || null;
     const paystackPublicKey = church.payment_settings?.paystackPublicKey || process.env.PAYSTACK_PUBLIC_KEY || null;
 
+    // Fetch active public giving campaigns
+    let campaigns = [];
+    try {
+      const { rows: campRows } = await query(
+        `SELECT
+          c.id, c.title, c.slug, c.type, c.description, c.scripture_text,
+          c.target_amount, c.currency, c.banner_url, c.start_date, c.end_date, c.is_featured,
+          COALESCE((
+            SELECT SUM(t.amount) FROM transactions t
+            WHERE t.campaign_id = c.id AND t.transaction_type = 'income' AND t.status = 'completed'
+          ), 0) + COALESCE((
+            SELECT SUM(og.amount) FROM online_giving_transactions og
+            WHERE og.campaign_id = c.id AND og.status = 'successful'
+          ), 0) AS amount_raised
+         FROM giving_campaigns c
+         WHERE c.church_id = $1 AND c.status = 'active' AND c.allow_public_donations = true
+         ORDER BY c.is_featured DESC, c.created_at DESC`,
+        [church.id]
+      );
+      campaigns = campRows.map(c => {
+        const target = Number(c.target_amount || 0);
+        const raised = Number(c.amount_raised || 0);
+        return {
+          ...c,
+          target_amount: target,
+          amount_raised: raised,
+          progress_percent: target > 0 ? Math.min(100, Math.round((raised / target) * 100)) : 0,
+        };
+      });
+    } catch (campErr) {
+      logger.warn('Failed to load campaigns for public giving info:', { error: campErr.message });
+    }
+
     return res.json({
       success: true,
       data: {
@@ -53,6 +86,7 @@ const getPublicGivingInfo = async (req, res) => {
         },
         categories,
         branches,
+        campaigns,
       },
     });
   } catch (err) {
@@ -63,20 +97,21 @@ const getPublicGivingInfo = async (req, res) => {
 
 // POST /api/public/give/initialize
 const initializeGiving = async (req, res) => {
-  const {
-    churchSlug,
-    churchId: inputChurchId,
-    branchId,
-    categoryId,
-    amount,
-    currency = 'NGN',
-    donorName,
-    donorEmail,
-    donorPhone,
-    isAnonymous = false,
-    notes,
-    callbackUrl,
-  } = req.body;
+    const {
+      churchSlug,
+      churchId: inputChurchId,
+      branchId,
+      categoryId,
+      campaignId,
+      amount,
+      currency = 'NGN',
+      donorName,
+      donorEmail,
+      donorPhone,
+      isAnonymous = false,
+      notes,
+      callbackUrl,
+    } = req.body;
 
   try {
     if (!amount || Number(amount) <= 0) {
@@ -103,6 +138,27 @@ const initializeGiving = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Church not found' });
     }
 
+    // Resolve campaign if specified
+    let campaignTitle = null;
+    let resolvedCampaignId = null;
+    if (campaignId) {
+      try {
+        const { rows: campRows } = await query(
+          `SELECT id, title, category_id FROM giving_campaigns WHERE id = $1 AND church_id = $2`,
+          [campaignId, church.id]
+        );
+        if (campRows[0]) {
+          resolvedCampaignId = campRows[0].id;
+          campaignTitle = campRows[0].title;
+          if (!categoryId && campRows[0].category_id) {
+            categoryId = campRows[0].category_id;
+          }
+        }
+      } catch (campErr) {
+        logger.warn('Error resolving campaign in initializeGiving:', { error: campErr.message });
+      }
+    }
+
     // Resolve category name
     let categoryName = 'General Offering';
     if (categoryId) {
@@ -122,26 +178,27 @@ const initializeGiving = async (req, res) => {
     // Insert pending transaction
     await query(
       `INSERT INTO online_giving_transactions (
-        id, church_id, branch_id, member_id, donor_name, donor_email, donor_phone,
+        id, church_id, branch_id, member_id, campaign_id, donor_name, donor_email, donor_phone,
         category_id, category_name, amount, currency, gateway, reference, status,
         is_anonymous, notes, metadata
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'paystack', $12, 'pending', $13, $14, $15)`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'paystack', $13, 'pending', $14, $15, $16)`,
       [
         transactionId,
         church.id,
         branchId || null,
         memberId,
+        resolvedCampaignId,
         isAnonymous ? 'Anonymous' : (donorName || 'Beloved Donor'),
         donorEmail || 'giving@churchos.online',
         donorPhone || null,
         categoryId || null,
-        categoryName,
+        campaignTitle ? `${campaignTitle} (${categoryName})` : categoryName,
         amount,
         currency || church.currency || 'NGN',
         reference,
         Boolean(isAnonymous),
         notes || null,
-        JSON.stringify({ churchSlug: church.slug, branchId }),
+        JSON.stringify({ churchSlug: church.slug, branchId, campaignId: resolvedCampaignId, campaignTitle }),
       ]
     );
 
@@ -154,7 +211,8 @@ const initializeGiving = async (req, res) => {
       metadata: {
         churchId: church.id,
         churchName: church.name,
-        categoryName,
+        categoryName: campaignTitle ? `${campaignTitle} (${categoryName})` : categoryName,
+        campaignId: resolvedCampaignId,
         donorName: isAnonymous ? 'Anonymous' : donorName,
       },
       churchSettings: church.payment_settings,
@@ -229,23 +287,30 @@ const verifyGiving = async (req, res) => {
           [receiptNumber, verifyResult.gatewayReference || reference, tx.id]
         );
 
-        // 2. Automatically record into church finance transactions ledger
-        await client.query(
-          `INSERT INTO finance_transactions (
-            id, church_id, branch_id, type, category_id, amount,
-            currency, description, payment_method, reference, transaction_date
-          ) VALUES ($1, $2, $3, 'income', $4, $5, $6, $7, 'online', $8, CURRENT_DATE)`,
-          [
-            uuidv4(),
-            tx.church_id,
-            tx.branch_id,
-            tx.category_id,
-            tx.amount,
-            tx.currency,
-            `Online Giving (${tx.category_name}) - ${tx.donor_name}`,
-            reference,
-          ]
-        );
+        // 2. Automatically record into church transactions ledger
+        try {
+          await client.query(
+            `INSERT INTO transactions (
+              id, church_id, branch_id, campaign_id, category_id, member_id,
+              transaction_type, amount, currency, description, payment_method,
+              reference, transaction_date, status
+            ) VALUES ($1, $2, $3, $4, $5, $6, 'income', $7, $8, $9, 'card', $10, CURRENT_DATE, 'completed')`,
+            [
+              uuidv4(),
+              tx.church_id,
+              tx.branch_id,
+              tx.campaign_id || null,
+              tx.category_id,
+              tx.member_id || null,
+              tx.amount,
+              tx.currency,
+              `Online Giving (${tx.category_name}) - ${tx.donor_name}`,
+              reference,
+            ]
+          );
+        } catch (trErr) {
+          logger.warn('Ledger insert warning in verifyGiving:', { error: trErr.message });
+        }
 
         await client.query('COMMIT');
       } catch (txErr) {

@@ -38,7 +38,7 @@ const authenticate = async (req, res, next) => {
     // Exempt paths: auth, license intake, platform admin, public, contact,
     // member portal/auth, and self info endpoint.
     const LICENSE_EXEMPT = ['/api/auth', '/api/license', '/api/platform',
-      '/api/public', '/api/contact', '/api/me', '/api/member-auth', '/api/giving'];
+      '/api/public', '/api/contact', '/api/me', '/api/member-auth', '/api/giving', '/api/campaigns/public'];
     const path = req.originalUrl || '';
     const exempt = LICENSE_EXEMPT.some(p => path.startsWith(p));
     if (!exempt && !rows[0].is_super_admin && !rows[0].is_whitelisted) {

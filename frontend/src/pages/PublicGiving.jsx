@@ -46,6 +46,10 @@ export default function PublicGiving() {
   const [verifiedTx, setVerifiedTx] = useState(null);
   const [verifyError, setVerifyError] = useState('');
 
+  const campaignParam = searchParams.get('campaign');
+  const [campaigns, setCampaigns] = useState([]);
+  const [selectedCampaign, setSelectedCampaign] = useState(null);
+
   // 1. If referenceParam is present, handle verification
   useEffect(() => {
     if (referenceParam) {
@@ -73,6 +77,12 @@ export default function PublicGiving() {
         const data = res.data?.data;
         setChurch(data?.church);
         setCategories(data?.categories || []);
+        const camps = data?.campaigns || [];
+        setCampaigns(camps);
+        if (campaignParam && camps.length > 0) {
+          const match = camps.find((c) => c.slug === campaignParam || c.id === campaignParam);
+          if (match) setSelectedCampaign(match);
+        }
         if (data?.categories?.length > 0) {
           setSelectedCategory(data.categories[0].id);
         }
@@ -84,7 +94,7 @@ export default function PublicGiving() {
         toast.error(err.response?.data?.message || 'Church giving portal not found');
       })
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [slug, campaignParam]);
 
   const handleSelectPreset = (val) => {
     setAmount(String(val));
@@ -114,6 +124,7 @@ export default function PublicGiving() {
       const res = await givingAPI.initialize({
         churchSlug: slug,
         categoryId: selectedCategory || null,
+        campaignId: selectedCampaign ? selectedCampaign.id : null,
         amount: finalAmount,
         currency,
         donorName: isAnonymous ? 'Anonymous' : donorName,
@@ -263,6 +274,80 @@ export default function PublicGiving() {
         {/* Giving Card */}
         <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-2xl relative">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Selected Campaign Banner if specified */}
+            {selectedCampaign ? (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-900 border border-emerald-500/30 text-white relative">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        Dedicated Project Giving
+                      </span>
+                      <span className="text-xs text-slate-400 capitalize">{selectedCampaign.type}</span>
+                    </div>
+                    <h3 className="text-base font-bold text-white mt-1">{selectedCampaign.title}</h3>
+                    {selectedCampaign.scripture_text && (
+                      <p className="text-xs text-emerald-200/90 italic line-clamp-1">"{selectedCampaign.scripture_text}"</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCampaign(null)}
+                    className="text-xs text-slate-400 hover:text-white underline shrink-0 font-medium"
+                  >
+                    Change / General
+                  </button>
+                </div>
+
+                <div className="mt-3 pt-3 border-t border-slate-800 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Raised: ₦{Number(selectedCampaign.amount_raised || 0).toLocaleString()}</span>
+                    <span>{selectedCampaign.progress_percent || 0}% of {selectedCampaign.target_amount > 0 ? `₦${Number(selectedCampaign.target_amount).toLocaleString()}` : 'open goal'}</span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${selectedCampaign.progress_percent || 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : campaigns.length > 0 ? (
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 flex items-center justify-between">
+                  <span>Special Church Projects & Fundraisers</span>
+                  <span className="text-[11px] text-slate-400 font-normal">Optional</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {campaigns.slice(0, 4).map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCampaign(c);
+                        if (c.category_id) setSelectedCategory(c.category_id);
+                      }}
+                      className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-emerald-500/50 hover:bg-slate-900 transition-all text-left flex flex-col justify-between group"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+                          <span className="capitalize text-emerald-400 font-semibold">{c.type}</span>
+                          <span>{c.progress_percent || 0}% funded</span>
+                        </div>
+                        <div className="text-xs font-bold text-white group-hover:text-emerald-300 line-clamp-1">
+                          {c.title}
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-2 flex items-center justify-between">
+                        <span>Goal: ₦{Number(c.target_amount || 0).toLocaleString()}</span>
+                        <span className="text-emerald-400 text-[10px] font-semibold group-hover:underline">Give →</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {/* Category Select */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
