@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit2, Trash2,
   Loader2, ExternalLink, FileSpreadsheet, QrCode, CheckCircle2, Cake, Baby,
-  Briefcase, Home, Send, MessageCircle, Sparkles, MapPin, Calendar, Check
+  Briefcase, Home, Send, MessageCircle, Sparkles, MapPin, Calendar, Check,
+  Award, Shield, UserCheck
 } from 'lucide-react';
 import { membersAPI, branchesAPI, departmentsAPI, fellowshipAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
@@ -199,6 +200,56 @@ function MemberForm({ form, setForm, branches = [], departments = [], fellowship
         )}
       </div>
 
+      {/* Leadership Designation & Ministry Office */}
+      <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-3.5 space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-semibold text-purple-950 flex items-center gap-2">
+            <Award size={16} className="text-purple-600" />
+            Ecclesiastical Role & Designation
+          </label>
+          <span className="text-xs text-purple-700 font-medium">Leadership Rank</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="label text-xs">Designation / Role</label>
+            <select
+              className="input bg-white text-sm"
+              value={form.designation || 'member'}
+              onChange={e => {
+                const des = e.target.value;
+                setForm(f => ({
+                  ...f,
+                  designation: des,
+                  isWorker: des !== 'member' ? true : f.isWorker
+                }));
+              }}
+            >
+              <option value="member">General Member</option>
+              <option value="pastor">Pastor / Resident Minister</option>
+              <option value="director">Ministry Director</option>
+              <option value="hod">Head of Department (HOD)</option>
+              <option value="minister">Ordained Minister / Elder / Deacon</option>
+              <option value="worker">Church Worker</option>
+            </select>
+          </div>
+          <div>
+            <label className="label text-xs">Office / Portfolio Title</label>
+            <input
+              className="input bg-white text-sm"
+              placeholder={
+                form.designation === 'pastor' ? 'e.g. Resident Pastor, Youth Pastor' :
+                form.designation === 'director' ? 'e.g. Director of Creatives, Operations' :
+                form.designation === 'hod' ? 'e.g. HOD Choir, Protocol Lead' :
+                'e.g. Associate Pastor, Lead Elder'
+              }
+              value={form.leadershipTitle || ''}
+              onChange={set('leadershipTitle')}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Church Worker & Ministry Unit Section */}
       <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3.5 space-y-3">
         <div className="flex items-center justify-between">
@@ -288,6 +339,7 @@ export default function Members() {
   const [childrenFilter, setChildrenFilter] = useState('');
   const [cellFilter, setCellFilter] = useState('');
   const [birthdayMonthFilter, setBirthdayMonthFilter] = useState('');
+  const [designationFilter, setDesignationFilter] = useState('');
 
   const [modal, setModal] = useState(null); // null | 'add' | 'edit'
   const [showImport, setShowImport] = useState(false);
@@ -314,6 +366,7 @@ export default function Members() {
         ...(childrenFilter && { hasChildren: true }),
         ...(cellFilter && { cellId: cellFilter }),
         ...(birthdayMonthFilter && { birthdayMonth: birthdayMonthFilter }),
+        ...(designationFilter && { designation: designationFilter }),
       };
       const [membersRes, statsRes] = await Promise.all([
         membersAPI.list(params),
@@ -327,7 +380,7 @@ export default function Members() {
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, workerFilter, childrenFilter, cellFilter, birthdayMonthFilter]);
+  }, [search, statusFilter, workerFilter, childrenFilter, cellFilter, birthdayMonthFilter, designationFilter]);
 
   useEffect(() => { fetchMembers(1); }, [fetchMembers]);
 
@@ -384,6 +437,9 @@ export default function Members() {
       teenagersCount: 0,
       isWorker: false,
       workerRole: 'worker',
+      designation: 'member',
+      leadershipTitle: '',
+      assignedPastorId: '',
     });
     setFormErrors({});
     setModal('add');
@@ -409,6 +465,9 @@ export default function Members() {
       workerUnit: m.worker_unit || '',
       workerRole: m.worker_role || 'worker',
       fellowshipCellId: m.fellowship_cell_id || '',
+      designation: m.designation || 'member',
+      leadershipTitle: m.leadership_title || '',
+      assignedPastorId: m.assigned_pastor_id || '',
     });
     setFormErrors({});
     setSelectedMember(m);
@@ -469,6 +528,30 @@ export default function Members() {
     }
   };
 
+  const [designateForm, setDesignateForm] = useState({});
+  const [savingDesignation, setSavingDesignation] = useState(false);
+
+  const handleSaveDesignation = async () => {
+    if (!selectedMember) return;
+    setSavingDesignation(true);
+    try {
+      await membersAPI.update(selectedMember.id, {
+        designation: designateForm.designation || 'member',
+        leadershipTitle: designateForm.leadershipTitle || null,
+        workerUnit: designateForm.workerUnit || null,
+        workerRole: designateForm.workerRole || 'worker',
+        isWorker: (designateForm.designation && designateForm.designation !== 'member') || !!designateForm.workerUnit,
+      });
+      toast.success(`Updated designation for ${selectedMember.first_name} to ${(designateForm.designation || 'member').toUpperCase()}`);
+      setModal(null);
+      fetchMembers(pagination.page);
+    } catch {
+      toast.error('Failed to update designation');
+    } finally {
+      setSavingDesignation(false);
+    }
+  };
+
   const getInitials = (fn, ln) => `${fn?.[0] || ''}${ln?.[0] || ''}`.toUpperCase();
 
   return (
@@ -514,9 +597,9 @@ export default function Members() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: 'Active Members', value: stats.active, icon: Users, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-100' },
-          { label: 'Children (0–12)', value: stats.total_children, icon: Baby, color: 'text-sky-700', bg: 'bg-sky-50 border-sky-100' },
-          { label: 'Teenagers (13–19)', value: stats.total_teenagers, icon: Users, color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-100' },
+          { label: 'Pastors & Leads', value: (stats.pastors_count || 0) + (stats.directors_count || 0) + (stats.hods_count || 0), icon: Award, color: 'text-purple-700', bg: 'bg-purple-50 border-purple-100' },
           { label: 'Church Workers', value: stats.workers_count, icon: Briefcase, color: 'text-amber-700', bg: 'bg-amber-50 border-amber-100' },
+          { label: 'Children (0–12)', value: stats.total_children, icon: Baby, color: 'text-sky-700', bg: 'bg-sky-50 border-sky-100' },
           { label: 'Birthdays Month', value: stats.birthdays_this_month, icon: Cake, color: 'text-pink-700', bg: 'bg-pink-50 border-pink-100', badge: stats.birthdays_today ? `${stats.birthdays_today} Today!` : null },
           { label: 'Pending Review', value: stats.pending_review, icon: CheckCircle2, color: 'text-orange-700', bg: 'bg-orange-50 border-orange-100' },
         ].map(({ label, value, icon: Icon, color, bg, badge }) => (
@@ -545,11 +628,21 @@ export default function Members() {
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               className="input pl-9 py-1.5 h-9 text-xs"
-              placeholder="Search name, phone, email, cell..."
+              placeholder="Search name, phone, email, cell, title..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
+
+          <select className="input h-9 text-xs w-auto py-1.5 pr-8 font-semibold text-purple-800 bg-purple-50/70 border-purple-200" value={designationFilter} onChange={e => setDesignationFilter(e.target.value)}>
+            <option value="">All Designations</option>
+            <option value="pastor">Pastors</option>
+            <option value="director">Directors</option>
+            <option value="hod">HODs / Unit Leads</option>
+            <option value="minister">Ministers & Elders</option>
+            <option value="worker">Church Workers</option>
+            <option value="member">General Members</option>
+          </select>
 
           <select className="input h-9 text-xs w-auto py-1.5 pr-8" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">All Statuses</option>
@@ -584,7 +677,7 @@ export default function Members() {
             ))}
           </select>
 
-          {(search || statusFilter || workerFilter || childrenFilter || cellFilter || birthdayMonthFilter) && (
+          {(search || statusFilter || workerFilter || childrenFilter || cellFilter || birthdayMonthFilter || designationFilter) && (
             <button
               onClick={() => {
                 setSearch('');
@@ -593,6 +686,7 @@ export default function Members() {
                 setChildrenFilter('');
                 setCellFilter('');
                 setBirthdayMonthFilter('');
+                setDesignationFilter('');
               }}
               className="text-xs text-brand-600 hover:text-brand-800 font-medium px-2 py-1"
             >
@@ -643,13 +737,27 @@ export default function Members() {
                           )}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 flex items-center gap-1.5">
-                            {m.first_name} {m.last_name}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-gray-900">{m.first_name} {m.last_name}</span>
+                            {m.designation && m.designation !== 'member' && (
+                              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded uppercase tracking-wider border ${
+                                m.designation === 'pastor' ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                                m.designation === 'director' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                                m.designation === 'hod' ? 'bg-teal-100 text-teal-800 border-teal-200' :
+                                m.designation === 'minister' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                                'bg-emerald-100 text-emerald-800 border-emerald-200'
+                              }`}>
+                                {m.designation}
+                              </span>
+                            )}
                             {isBdayToday && (
                               <span className="badge badge-pink text-[10px] py-0 px-1 font-bold">Birthday!</span>
                             )}
-                          </p>
-                          <p className="text-xs text-gray-400">{m.branch_name || 'Main Sanctuary'}</p>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
+                            {m.leadership_title && <span className="text-purple-700 font-semibold">{m.leadership_title} · </span>}
+                            <span>{m.branch_name || 'Main Sanctuary'}</span>
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -747,6 +855,22 @@ export default function Members() {
                           </button>
                         )}
                         <button
+                          onClick={() => {
+                            setSelectedMember(m);
+                            setDesignateForm({
+                              designation: m.designation || 'member',
+                              leadershipTitle: m.leadership_title || '',
+                              workerUnit: m.worker_unit || '',
+                              workerRole: m.worker_role || 'worker',
+                            });
+                            setModal('designate');
+                          }}
+                          className="p-1.5 rounded hover:bg-purple-50 text-gray-400 hover:text-purple-600 transition-colors"
+                          title="Designate Leadership Role (Pastor, Director, HOD...)"
+                        >
+                          <Award size={14} />
+                        </button>
+                        <button
                           onClick={() => navigate(`/members/${m.id}`)}
                           className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
                           title="View profile"
@@ -802,7 +926,7 @@ export default function Members() {
 
       {/* Add/Edit Modal */}
       <Modal
-        open={!!modal}
+        open={modal === 'add' || modal === 'edit'}
         onClose={() => setModal(null)}
         title={modal === 'add' ? 'Add New Member' : 'Edit Member'}
         size="lg"
@@ -821,6 +945,81 @@ export default function Members() {
           fellowshipCenters={fellowshipCenters}
           errors={formErrors}
         />
+      </Modal>
+
+      {/* Quick Designate Modal */}
+      <Modal
+        open={modal === 'designate'}
+        onClose={() => setModal(null)}
+        title={`Designate Leadership Role · ${selectedMember?.first_name} ${selectedMember?.last_name}`}
+        size="md"
+        footer={<>
+          <button onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
+          <button onClick={handleSaveDesignation} disabled={savingDesignation} className="btn-primary">
+            {savingDesignation ? <Loader2 size={15} className="animate-spin" /> : 'Confirm Designation'}
+          </button>
+        </>}
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Set an ecclesiastical rank and ministry portfolio for <strong>{selectedMember?.first_name} {selectedMember?.last_name}</strong>. This updates their directory badge, ministerial reporting, and access tier.
+          </p>
+
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { id: 'member', label: 'General Member', icon: Users },
+              { id: 'pastor', label: 'Pastor', icon: Award },
+              { id: 'director', label: 'Director', icon: Shield },
+              { id: 'hod', label: 'Head of Dept (HOD)', icon: UserCheck },
+              { id: 'minister', label: 'Minister / Elder', icon: Sparkles },
+              { id: 'worker', label: 'Church Worker', icon: Briefcase },
+            ].map(tier => {
+              const isSelected = (designateForm.designation || 'member') === tier.id;
+              const Icon = tier.icon;
+              return (
+                <button
+                  key={tier.id}
+                  type="button"
+                  onClick={() => setDesignateForm(d => ({ ...d, designation: tier.id }))}
+                  className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all ${
+                    isSelected
+                      ? 'border-brand-600 ring-2 ring-brand-500/20 bg-brand-50/50 shadow-xs font-bold text-brand-900'
+                      : 'border-gray-200 hover:border-gray-300 bg-white text-gray-700'
+                  }`}
+                >
+                  <Icon size={16} className={isSelected ? 'text-brand-600' : 'text-gray-400'} />
+                  <span className="text-xs">{tier.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div>
+            <label className="label text-xs">Office / Portfolio Title</label>
+            <input
+              className="input text-sm"
+              placeholder="e.g. Resident Pastor, Director of Operations, HOD Media, Youth Pastor"
+              value={designateForm.leadershipTitle || ''}
+              onChange={e => setDesignateForm(d => ({ ...d, leadershipTitle: e.target.value }))}
+            />
+          </div>
+
+          <div>
+            <label className="label text-xs">Serving Unit / Department</label>
+            <select
+              className="input text-sm bg-white"
+              value={designateForm.workerUnit || ''}
+              onChange={e => setDesignateForm(d => ({ ...d, workerUnit: e.target.value }))}
+            >
+              <option value="">Select Directorate / Department (Optional)</option>
+              {departments.map(d => (
+                <option key={d.id} value={d.name}>{d.name}</option>
+              ))}
+              <option value="Pastoral Council">Pastoral Council / Ministry Board</option>
+              <option value="Executive Directorate">Executive Directorate</option>
+            </select>
+          </div>
+        </div>
       </Modal>
 
       {/* Upcoming Birthdays Celebration Modal */}
@@ -973,6 +1172,7 @@ export default function Members() {
         title="Member Registration Form"
         description="Share this QR code or link with members so they can submit their details, family demographic counts, worker unit, and receive automatic cell cluster assignment."
         url={publicMemberFormUrl}
+        allowDesignationSelect={true}
       />
     </div>
   );

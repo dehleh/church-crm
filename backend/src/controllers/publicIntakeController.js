@@ -57,6 +57,15 @@ const getIntakeContext = async (req, res) => {
       [church.id]
     );
 
+    const { rows: pastors } = await query(
+      `SELECT id, first_name || ' ' || last_name as name, leadership_title, designation
+       FROM members
+       WHERE church_id = $1 AND (designation IN ('pastor', 'director') OR worker_role ILIKE '%pastor%')
+         AND membership_status = 'active'
+       ORDER BY first_name ASC`,
+      [church.id]
+    );
+
     return res.json({
       success: true,
       data: {
@@ -75,6 +84,7 @@ const getIntakeContext = async (req, res) => {
         welfarePackages,
         departments,
         fellowshipCenters,
+        pastors,
       }
     });
   } catch (err) {

@@ -59,7 +59,8 @@ const createMemberRecord = async ({ churchId, data }) => {
     waterBaptized, holyGhostBaptized, salvationDate, branchId,
     nextOfKinName, nextOfKinPhone, nextOfKinRelationship, notes, membershipStatus,
     hasChildren, childrenCount, teenagersCount, childrenDetails,
-    isWorker, workerUnit, workerRole, fellowshipCellId, latitude, longitude
+    isWorker, workerUnit, workerRole, fellowshipCellId, latitude, longitude,
+    designation, leadershipTitle, leadership_title, assignedPastorId, assigned_pastor_id
   } = data;
 
   const safeBranchId = await ensureBranchBelongsToChurch(churchId, branchId || null);
@@ -69,7 +70,10 @@ const createMemberRecord = async ({ churchId, data }) => {
   const cCount = parseInt(childrenCount) || 0;
   const tCount = parseInt(teenagersCount) || 0;
   const userHasChildren = !!(hasChildren || cCount > 0 || tCount > 0);
-  const userIsWorker = !!isWorker;
+  const userDesignation = (designation || 'member').toLowerCase().trim();
+  const userIsWorker = !!(isWorker || ['pastor', 'director', 'hod', 'minister', 'elder', 'worker'].includes(userDesignation));
+  const finalLeadershipTitle = leadershipTitle || leadership_title || null;
+  const finalAssignedPastor = assignedPastorId || assigned_pastor_id || null;
 
   const id = uuidv4();
   const { rows } = await query(
@@ -79,10 +83,11 @@ const createMemberRecord = async ({ churchId, data }) => {
       membership_status,
       occupation, employer, membership_class, join_date, baptism_date,
       water_baptized, holy_ghost_baptized, salvation_date,
-      nextOfKinName, next_of_kin_phone, next_of_kin_relationship, notes,
+      next_of_kin_name, next_of_kin_phone, next_of_kin_relationship, notes,
       has_children, children_count, teenagers_count, children_details,
-      is_worker, worker_unit, worker_role, fellowship_cell_id
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38)
+      is_worker, worker_unit, worker_role, fellowship_cell_id,
+      designation, leadership_title, assigned_pastor_id
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41)
     RETURNING *`,
     [
       id, churchId, safeBranchId, memberNumber, firstName, lastName, middleName || null,
@@ -92,7 +97,8 @@ const createMemberRecord = async ({ churchId, data }) => {
       waterBaptized || false, holyGhostBaptized || false, salvationDate || null,
       nextOfKinName || null, nextOfKinPhone || null, nextOfKinRelationship || null, notes || null,
       userHasChildren, cCount, tCount, childrenDetails || null,
-      userIsWorker, workerUnit || null, workerRole || 'worker', fellowshipCellId || null
+      userIsWorker, workerUnit || null, workerRole || 'worker', fellowshipCellId || null,
+      userDesignation, finalLeadershipTitle, finalAssignedPastor
     ]
   );
 

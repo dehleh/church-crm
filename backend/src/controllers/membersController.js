@@ -5,7 +5,7 @@ const { createMemberRecord } = require('../services/intakeService');
 
 // GET /api/members
 const getMembers = async (req, res) => {
-  const { page = 1, limit = 20, search, status, branchId, departmentId, isWorker, hasChildren, cellId, birthdayMonth } = req.query;
+  const { page = 1, limit = 20, search, status, branchId, departmentId, isWorker, hasChildren, cellId, birthdayMonth, designation } = req.query;
   const offset = (page - 1) * limit;
   const churchId = req.churchId;
 
@@ -15,12 +15,13 @@ const getMembers = async (req, res) => {
     let idx = 2;
 
     if (search) {
-      conditions.push(`(m.first_name ILIKE $${idx} OR m.last_name ILIKE $${idx} OR m.email ILIKE $${idx} OR m.phone ILIKE $${idx} OR m.member_number ILIKE $${idx} OR fc.name ILIKE $${idx})`);
+      conditions.push(`(m.first_name ILIKE $${idx} OR m.last_name ILIKE $${idx} OR m.email ILIKE $${idx} OR m.phone ILIKE $${idx} OR m.member_number ILIKE $${idx} OR fc.name ILIKE $${idx} OR m.leadership_title ILIKE $${idx})`);
       params.push(`%${search}%`); idx++;
     }
     if (status) { conditions.push(`m.membership_status = $${idx}`); params.push(status); idx++; }
     if (branchId) { conditions.push(`m.branch_id = $${idx}`); params.push(branchId); idx++; }
     if (cellId) { conditions.push(`m.fellowship_cell_id = $${idx}`); params.push(cellId); idx++; }
+    if (designation) { conditions.push(`m.designation = $${idx}`); params.push(designation); idx++; }
     if (isWorker !== undefined && isWorker !== '') {
       conditions.push(`m.is_worker = $${idx}`);
       params.push(isWorker === 'true' || isWorker === true);
@@ -53,14 +54,16 @@ const getMembers = async (req, res) => {
     const { rows } = await query(
       `SELECT m.*, b.name as branch_name,
               fc.name as fellowship_cell_name, fc.meeting_day as fellowship_meeting_day, fc.meeting_time as fellowship_meeting_time,
+              ap.first_name || ' ' || ap.last_name as assigned_pastor_name,
               COALESCE(json_agg(DISTINCT jsonb_build_object('id', d.id, 'name', d.name)) FILTER (WHERE d.id IS NOT NULL), '[]') as departments
        FROM members m
        LEFT JOIN branches b ON b.id = m.branch_id
        LEFT JOIN fellowship_centers fc ON fc.id = m.fellowship_cell_id
+       LEFT JOIN members ap ON ap.id = m.assigned_pastor_id
        LEFT JOIN member_departments md ON md.member_id = m.id AND md.is_active = true
        LEFT JOIN departments d ON d.id = md.department_id
        WHERE ${where}
-       GROUP BY m.id, b.name, fc.name, fc.meeting_day, fc.meeting_time
+       GROUP BY m.id, b.name, fc.name, fc.meeting_day, fc.meeting_time, ap.first_name, ap.last_name
        ORDER BY m.created_at DESC
        LIMIT $${idx} OFFSET $${idx + 1}`,
       params
@@ -84,14 +87,16 @@ const getMember = async (req, res) => {
     const { rows } = await query(
       `SELECT m.*, b.name as branch_name,
               fc.name as fellowship_cell_name, fc.meeting_day as fellowship_meeting_day, fc.meeting_time as fellowship_meeting_time, fc.host_address as fellowship_cell_address,
+              ap.first_name || ' ' || ap.last_name as assigned_pastor_name,
               COALESCE(json_agg(DISTINCT jsonb_build_object('id', d.id, 'name', d.name, 'role', md.role)) FILTER (WHERE d.id IS NOT NULL), '[]') as departments
        FROM members m
        LEFT JOIN branches b ON b.id = m.branch_id
        LEFT JOIN fellowship_centers fc ON fc.id = m.fellowship_cell_id
+       LEFT JOIN members ap ON ap.id = m.assigned_pastor_id
        LEFT JOIN member_departments md ON md.member_id = m.id AND md.is_active = true
        LEFT JOIN departments d ON d.id = md.department_id
        WHERE m.id = $1 AND m.church_id = $2
-       GROUP BY m.id, b.name, fc.name, fc.meeting_day, fc.meeting_time, fc.host_address`,
+       GROUP BY m.id, b.name, fc.name, fc.meeting_day, fc.meeting_time, fc.host_address, ap.first_name, ap.last_name`,
       [id, req.churchId]
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Member not found' });
@@ -119,7 +124,8 @@ const ALLOWED_MEMBER_FIELDS = [
   'join_date', 'baptism_date', 'water_baptized', 'holy_spirit_baptized', 'tithe_number',
   'emergency_contact_name', 'emergency_contact_phone', 'notes',
   'has_children', 'children_count', 'teenagers_count', 'children_details',
-  'is_worker', 'worker_unit', 'worker_role', 'fellowship_cell_id'
+  'is_worker', 'worker_unit', 'worker_role', 'fellowship_cell_id',
+  'designation', 'leadership_title', 'assigned_pastor_id'
 ];
 
 // PUT /api/members/:id
@@ -211,6 +217,10 @@ const getMemberStats = async (req, res) => {
         COALESCE(SUM(teenagers_count), 0)::int as total_teenagers,
         COUNT(*) FILTER (WHERE has_children = true OR COALESCE(children_count, 0) > 0 OR COALESCE(teenagers_count, 0) > 0) as families_with_children,
         COUNT(*) FILTER (WHERE is_worker = true) as workers_count,
+        COUNT(*) FILTER (WHERE designation = 'pastor') as pastors_count,
+        COUNT(*) FILTER (WHERE designation = 'director') as directors_count,
+        COUNT(*) FILTER (WHERE designation = 'hod') as hods_count,
+        COUNT(*) FILTER (WHERE designation = 'minister') as ministers_count,
         COUNT(*) FILTER (WHERE fellowship_cell_id IS NOT NULL) as cell_members_count,
         COUNT(*) FILTER (WHERE date_of_birth IS NOT NULL AND EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE)) as birthdays_this_month,
         COUNT(*) FILTER (WHERE date_of_birth IS NOT NULL AND EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM date_of_birth) = EXTRACT(DAY FROM CURRENT_DATE)) as birthdays_today,

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, User, Phone, Mail, MapPin, Briefcase, Users,
   Calendar, Heart, Edit2, CheckCircle, XCircle, Loader2,
-  Cake, Baby, Home, MessageCircle, Send
+  Cake, Baby, Home, MessageCircle, Send, Award, Shield, UserCheck, Sparkles
 } from 'lucide-react';
 import { membersAPI, departmentsAPI, fellowshipAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
@@ -32,6 +32,7 @@ export default function MemberProfile() {
   const [depts, setDepts] = useState([]);
   const [allDepts, setAllDepts] = useState([]);
   const [allCenters, setAllCenters] = useState([]);
+  const [pastors, setPastors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Overview');
   const [editModal, setEditModal] = useState(false);
@@ -58,6 +59,7 @@ export default function MemberProfile() {
   useEffect(() => {
     departmentsAPI.list().then(r => setAllDepts(r.data.data || [])).catch(() => {});
     fellowshipAPI.centers().then(r => setAllCenters(r.data.data || [])).catch(() => {});
+    membersAPI.list({ designation: 'pastor', limit: 100 }).then(r => setPastors(r.data.data || [])).catch(() => {});
   }, []);
 
   const getInitials = (fn, ln) => `${fn?.[0]||''}${ln?.[0]||''}`.toUpperCase();
@@ -193,6 +195,9 @@ export default function MemberProfile() {
                       dateOfBirth: member.date_of_birth ? String(member.date_of_birth).slice(0, 10) : '',
                       maritalStatus: member.marital_status,
                       weddingAnniversaryDate: member.wedding_anniversary_date ? String(member.wedding_anniversary_date).slice(0, 10) : '',
+                      designation: member.designation || 'member',
+                      leadershipTitle: member.leadership_title || '',
+                      assignedPastorId: member.assigned_pastor_id || '',
                       hasChildren: member.has_children || (member.children_count > 0) || (member.teenagers_count > 0),
                       childrenCount: member.children_count ?? 0,
                       teenagersCount: member.teenagers_count ?? 0,
@@ -220,6 +225,29 @@ export default function MemberProfile() {
                 {member.membership_status}
               </span>
               <span className="badge badge-blue capitalize">{member.membership_class} member</span>
+
+              {member.designation && member.designation !== 'member' && (
+                <span className={`badge flex items-center gap-1.5 uppercase font-bold text-[11px] ${
+                  member.designation === 'pastor' ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                  member.designation === 'director' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                  member.designation === 'hod' ? 'bg-teal-100 text-teal-800 border-teal-200' :
+                  member.designation === 'minister' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                  'bg-emerald-100 text-emerald-800 border-emerald-200'
+                }`}>
+                  {member.designation === 'pastor' && <Award size={12} />}
+                  {member.designation === 'director' && <Shield size={12} />}
+                  {member.designation === 'hod' && <UserCheck size={12} />}
+                  {member.designation === 'minister' && <Sparkles size={12} />}
+                  {member.designation === 'worker' && <Briefcase size={12} />}
+                  <span>{member.leadership_title ? `${member.designation}: ${member.leadership_title}` : member.designation}</span>
+                </span>
+              )}
+
+              {member.assigned_pastor_name && (
+                <span className="badge bg-purple-50 text-purple-700 border-purple-200 flex items-center gap-1">
+                  <Award size={11} /> Covering Pastor: {member.assigned_pastor_name}
+                </span>
+              )}
 
               {member.is_worker && (
                 <span className="badge badge-emerald flex items-center gap-1">
@@ -362,6 +390,27 @@ export default function MemberProfile() {
             )}
           </div>
 
+          {/* Church Office & Leadership Designation Card */}
+          <div className="card">
+            <h3 className="section-title mb-3 flex items-center gap-2">
+              <Award size={18} className="text-purple-600" /> Church Office & Designation
+            </h3>
+            <div className="space-y-2">
+              <InfoRow
+                icon={Award}
+                label="Ecclesiastical Tier"
+                value={
+                  member.designation && member.designation !== 'member'
+                    ? member.designation.toUpperCase()
+                    : 'General Church Member'
+                }
+              />
+              <InfoRow icon={Briefcase} label="Office / Portfolio Title" value={member.leadership_title} />
+              <InfoRow icon={User} label="Covering Pastor" value={member.assigned_pastor_name} />
+              <InfoRow icon={Users} label="Serving Unit" value={member.worker_unit} />
+            </div>
+          </div>
+
           {/* Next of Kin */}
           <div className="card">
             <h3 className="section-title mb-3">Next of Kin</h3>
@@ -498,6 +547,53 @@ export default function MemberProfile() {
                 <option value="">(No Cell Assigned)</option>
                 {allCenters.map(c => (
                   <option key={c.id} value={c.id}>{c.name} {c.meeting_day ? `(${c.meeting_day})` : ''}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Designation & Leadership Role */}
+          <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-3.5 space-y-3">
+            <label className="text-sm font-semibold text-purple-950 flex items-center gap-2">
+              <Award size={16} className="text-purple-600" />
+              Ecclesiastical Designation & Office
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label text-xs">Designation / Rank</label>
+                <select
+                  className="input bg-white text-sm"
+                  value={form.designation || 'member'}
+                  onChange={e => setForm(f => ({ ...f, designation: e.target.value }))}
+                >
+                  <option value="member">General Member</option>
+                  <option value="pastor">Pastor</option>
+                  <option value="director">Director</option>
+                  <option value="hod">Head of Department (HOD)</option>
+                  <option value="minister">Minister / Elder</option>
+                  <option value="worker">Church Worker</option>
+                </select>
+              </div>
+              <div>
+                <label className="label text-xs">Office / Portfolio Title</label>
+                <input
+                  className="input bg-white text-sm"
+                  placeholder="e.g. Resident Pastor, Director of Music, HOD Ushering"
+                  value={form.leadershipTitle || ''}
+                  onChange={e => setForm(f => ({ ...f, leadershipTitle: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="label text-xs">Assigned / Covering Pastor</label>
+              <select
+                className="input bg-white text-sm"
+                value={form.assignedPastorId || ''}
+                onChange={e => setForm(f => ({ ...f, assignedPastorId: e.target.value }))}
+              >
+                <option value="">(None assigned / Self)</option>
+                {pastors.filter(p => p.id !== id).map(p => (
+                  <option key={p.id} value={p.id}>{p.first_name} {p.last_name} {p.leadership_title ? `(${p.leadership_title})` : '(Pastor)'}</option>
                 ))}
               </select>
             </div>

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Church, Loader2, Send } from 'lucide-react';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { Church, Loader2, Send, Award, Shield, UserCheck, Sparkles, Users, Briefcase } from 'lucide-react';
 import { publicIntakeAPI } from '../api/services';
 import toast from 'react-hot-toast';
 
 export default function PublicMemberForm() {
   const { churchSlug } = useParams();
+  const [searchParams] = useSearchParams();
+  const queryDesignation = searchParams.get('designation') || '';
+
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -33,7 +36,21 @@ export default function PublicMemberForm() {
     isWorker: false,
     workerUnit: '',
     workerRole: 'worker',
+    designation: queryDesignation ? queryDesignation.toLowerCase() : 'member',
+    leadershipTitle: '',
+    assignedPastorId: '',
   });
+
+  useEffect(() => {
+    if (queryDesignation) {
+      const d = queryDesignation.toLowerCase();
+      setForm(prev => ({
+        ...prev,
+        designation: d,
+        isWorker: ['pastor', 'director', 'hod', 'minister', 'elder', 'worker'].includes(d) ? true : prev.isWorker,
+      }));
+    }
+  }, [queryDesignation]);
 
   useEffect(() => {
     let active = true;
@@ -160,7 +177,42 @@ export default function PublicMemberForm() {
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <>
+              {/* Leadership Intake Spotlight */}
+              {form.designation && form.designation !== 'member' && (
+            <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-md">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-purple-300 shrink-0">
+                  <Award size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-200 border border-purple-400/30">
+                      Leadership Intake
+                    </span>
+                    <span className="text-xs text-purple-200 font-semibold capitalize">
+                      {form.designation} Onboarding
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-sm text-white mt-0.5">
+                    Registering as {form.designation.toUpperCase()}
+                  </h3>
+                  <p className="text-xs text-white/70">
+                    Your ministerial profile will be cataloged directly into church leadership records.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, designation: 'member' }))}
+                className="text-[11px] text-white/60 hover:text-white underline shrink-0 text-left sm:text-right"
+              >
+                Register as Standard Member instead
+              </button>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
               {/* Personal Information */}
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-3">1. Personal Information</h3>
@@ -284,61 +336,124 @@ export default function PublicMemberForm() {
                 )}
               </div>
 
-              {/* Church Worker & Ministry Unit */}
-              <div className="pt-4 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500">4. Church Worker & Ministry Unit</h3>
-                    <p className="text-xs text-gray-400">Indicate if you serve in any department or ministry team</p>
-                  </div>
-                  <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300 text-brand-600 focus:ring-brand-500 h-4 w-4"
-                      checked={form.isWorker}
-                      onChange={setBool('isWorker')}
-                    />
-                    <span className="text-sm font-medium text-gray-700">I am a Church Worker</span>
-                  </label>
+              {/* Church Designation & Leadership Status */}
+              <div className="pt-4 border-t border-gray-100 space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-1">
+                    4. Church Role & Designation
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    Specify your ecclesiastical role, pastoral title, or serving department within {meta.church.name}
+                  </p>
                 </div>
 
-                {form.isWorker && (
-                  <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 space-y-3">
+                {/* Designation Chips */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[
+                    { id: 'member', label: 'General Member', icon: Users },
+                    { id: 'pastor', label: 'Pastor / Minister', icon: Award },
+                    { id: 'director', label: 'Ministry Director', icon: Shield },
+                    { id: 'hod', label: 'HOD / Unit Lead', icon: UserCheck },
+                    { id: 'minister', label: 'Elder / Deacon', icon: Sparkles },
+                    { id: 'worker', label: 'Church Worker', icon: Briefcase },
+                  ].map((tier) => {
+                    const isSelected = form.designation === tier.id;
+                    const TierIcon = tier.icon;
+                    return (
+                      <button
+                        key={tier.id}
+                        type="button"
+                        onClick={() => {
+                          setForm(f => ({
+                            ...f,
+                            designation: tier.id,
+                            isWorker: tier.id !== 'member' ? true : f.isWorker
+                          }));
+                        }}
+                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-all ${
+                          isSelected
+                            ? 'border-brand-600 bg-brand-50 text-brand-900 font-semibold ring-2 ring-brand-500/20 shadow-xs'
+                            : 'border-gray-200 hover:border-gray-300 text-gray-700 bg-white'
+                        }`}
+                      >
+                        <TierIcon size={16} className={isSelected ? 'text-brand-600' : 'text-gray-400'} />
+                        <span className="text-xs">{tier.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Leadership & Worker Specific Details */}
+                {form.designation !== 'member' && (
+                  <div className="bg-gradient-to-br from-indigo-50/70 to-purple-50/50 border border-indigo-100 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center gap-2 text-indigo-900 font-bold text-xs uppercase tracking-wide">
+                      <Award size={14} className="text-indigo-600" />
+                      <span>{form.designation.toUpperCase()} Portfolio & Directorate</span>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="label text-indigo-950 font-medium">Serving Unit / Department *</label>
+                        <label className="label text-indigo-950 font-medium">Leadership Office / Title</label>
+                        <input
+                          className="input bg-white"
+                          placeholder={
+                            form.designation === 'pastor' ? 'e.g. Resident Pastor, Youth Pastor' :
+                            form.designation === 'director' ? 'e.g. Director of Creatives, Director of Operations' :
+                            form.designation === 'hod' ? 'e.g. HOD Choir, Lead Protocol' :
+                            'e.g. Church Elder, Deaconess'
+                          }
+                          value={form.leadershipTitle}
+                          onChange={set('leadershipTitle')}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="label text-indigo-950 font-medium">Serving Unit / Department</label>
                         {meta.departments && meta.departments.length > 0 ? (
                           <select
                             className="input bg-white"
                             value={form.workerUnit}
                             onChange={set('workerUnit')}
-                            required
                           >
-                            <option value="">Select Department</option>
+                            <option value="">Select Directorate / Department</option>
                             {meta.departments.map((dept) => (
                               <option key={dept.id} value={dept.name}>{dept.name}</option>
                             ))}
-                            <option value="Other">Other (Special Service)</option>
+                            <option value="Pastoral Council">Pastoral Council / Ministry Board</option>
+                            <option value="Executive Directorate">Executive Directorate</option>
+                            <option value="Other">Other Specialized Ministry</option>
                           </select>
                         ) : (
                           <input
                             className="input bg-white"
-                            placeholder="e.g. Choir, Ushering, Media, Prayer"
+                            placeholder="e.g. Choir, Media, Protocol, Pastoral"
                             value={form.workerUnit}
                             onChange={set('workerUnit')}
-                            required
                           />
                         )}
                       </div>
+
                       <div>
-                        <label className="label text-indigo-950 font-medium">Role in Unit</label>
+                        <label className="label text-indigo-950 font-medium">Role Responsibility</label>
                         <select className="input bg-white" value={form.workerRole} onChange={set('workerRole')}>
-                          <option value="worker">Worker</option>
-                          <option value="team_lead">Team Lead / HOD</option>
-                          <option value="assistant_lead">Assistant Lead</option>
-                          <option value="volunteer">Volunteer</option>
+                          <option value="leader">Unit Head / HOD / Director</option>
+                          <option value="assistant_leader">Assistant Lead / Associate</option>
+                          <option value="coordinator">Coordinator / Supervisor</option>
+                          <option value="worker">Team Worker</option>
                         </select>
                       </div>
+
+                      {meta.pastors && meta.pastors.length > 0 && (
+                        <div>
+                          <label className="label text-indigo-950 font-medium">Pastoral Covering / Overseer</label>
+                          <select className="input bg-white" value={form.assignedPastorId} onChange={set('assignedPastorId')}>
+                            <option value="">Select Covering Pastor</option>
+                            {meta.pastors.map(p => (
+                              <option key={p.id} value={p.id}>{p.name} {p.leadership_title ? `(${p.leadership_title})` : ''}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -364,7 +479,8 @@ export default function PublicMemberForm() {
                 Submit Membership Form
               </button>
             </form>
-          )}
+          </>
+        )}
         </div>
       </div>
     </div>
