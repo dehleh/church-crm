@@ -306,9 +306,9 @@ export default function Fellowship() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs uppercase tracking-widest text-brand-600 font-semibold">{terms.systemName}</span>
@@ -322,10 +322,10 @@ export default function Fellowship() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
           <button
             onClick={openNewCenterModal}
-            className="btn-primary inline-flex items-center gap-1.5"
+            className="btn-primary inline-flex items-center gap-1.5 shadow-sm"
           >
             <Plus size={16} /> New {terms.singularTerm}
           </button>
@@ -334,7 +334,7 @@ export default function Fellowship() {
               setReportForm({ meetingDate: new Date().toISOString().split('T')[0] });
               setModal('report_new');
             }}
-            className="btn-outline inline-flex items-center gap-1.5"
+            className="btn-secondary inline-flex items-center gap-1.5 border-gray-300 text-gray-700 hover:bg-gray-50 shadow-xs"
           >
             <FileText size={16} /> Submit Report
           </button>
@@ -342,7 +342,7 @@ export default function Fellowship() {
       </div>
 
       {/* Overview Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3.5">
         <div className="card p-4 border-l-4 border-l-brand-500">
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500 font-medium">Active {terms.pluralTerm}</span>
@@ -379,7 +379,7 @@ export default function Fellowship() {
           <div className="text-xs text-gray-400 mt-1">Per fellowship meeting</div>
         </div>
 
-        <div className="card p-4 border-l-4 border-l-purple-500 col-span-2 lg:col-span-1">
+        <div className="card p-4 border-l-4 border-l-purple-500 col-span-2 md:col-span-1">
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500 font-medium">Pending Join Requests</span>
             <HeartHandshake size={18} className="text-purple-600" />
