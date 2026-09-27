@@ -68,6 +68,12 @@ export const memberPortalAPI = {
   enrollDiscipleshipCourse: (id) => memberApi.post(`/me/discipleship/courses/${id}/enroll`),
   completeLesson: (lessonId, data) => memberApi.post(`/me/discipleship/lessons/${lessonId}/complete`, data || {}),
   exportData: () => memberApi.get('/me/export'),
+  birthdays: () => memberApi.get('/me/birthdays'),
+  announcements: () => memberApi.get('/me/announcements'),
+  media: (params) => memberApi.get('/me/media', { params }),
+  mediaItem: (id) => memberApi.get(`/me/media/${id}`),
+  givingOptions: () => memberApi.get('/me/giving/options'),
+  initiateGiving: (data) => memberApi.post('/me/giving/initiate', data),
 };
 
 

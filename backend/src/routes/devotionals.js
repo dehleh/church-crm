@@ -1,20 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 const devotionals = require('../controllers/devotionalsController');
 
 router.use(authenticate);
 
-
-router.get('/', devotionals.getDevotionals);
-router.get('/settings', devotionals.getDevotionalSettings);
-router.put('/settings', devotionals.updateDevotionalSettings);
-router.get('/date/:date', devotionals.getDevotionalByDate);
-router.get('/:id', devotionals.getDevotional);
-router.post('/', devotionals.createDevotional);
-router.put('/:id', devotionals.updateDevotional);
-router.delete('/:id', devotionals.deleteDevotional);
-router.post('/:id/broadcast', devotionals.broadcastDevotional);
-router.post('/seed-samples', devotionals.seedSampleDevotionals);
+router.get('/', authorize('admin', 'pastor', 'director', 'hod'), devotionals.getDevotionals);
+router.get('/settings', authorize('admin', 'pastor'), devotionals.getDevotionalSettings);
+router.put('/settings', authorize('admin'), devotionals.updateDevotionalSettings);
+router.get('/date/:date', authorize('admin', 'pastor', 'director', 'hod'), devotionals.getDevotionalByDate);
+router.get('/:id', authorize('admin', 'pastor', 'director', 'hod'), devotionals.getDevotional);
+router.post('/', authorize('admin', 'pastor'), devotionals.createDevotional);
+router.put('/:id', authorize('admin', 'pastor'), devotionals.updateDevotional);
+router.delete('/:id', authorize('admin', 'pastor'), devotionals.deleteDevotional);
+router.post('/:id/broadcast', authorize('admin', 'pastor'), devotionals.broadcastDevotional);
+router.post('/seed-samples', authorize('admin'), devotionals.seedSampleDevotionals);
 
 module.exports = router;

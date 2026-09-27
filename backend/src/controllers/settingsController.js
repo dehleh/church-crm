@@ -21,6 +21,22 @@ const updateChurchSettings = async (req, res) => {
     tagline, mission, vision, socialLinks, pastors, settings, paymentSettings
   } = req.body;
   try {
+    let finalSettings = null;
+    if (settings !== undefined && settings !== null) {
+      const { rows: currentRows } = await query('SELECT settings FROM churches WHERE id = $1', [req.churchId]);
+      const currentSettings = currentRows[0]?.settings || {};
+      const incoming = typeof settings === 'string' ? JSON.parse(settings) : settings;
+      finalSettings = JSON.stringify({ ...currentSettings, ...incoming });
+    }
+
+    let finalPaymentSettings = null;
+    if (paymentSettings !== undefined && paymentSettings !== null) {
+      const { rows: currentRows } = await query('SELECT payment_settings FROM churches WHERE id = $1', [req.churchId]);
+      const currentPay = currentRows[0]?.payment_settings || {};
+      const incoming = typeof paymentSettings === 'string' ? JSON.parse(paymentSettings) : paymentSettings;
+      finalPaymentSettings = JSON.stringify({ ...currentPay, ...incoming });
+    }
+
     const { rows } = await query(
       `UPDATE churches SET
         name = COALESCE($2, name),
@@ -42,7 +58,8 @@ const updateChurchSettings = async (req, res) => {
         social_links = COALESCE($18, social_links),
         pastors = COALESCE($19, pastors),
         settings = COALESCE($20, settings),
-        payment_settings = COALESCE($21, payment_settings)
+        payment_settings = COALESCE($21, payment_settings),
+        updated_at = NOW()
        WHERE id = $1 RETURNING *`,
       [
         req.churchId, name, address, city, state, country, phone, email, website,
@@ -50,8 +67,8 @@ const updateChurchSettings = async (req, res) => {
         tagline, mission, vision,
         socialLinks ? (typeof socialLinks === 'string' ? socialLinks : JSON.stringify(socialLinks)) : null,
         pastors ? (typeof pastors === 'string' ? pastors : JSON.stringify(pastors)) : null,
-        settings ? (typeof settings === 'string' ? settings : JSON.stringify(settings)) : null,
-        paymentSettings ? (typeof paymentSettings === 'string' ? paymentSettings : JSON.stringify(paymentSettings)) : null,
+        finalSettings,
+        finalPaymentSettings,
       ]
     );
     return res.json({ success: true, data: rows[0], message: 'Settings updated' });

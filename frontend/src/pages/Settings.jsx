@@ -3,7 +3,9 @@ import {
   Settings as SettingsIcon, Building2, User, Lock, Save, Loader2, CheckCircle,
   Mail, MessageCircle, Phone, Send, ToggleLeft, ToggleRight, Users, Plus, Trash2,
   Edit3, Image, Globe, Sparkles, AlertCircle, CreditCard, Shield, QrCode, Key,
-  Copy, Check, ExternalLink
+  Copy, Check, ExternalLink, Palette, Clock, LayoutDashboard, CheckCircle2, Tag,
+  Eye, Sliders, Layers, Radio, FileText, HeartHandshake, Heart, BookOpen,
+  GraduationCap, Bell, Film, Cake, DollarSign, Calendar, MapPin, UserPlus
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { twoFactorAPI } from '../api/services';
@@ -12,13 +14,50 @@ import toast from 'react-hot-toast';
 import api from '../api/client';
 
 const TABS = [
-  { id: 'church',    label: 'Church Profile & Branding', icon: Building2 },
+  { id: 'church',    label: 'Profile & Brand Identity',  icon: Building2 },
+  { id: 'theme',     label: 'Visual Theme & Colors',     icon: Palette },
+  { id: 'services',  label: 'Service Times & Schedule',  icon: Clock },
+  { id: 'portal',    label: 'Member Portal Experience',  icon: LayoutDashboard },
+  { id: 'public',    label: 'Public Connect & Forms',    icon: Globe },
   { id: 'pastors',   label: 'Pastoral Leadership',       icon: Users },
   { id: 'messaging', label: 'Messaging & WhatsApp',      icon: Mail },
   { id: 'giving',    label: 'Online Giving & Payments',  icon: CreditCard },
   { id: 'security',  label: 'Security & 2FA',            icon: Shield },
   { id: 'profile',   label: 'My Profile',                icon: User },
   { id: 'password',  label: 'Change Password',           icon: Lock },
+];
+
+const THEME_PRESETS = [
+  { name: 'Royal Sapphire',   primary: '#1d4ed8', accent: '#3b82f6', bgGradient: 'from-blue-700 via-blue-800 to-indigo-950', desc: 'Authoritative, trustworthy & global' },
+  { name: 'Emerald Cathedral', primary: '#047857', accent: '#10b981', bgGradient: 'from-emerald-700 via-emerald-800 to-slate-950', desc: 'Growth, flourishing & eternal life' },
+  { name: 'Grace Purple',     primary: '#7c3aed', accent: '#8b5cf6', bgGradient: 'from-purple-700 via-purple-800 to-indigo-950', desc: 'Divine majesty, worship & royalty' },
+  { name: 'Crimson Flame',    primary: '#b91c1c', accent: '#ef4444', bgGradient: 'from-rose-700 via-red-800 to-slate-950', desc: 'Pentecostal fire, prayer & zeal' },
+  { name: 'Warm Amber',       primary: '#b45309', accent: '#f59e0b', bgGradient: 'from-amber-600 via-orange-700 to-stone-950', desc: 'Harvest, kingdom warmth & fellowship' },
+  { name: 'Midnight Charcoal', primary: '#0f172a', accent: '#475569', bgGradient: 'from-slate-800 via-slate-900 to-black', desc: 'Modern, minimalist & sleek' },
+  { name: 'Ocean Teal',       primary: '#0f766e', accent: '#14b8a6', bgGradient: 'from-teal-700 via-teal-800 to-slate-950', desc: 'Peace, renewal & mission vision' },
+  { name: 'Rose Gold',        primary: '#be185d', accent: '#ec4899', bgGradient: 'from-pink-700 via-rose-800 to-slate-950', desc: 'Love, grace & community care' },
+];
+
+const FONT_OPTIONS = [
+  { id: 'Inter',            name: 'Inter (Modern & Clean)' },
+  { id: 'Plus Jakarta Sans',name: 'Plus Jakarta Sans (Contemporary)' },
+  { id: 'Outfit',           name: 'Outfit (Geometric & Bold)' },
+  { id: 'Poppins',          name: 'Poppins (Friendly & Welcoming)' },
+];
+
+const PORTAL_MODULES = [
+  { key: 'devotionals',   label: 'Daily Devotionals',       icon: BookOpen,      desc: 'Daily word of faith, scripture & audio stream' },
+  { key: 'discipleship',  label: 'Discipleship School',     icon: GraduationCap, desc: 'Interactive lessons, milestones & certificates' },
+  { key: 'announcements', label: 'Broadcast Notices',       icon: Bell,          desc: 'Official broadcasts and pastoral announcements' },
+  { key: 'media',         label: 'Media & Sermons',         icon: Film,          desc: 'Audio sermon library, video streams & podcasts' },
+  { key: 'birthdays',     label: 'Birthday Celebrations',   icon: Cake,          desc: "Today's celebrants & family congratulations" },
+  { key: 'giving',        label: 'Online Giving & Tithes',  icon: DollarSign,    desc: 'Offerings, building pledges & payment receipts' },
+  { key: 'events',        label: 'Events & Church Calendar',icon: Calendar,      desc: 'Upcoming programs, registration & QR check-in' },
+  { key: 'fellowship',    label: 'Cell Fellowship / Centers',icon: MapPin,       desc: 'Home fellowship cells and neighborhood centers' },
+  { key: 'groups',        label: 'Ministries & Units',      icon: Users,         desc: 'Choir, ushering, youth and department groups' },
+  { key: 'counseling',    label: 'Pastoral Counseling',     icon: MessageCircle, desc: 'Confidential appointment booking with ministers' },
+  { key: 'welfare',       label: 'Welfare & Benevolence',   icon: Heart,         desc: 'Emergency assistance requests and welfare packages' },
+  { key: 'prayer',        label: 'Prayer Requests',         icon: HeartHandshake,desc: 'Submit private or church-wide prayer petitions' },
 ];
 
 function TabButton({ tab, active, onClick }) {
@@ -44,6 +83,53 @@ export default function Settings() {
   const [testing, setTesting] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Visual Theme & Branding State
+  const [theme, setTheme] = useState({
+    primaryColor: '#1d4ed8',
+    accentColor: '#3b82f6',
+    fontFamily: 'Inter',
+    presetName: 'Royal Sapphire',
+  });
+
+  // Worship & Service Schedule State
+  const [services, setServices] = useState([]);
+  const [serviceModal, setServiceModal] = useState({ open: false, index: null, data: { name: '', day: 'Sunday', time: '', venue: '' } });
+
+  // Member Portal Digital Experience State
+  const [portalConfig, setPortalConfig] = useState({
+    welcomeTitle: 'Welcome to your digital church family',
+    welcomeMessage: 'We are delighted to have you connect, grow, and fellowship with us.',
+    bannerNotice: '',
+    bannerNoticeActive: false,
+    enabledModules: {
+      devotionals: true,
+      discipleship: true,
+      announcements: true,
+      media: true,
+      birthdays: true,
+      giving: true,
+      events: true,
+      fellowship: true,
+      groups: true,
+      counseling: true,
+      welfare: true,
+      prayer: true,
+    }
+  });
+
+  // Public Connect & Forms Customization State
+  const [publicConnect, setPublicConnect] = useState({
+    firstTimerGreeting: 'Welcome Home! We are blessed and honored to have you worship with us today.',
+    firstTimerThankYou: 'Thank you for connecting with our church family. A minister will reach out to bless you this week!',
+    givingScripture: 'Each of you should give what you have decided in your heart to give, not reluctantly or under compulsion, for God loves a cheerful giver.',
+    givingVerse: '2 Corinthians 9:7',
+    prayerGreeting: 'The prayer of a righteous person is powerful and effective. Share your prayer burdens with our pastoral intercession team.',
+  });
+
+  // Church Core Values State
+  const [coreValues, setCoreValues] = useState(['Faith', 'Love', 'Excellence', 'Integrity', 'Community', 'Discipleship']);
+  const [newValueInput, setNewValueInput] = useState('');
 
   // Pastors management state
   const [pastorModal, setPastorModal] = useState({ open: false, index: null, data: {} });
@@ -76,6 +162,51 @@ export default function Settings() {
       twoFactorAPI.getStatus().catch(() => ({ data: { data: { twoFactorEnabled: false } } })),
     ]).then(([churchRes, statsRes, msgRes, twoFaRes]) => {
       const c = churchRes.data.data;
+      const s = c.settings || {};
+      const th = s.theme || {};
+      setTheme({
+        primaryColor: th.primaryColor || '#1d4ed8',
+        accentColor: th.accentColor || '#3b82f6',
+        fontFamily: th.fontFamily || 'Inter',
+        presetName: th.presetName || 'Royal Sapphire',
+      });
+      const pt = s.portal || {};
+      setPortalConfig({
+        welcomeTitle: pt.welcomeTitle || 'Welcome to your digital church family',
+        welcomeMessage: pt.welcomeMessage || 'We are delighted to have you connect, grow, and fellowship with us.',
+        bannerNotice: pt.bannerNotice || '',
+        bannerNoticeActive: Boolean(pt.bannerNoticeActive),
+        enabledModules: {
+          devotionals: pt.enabledModules?.devotionals ?? true,
+          discipleship: pt.enabledModules?.discipleship ?? true,
+          announcements: pt.enabledModules?.announcements ?? true,
+          media: pt.enabledModules?.media ?? true,
+          birthdays: pt.enabledModules?.birthdays ?? true,
+          giving: pt.enabledModules?.giving ?? true,
+          events: pt.enabledModules?.events ?? true,
+          fellowship: pt.enabledModules?.fellowship ?? true,
+          groups: pt.enabledModules?.groups ?? true,
+          counseling: pt.enabledModules?.counseling ?? true,
+          welfare: pt.enabledModules?.welfare ?? true,
+          prayer: pt.enabledModules?.prayer ?? true,
+        }
+      });
+      setServices(Array.isArray(s.serviceSchedule) && s.serviceSchedule.length > 0 ? s.serviceSchedule : [
+        { id: '1', name: 'Sunday 1st Service', day: 'Sunday', time: '08:00 AM - 10:00 AM', venue: 'Main Auditorium & Online' },
+        { id: '2', name: 'Sunday 2nd Service', day: 'Sunday', time: '10:15 AM - 12:15 PM', venue: 'Main Auditorium' },
+        { id: '3', name: 'Midweek Bible Study', day: 'Wednesday', time: '06:00 PM - 07:30 PM', venue: 'Chapel of Grace' },
+      ]);
+      setPublicConnect(s.publicConnect || {
+        firstTimerGreeting: 'Welcome Home! We are blessed and honored to have you worship with us today.',
+        firstTimerThankYou: 'Thank you for connecting with our church family. A minister will reach out to bless you this week!',
+        givingScripture: 'Each of you should give what you have decided in your heart to give, not reluctantly or under compulsion, for God loves a cheerful giver.',
+        givingVerse: '2 Corinthians 9:7',
+        prayerGreeting: 'The prayer of a righteous person is powerful and effective. Share your prayer burdens with our pastoral intercession team.',
+      });
+      if (Array.isArray(s.coreValues) && s.coreValues.length > 0) {
+        setCoreValues(s.coreValues);
+      }
+
       setChurch({
         slug: c.slug || '',
         name: c.name || '',
@@ -94,8 +225,9 @@ export default function Settings() {
         tagline: c.tagline || '',
         mission: c.mission || '',
         vision: c.vision || '',
-        socialLinks: c.social_links || { facebook: '', instagram: '', youtube: '', twitter: '' },
+        socialLinks: c.social_links || { facebook: '', instagram: '', youtube: '', twitter: '', tiktok: '', spotify: '' },
         pastors: Array.isArray(c.pastors) ? c.pastors : [],
+        settings: s,
       });
       setChurchStats(statsRes.data.data);
       setMessaging(msgRes.data.data || { email: {}, sms: {}, whatsapp: {} });
@@ -125,10 +257,50 @@ export default function Settings() {
   const setP = k => e => setProfile(f => ({ ...f, [k]: e.target.value }));
   const setPw = k => e => setPasswords(f => ({ ...f, [k]: e.target.value }));
 
+  const saveCustomization = async (updatedSettingsPatch, successMsg) => {
+    setSaving(true);
+    try {
+      const payload = {
+        ...church,
+        settings: {
+          theme,
+          portal: portalConfig,
+          serviceSchedule: services,
+          publicConnect,
+          coreValues,
+          ...updatedSettingsPatch
+        }
+      };
+      await api.put('/settings/church', payload);
+      setChurch(prev => ({
+        ...prev,
+        settings: {
+          ...(prev.settings || {}),
+          ...updatedSettingsPatch
+        }
+      }));
+      toast.success(successMsg || 'Customization saved successfully!');
+    } catch {
+      toast.error('Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveChurch = async (customChurchObj) => {
     setSaving(true);
     try {
-      const payload = customChurchObj || church;
+      const payload = {
+        ...(customChurchObj || church),
+        settings: {
+          ...(church.settings || {}),
+          theme,
+          portal: portalConfig,
+          serviceSchedule: services,
+          publicConnect,
+          coreValues,
+        }
+      };
       await api.put('/settings/church', payload);
       toast.success('Church profile & branding saved!');
     } catch {
@@ -228,6 +400,45 @@ export default function Settings() {
     const updated = { ...church, pastors: currentPastors };
     setChurch(updated);
     saveChurch(updated);
+  };
+
+  // Service Schedule Handlers
+  const handleSaveService = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!serviceModal.data.name?.trim()) return toast.error('Service name is required');
+    if (!serviceModal.data.time?.trim()) return toast.error('Service time is required');
+    let updated;
+    if (serviceModal.index !== null) {
+      updated = [...services];
+      updated[serviceModal.index] = { ...serviceModal.data };
+    } else {
+      updated = [...services, { ...serviceModal.data, id: String(Date.now()) }];
+    }
+    setServices(updated);
+    saveCustomization({ serviceSchedule: updated }, 'Worship schedule updated!');
+    setServiceModal({ open: false, index: null, data: { name: '', day: 'Sunday', time: '', venue: '' } });
+  };
+
+  const handleDeleteService = (idx) => {
+    if (!window.confirm('Remove this service from schedule?')) return;
+    const updated = services.filter((_, i) => i !== idx);
+    setServices(updated);
+    saveCustomization({ serviceSchedule: updated }, 'Service removed');
+  };
+
+  // Core Values Handlers
+  const handleAddCoreValue = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const val = newValueInput.trim();
+    if (!val) return;
+    if (coreValues.includes(val)) return toast.error('Value already added');
+    const updated = [...coreValues, val];
+    setCoreValues(updated);
+    setNewValueInput('');
+  };
+
+  const handleRemoveCoreValue = (idx) => {
+    setCoreValues(coreValues.filter((_, i) => i !== idx));
   };
 
   const savePaymentSettings = async () => {
@@ -399,7 +610,7 @@ export default function Settings() {
               </div>
 
               {/* General Church Profile Details */}
-              <div className="pt-4 border-t border-gray-100">
+              <div className="pt-2">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3">General Information</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
@@ -414,15 +625,19 @@ export default function Settings() {
                     </select>
                   </div>
                   <div>
+                    <label className="label">Year Founded</label>
+                    <input type="number" className="input" placeholder="e.g. 2005" value={church.foundedYear || ''} onChange={setC('foundedYear')} />
+                  </div>
+                  <div>
                     <label className="label">Official Phone</label>
                     <input className="input" value={church.phone || ''} onChange={setC('phone')} />
                   </div>
-                  <div className="col-span-2">
+                  <div>
                     <label className="label">Official Email</label>
                     <input type="email" className="input" value={church.email || ''} onChange={setC('email')} />
                   </div>
                   <div className="col-span-2">
-                    <label className="label">Website</label>
+                    <label className="label">Official Website</label>
                     <input type="url" className="input" placeholder="https://mychurch.org" value={church.website || ''} onChange={setC('website')} />
                   </div>
                   <div className="col-span-2">
@@ -444,7 +659,7 @@ export default function Settings() {
                     </select>
                   </div>
                   <div>
-                    <label className="label">Currency</label>
+                    <label className="label">Operating Currency</label>
                     <select className="input" value={church.currency || 'NGN'} onChange={setC('currency')}>
                       {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
@@ -452,10 +667,57 @@ export default function Settings() {
                 </div>
               </div>
 
+              {/* Mission & Vision */}
+              <div className="pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3">Mission & Vision</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Mission Statement</label>
+                    <textarea className="input min-h-[90px]" placeholder="To preach the gospel of grace..." value={church.mission || ''} onChange={setC('mission')} />
+                  </div>
+                  <div>
+                    <label className="label">Vision Statement</label>
+                    <textarea className="input min-h-[90px]" placeholder="To raise passionate disciples..." value={church.vision || ''} onChange={setC('vision')} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Core Values */}
+              <div className="pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-2 flex items-center gap-2">
+                  <Tag size={16} /> Church Core Values & Pillars
+                </h3>
+                <p className="text-xs text-gray-400 mb-3">Define the spiritual pillars and cultural values of your ministry</p>
+                
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {coreValues.map((val, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 border border-brand-200">
+                      {val}
+                      <button type="button" onClick={() => handleRemoveCoreValue(idx)} className="hover:text-red-600 transition">
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 max-w-md">
+                  <input
+                    className="input text-xs"
+                    placeholder="Add core value (e.g. Excellence, Grace, Prayer)..."
+                    value={newValueInput}
+                    onChange={e => setNewValueInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCoreValue(e); } }}
+                  />
+                  <button type="button" onClick={handleAddCoreValue} className="btn-secondary px-3 text-xs shrink-0">
+                    <Plus size={14} /> Add
+                  </button>
+                </div>
+              </div>
+
               {/* Social Media Links */}
               <div className="pt-4 border-t border-gray-100">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3 flex items-center gap-2">
-                  <Globe size={16} /> Social Media Channels
+                  <Globe size={16} /> Social Media & Streaming Channels
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -467,19 +729,529 @@ export default function Settings() {
                     <input className="input" placeholder="https://instagram.com/mychurch" value={church.socialLinks?.instagram || ''} onChange={setSocial('instagram')} />
                   </div>
                   <div>
-                    <label className="label">YouTube Channel</label>
+                    <label className="label">YouTube Channel / Livestream</label>
                     <input className="input" placeholder="https://youtube.com/@mychurch" value={church.socialLinks?.youtube || ''} onChange={setSocial('youtube')} />
                   </div>
                   <div>
                     <label className="label">Twitter / X Profile</label>
                     <input className="input" placeholder="https://x.com/mychurch" value={church.socialLinks?.twitter || ''} onChange={setSocial('twitter')} />
                   </div>
+                  <div>
+                    <label className="label">TikTok Account</label>
+                    <input className="input" placeholder="https://tiktok.com/@mychurch" value={church.socialLinks?.tiktok || ''} onChange={setSocial('tiktok')} />
+                  </div>
+                  <div>
+                    <label className="label">Spotify / Podcast Link</label>
+                    <input className="input" placeholder="https://open.spotify.com/show/..." value={church.socialLinks?.spotify || ''} onChange={setSocial('spotify')} />
+                  </div>
                 </div>
               </div>
 
               <div className="flex justify-end pt-3">
                 <button onClick={() => saveChurch()} disabled={saving} className="btn-primary">
-                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Church Branding
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Church Profile
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: VISUAL THEME & COLORS */}
+          {activeTab === 'theme' && (
+            <div className="card space-y-6">
+              <div>
+                <h2 className="font-display font-bold text-gray-900 text-lg flex items-center gap-2">
+                  <Palette size={20} className="text-brand-600" /> Visual Theme, Brand Colors & Typography
+                </h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  Customize the visual identity of ChurchOS for your church. Changes automatically reflect across the Member Portal, public registration forms, and church banners.
+                </p>
+              </div>
+
+              {/* Real-time Interactive Live Mockup Card */}
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5"><Eye size={14} /> Live Branding Preview</span>
+                  <span className="text-gray-400 font-normal">How your members see your church</span>
+                </div>
+                <div className="relative rounded-2xl overflow-hidden border border-gray-200 text-white shadow-md transition-all duration-300"
+                  style={{
+                    backgroundColor: theme.primaryColor,
+                    backgroundImage: `linear-gradient(135deg, ${theme.primaryColor} 0%, #090d16 100%)`,
+                    fontFamily: theme.fontFamily
+                  }}
+                >
+                  {church.bannerUrl && (
+                    <img src={church.bannerUrl} alt="Cover" className="absolute inset-0 w-full h-full object-cover opacity-30 filter blur-[0.5px]" />
+                  )}
+                  <div className="relative z-10 p-6 sm:p-7 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      {church.logoUrl ? (
+                        <img src={church.logoUrl} alt="Logo" className="w-16 h-16 rounded-2xl bg-white p-1 object-contain border-2 border-white/40 shadow-md" />
+                      ) : (
+                        <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-3xl border border-white/30">⛪</div>
+                      )}
+                      <div>
+                        <div className="text-xs uppercase tracking-wider font-semibold opacity-80">Welcome to</div>
+                        <h3 className="text-2xl font-bold tracking-tight drop-shadow-sm">{church.name || 'Your Church Name'}</h3>
+                        <p className="text-sm opacity-90 italic mt-0.5">{church.tagline || 'Add your church tagline or slogan'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm transition-transform"
+                        style={{ backgroundColor: theme.accentColor }}
+                      >
+                        Give Online Now
+                      </span>
+                      <span className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/15 backdrop-blur-md border border-white/25 text-white">
+                        Worship With Us
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Curated Theme Presets */}
+              <div className="pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-2 flex items-center gap-2">
+                  <Sparkles size={16} className="text-brand-600" /> Curated Church Brand Presets
+                </h3>
+                <p className="text-xs text-gray-500 mb-4">Click any preset to instantly apply harmonious brand colors:</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {THEME_PRESETS.map((p) => {
+                    const isSelected = theme.primaryColor === p.primary;
+                    return (
+                      <button
+                        key={p.name}
+                        type="button"
+                        onClick={() => setTheme(t => ({ ...t, primaryColor: p.primary, accentColor: p.accent, presetName: p.name }))}
+                        className={`p-3 rounded-xl border text-left transition-all relative ${
+                          isSelected
+                            ? 'border-brand-600 ring-2 ring-brand-500/20 bg-brand-50/20 shadow-sm'
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="w-5 h-5 rounded-full shadow-xs border border-white" style={{ backgroundColor: p.primary }} />
+                          <span className="w-5 h-5 rounded-full shadow-xs border border-white" style={{ backgroundColor: p.accent }} />
+                          {isSelected && <Check size={14} className="text-brand-600 ml-auto" />}
+                        </div>
+                        <div className="font-bold text-gray-900 text-xs truncate">{p.name}</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{p.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Hex Color Controls */}
+              <div className="pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3 flex items-center gap-2">
+                  <Sliders size={16} /> Custom Color Palette (Hex Codes)
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Primary Brand Color</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={theme.primaryColor}
+                        onChange={e => setTheme(t => ({ ...t, primaryColor: e.target.value, presetName: 'Custom' }))}
+                        className="w-10 h-10 rounded-xl cursor-pointer border border-gray-200 p-0.5 bg-white shrink-0"
+                      />
+                      <input
+                        className="input font-mono uppercase text-sm"
+                        value={theme.primaryColor}
+                        onChange={e => setTheme(t => ({ ...t, primaryColor: e.target.value, presetName: 'Custom' }))}
+                        placeholder="#1D4ED8"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">Used for main headers, banners, and primary church buttons</p>
+                  </div>
+
+                  <div>
+                    <label className="label">Secondary / Accent Color</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={theme.accentColor}
+                        onChange={e => setTheme(t => ({ ...t, accentColor: e.target.value }))}
+                        className="w-10 h-10 rounded-xl cursor-pointer border border-gray-200 p-0.5 bg-white shrink-0"
+                      />
+                      <input
+                        className="input font-mono uppercase text-sm"
+                        value={theme.accentColor}
+                        onChange={e => setTheme(t => ({ ...t, accentColor: e.target.value }))}
+                        placeholder="#3B82F6"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">Used for highlights, giving call-to-actions, and active pills</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Typography */}
+              <div className="pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3">Font & Typography Style</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  {FONT_OPTIONS.map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setTheme(t => ({ ...t, fontFamily: f.id }))}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        theme.fontFamily === f.id
+                          ? 'border-brand-600 ring-2 ring-brand-500/20 bg-brand-50/20'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <div className="font-bold text-gray-900 text-sm">{f.id}</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">{f.name}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Logo & Banner URLs */}
+              <div className="pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3">Graphics & Cover Visuals</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Church Logo Image URL</label>
+                    <input className="input" placeholder="https://mychurch.org/logo.png" value={church.logoUrl || ''} onChange={setC('logoUrl')} />
+                    <p className="text-xs text-gray-400 mt-1">Square or transparent PNG recommended for high clarity</p>
+                  </div>
+                  <div>
+                    <label className="label">Church Header Banner Photo URL</label>
+                    <input className="input" placeholder="https://images.unsplash.com/... or uploaded photo" value={church.bannerUrl || ''} onChange={setC('bannerUrl')} />
+                    <p className="text-xs text-gray-400 mt-1">Landscape photo of your auditorium or congregation (16:9 ratio)</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="label">Church Tagline / Motto</label>
+                    <input className="input" placeholder="Transforming Lives, Impacting Nations" value={church.tagline || ''} onChange={setC('tagline')} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-3">
+                <button
+                  onClick={() => saveCustomization({ theme }, 'Visual theme & brand colors saved!')}
+                  disabled={saving}
+                  className="btn-primary"
+                >
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Visual Theme
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: SERVICE TIMES & WORSHIP SCHEDULE */}
+          {activeTab === 'services' && (
+            <div className="card space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-display font-bold text-gray-900 text-lg flex items-center gap-2">
+                    <Clock size={20} className="text-brand-600" /> Weekly Service Times & Worship Schedule
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Publish your regular Sunday services, midweek gatherings, and prayer vigils. These appear on the Member Portal, public connect pages, and event reminders.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setServiceModal({ open: true, index: null, data: { name: '', day: 'Sunday', time: '09:00 AM - 11:30 AM', venue: 'Main Auditorium & Online' } })}
+                  className="btn-primary"
+                >
+                  <Plus size={15} /> Add Service Time
+                </button>
+              </div>
+
+              {services.length === 0 ? (
+                <div className="text-center py-12 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/50">
+                  <Clock size={36} className="mx-auto text-gray-300 mb-2" />
+                  <p className="text-gray-600 font-semibold">No regular service times added</p>
+                  <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">Add your Sunday services, midweek bible study, or youth fellowships so members and visitors know when to join.</p>
+                  <button
+                    onClick={() => setServiceModal({ open: true, index: null, data: { name: 'Sunday Celebration Service', day: 'Sunday', time: '09:00 AM - 11:30 AM', venue: 'Main Auditorium' } })}
+                    className="btn-primary mt-4 inline-flex"
+                  >
+                    <Plus size={14} /> Add First Service
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {services.map((s, idx) => (
+                    <div key={idx} className="p-4 rounded-xl border border-gray-200/80 bg-white hover:shadow-sm transition-shadow flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-brand-50 text-brand-700">
+                            {s.day}
+                          </span>
+                          <span className="text-xs font-semibold text-gray-500">
+                            🕒 {s.time}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-gray-900 text-sm truncate">{s.name}</h4>
+                        {s.venue && <p className="text-xs text-gray-500 mt-0.5 truncate">📍 {s.venue}</p>}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => setServiceModal({ open: true, index: idx, data: { ...s } })}
+                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-brand-600 transition"
+                          title="Edit Service"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteService(idx)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition"
+                          title="Remove Service"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: MEMBER PORTAL DIGITAL EXPERIENCE */}
+          {activeTab === 'portal' && (
+            <div className="card space-y-6">
+              <div>
+                <h2 className="font-display font-bold text-gray-900 text-lg flex items-center gap-2">
+                  <LayoutDashboard size={20} className="text-brand-600" /> Member Portal Experience & Feature Toggles
+                </h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  Control what members see and interact with when they log into their member portal. Turn off features you don't use or customize the welcome experience.
+                </p>
+              </div>
+
+              {/* Welcome Headline & Pastor's Greeting */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Portal Welcome Headline</label>
+                    <input
+                      className="input"
+                      placeholder="Welcome to your digital church family"
+                      value={portalConfig.welcomeTitle || ''}
+                      onChange={e => setPortalConfig(p => ({ ...p, welcomeTitle: e.target.value }))}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Displayed at the top of the member home page</p>
+                  </div>
+                  <div>
+                    <label className="label">Welcome Subtitle / Pastor's Welcome Quote</label>
+                    <input
+                      className="input"
+                      placeholder="We are delighted to have you connect, grow, and fellowship with us."
+                      value={portalConfig.welcomeMessage || ''}
+                      onChange={e => setPortalConfig(p => ({ ...p, welcomeMessage: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Pinned Urgent Alert / Broadcast Banner */}
+                <div className="p-4 rounded-xl border border-amber-200/80 bg-amber-50/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bell size={16} className="text-amber-600" />
+                      <span className="font-bold text-gray-900 text-sm">Pinned Portal Notice Banner</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPortalConfig(p => ({ ...p, bannerNoticeActive: !p.bannerNoticeActive }))}
+                      className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full transition ${
+                        portalConfig.bannerNoticeActive ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-600'
+                      }`}
+                    >
+                      {portalConfig.bannerNoticeActive ? 'Active on Portal' : 'Disabled'}
+                    </button>
+                  </div>
+                  <div>
+                    <label className="label text-xs">Pinned Announcement Text</label>
+                    <input
+                      className="input text-xs"
+                      placeholder="e.g., Annual Leadership Retreat registration closes this Friday! Contact the church office."
+                      value={portalConfig.bannerNotice || ''}
+                      onChange={e => setPortalConfig(p => ({ ...p, bannerNotice: e.target.value }))}
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1">When active, this banner appears at the top of every member's portal dashboard</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Module Visibility Controls */}
+              <div className="pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                      <Sliders size={16} /> Member Portal Module Matrix (12 Modules)
+                    </h3>
+                    <p className="text-xs text-gray-400">Toggle modules ON/OFF depending on your church's programs and structure</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {PORTAL_MODULES.map(({ key, label, icon: Icon, desc }) => {
+                    const isEnabled = portalConfig.enabledModules?.[key] !== false;
+                    return (
+                      <div
+                        key={key}
+                        onClick={() => setPortalConfig(p => ({
+                          ...p,
+                          enabledModules: {
+                            ...p.enabledModules,
+                            [key]: !isEnabled
+                          }
+                        }))}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                          isEnabled
+                            ? 'border-brand-200 bg-brand-50/20 shadow-xs'
+                            : 'border-gray-200 bg-gray-50/40 opacity-60'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                          isEnabled ? 'bg-brand-100 text-brand-700' : 'bg-gray-200 text-gray-500'
+                        }`}>
+                          <Icon size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-gray-900 text-xs truncate">{label}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              isEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
+                            }`}>
+                              {isEnabled ? 'Enabled' : 'Hidden'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-1">{desc}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-3">
+                <button
+                  onClick={() => saveCustomization({ portal: portalConfig }, 'Member portal experience saved!')}
+                  disabled={saving}
+                  className="btn-primary"
+                >
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Portal Experience
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: PUBLIC CONNECT & INTAKE FORMS */}
+          {activeTab === 'public' && (
+            <div className="card space-y-6">
+              <div>
+                <h2 className="font-display font-bold text-gray-900 text-lg flex items-center gap-2">
+                  <Globe size={20} className="text-brand-600" /> Public Connect & Visitor Form Customization
+                </h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  Customize the greetings, scriptures, and thank-you notes visitors see when filling out connection forms or giving online.
+                </p>
+              </div>
+
+              {/* First-Timers Connect Form */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-brand-600 flex items-center gap-2">
+                  <UserPlus size={16} /> First-Timers & New Visitors Intake Form
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="label">Visitor Welcome Headline</label>
+                    <input
+                      className="input"
+                      value={publicConnect.firstTimerGreeting || ''}
+                      onChange={e => setPublicConnect(p => ({ ...p, firstTimerGreeting: e.target.value }))}
+                      placeholder="Welcome Home! We are blessed and honored to have you worship with us today."
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="label">Post-Submission Thank-You / Follow-Up Note</label>
+                    <textarea
+                      className="input min-h-[80px]"
+                      value={publicConnect.firstTimerThankYou || ''}
+                      onChange={e => setPublicConnect(p => ({ ...p, firstTimerThankYou: e.target.value }))}
+                      placeholder="Thank you for connecting with our church family. A minister will reach out to bless you this week!"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Shown to the first-timer on screen immediately after submitting the form</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Public Giving Page Customization */}
+              <div className="pt-4 border-t border-gray-100 space-y-4">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 flex items-center gap-2">
+                  <CreditCard size={16} /> Online Giving Page Scripture & Encouragement
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Scripture Reference</label>
+                    <input
+                      className="input"
+                      value={publicConnect.givingVerse || ''}
+                      onChange={e => setPublicConnect(p => ({ ...p, givingVerse: e.target.value }))}
+                      placeholder="2 Corinthians 9:7"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Public Giving Link</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        className="input text-xs bg-gray-50"
+                        readOnly
+                        value={`${window.location.origin}/give/${church.slug || ''}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopyGivingLink}
+                        className="btn-secondary px-3 shrink-0"
+                      >
+                        {copiedLink ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="label">Giving Scripture Passage Text</label>
+                    <textarea
+                      className="input min-h-[80px]"
+                      value={publicConnect.givingScripture || ''}
+                      onChange={e => setPublicConnect(p => ({ ...p, givingScripture: e.target.value }))}
+                      placeholder="Each of you should give what you have decided in your heart to give, not reluctantly or under compulsion, for God loves a cheerful giver."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Public Prayer Request Form */}
+              <div className="pt-4 border-t border-gray-100 space-y-4">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-rose-600 flex items-center gap-2">
+                  <HeartHandshake size={16} /> Prayer Request Page Encouragement
+                </h3>
+                <div>
+                  <label className="label">Pastoral Prayer Encouragement Note</label>
+                  <textarea
+                    className="input min-h-[80px]"
+                    value={publicConnect.prayerGreeting || ''}
+                    onChange={e => setPublicConnect(p => ({ ...p, prayerGreeting: e.target.value }))}
+                    placeholder="The prayer of a righteous person is powerful and effective. Share your prayer burdens with our pastoral intercession team."
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-3">
+                <button
+                  onClick={() => saveCustomization({ publicConnect }, 'Public connect & forms customization saved!')}
+                  disabled={saving}
+                  className="btn-primary"
+                >
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Public Connect Settings
                 </button>
               </div>
             </div>
@@ -1221,6 +1993,45 @@ export default function Settings() {
             <textarea className="input min-h-[80px]" placeholder="Serving as Lead Pastor since 2018..." value={pastorModal.data.bio || ''} onChange={e => setPastorModal(m => ({ ...m, data: { ...m.data, bio: e.target.value } }))} />
           </div>
         </div>
+      </Modal>
+
+      {/* Add / Edit Worship Service Modal */}
+      <Modal
+        open={serviceModal.open}
+        onClose={() => setServiceModal({ open: false, index: null, data: { name: '', day: 'Sunday', time: '', venue: '' } })}
+        title={serviceModal.index !== null ? 'Edit Worship Service' : 'Add Worship Service'}
+        size="md"
+        footer={
+          <>
+            <button onClick={() => setServiceModal({ open: false, index: null, data: { name: '', day: 'Sunday', time: '', venue: '' } })} className="btn-secondary">Cancel</button>
+            <button onClick={handleSaveService} className="btn-primary">Save Service</button>
+          </>
+        }
+      >
+        <form onSubmit={handleSaveService} className="space-y-3">
+          <div>
+            <label className="label">Service Name *</label>
+            <input className="input" placeholder="Sunday Celebration Service, Midweek Bible Study..." value={serviceModal.data.name || ''} onChange={e => setServiceModal(m => ({ ...m, data: { ...m.data, name: e.target.value } }))} autoFocus />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Day of the Week *</label>
+              <select className="input" value={serviceModal.data.day || 'Sunday'} onChange={e => setServiceModal(m => ({ ...m, data: { ...m.data, day: e.target.value } }))}>
+                {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Service Time *</label>
+              <input className="input" placeholder="08:00 AM - 10:00 AM" value={serviceModal.data.time || ''} onChange={e => setServiceModal(m => ({ ...m, data: { ...m.data, time: e.target.value } }))} />
+            </div>
+          </div>
+          <div>
+            <label className="label">Venue / Channel</label>
+            <input className="input" placeholder="Main Auditorium & YouTube / Online" value={serviceModal.data.venue || ''} onChange={e => setServiceModal(m => ({ ...m, data: { ...m.data, venue: e.target.value } }))} />
+          </div>
+        </form>
       </Modal>
     </div>
   );

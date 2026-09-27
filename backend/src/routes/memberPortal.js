@@ -14,8 +14,23 @@ router.get('/export', c.exportMemberData);
 
 router.get('/affiliations', c.getAffiliations);
 
+// Giving (record & interactive giving)
 router.get('/giving', c.getGiving);
+router.get('/giving/options', c.getGivingOptions);
+router.post('/giving/initiate', c.initiatePortalGiving);
+
+// Events
 router.get('/events', c.getEvents);
+
+// Birthdays
+router.get('/birthdays', c.getBirthdays);
+
+// Announcements & Messages
+router.get('/announcements', c.getAnnouncements);
+
+// Media Library
+router.get('/media', c.getMediaItems);
+router.get('/media/:id', c.getMediaItem);
 
 router.get('/prayer-requests', c.listMyPrayerRequests);
 router.post('/prayer-requests', c.submitPrayerRequest);

@@ -7,11 +7,11 @@ const { handleValidationErrors } = require('../middleware/errorHandler');
 
 router.use(authenticate);
 
-router.get('/stats', c.getAssetStats);
-router.get('/', c.getAssets);
-router.get('/:id', c.getAsset);
+router.get('/stats', authorize('admin', 'pastor', 'director', 'hod'), c.getAssetStats);
+router.get('/', authorize('admin', 'pastor', 'director', 'hod'), c.getAssets);
+router.get('/:id', authorize('admin', 'pastor', 'director', 'hod'), c.getAsset);
 
-router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), [
+router.post('/', authorize('admin', 'pastor', 'director', 'hod'), [
   body('name').notEmpty().trim().escape(),
   body('category').optional().isIn(['furniture', 'musical_instrument', 'electronics', 'media', 'vehicle', 'building', 'equipment', 'general', 'other']),
   body('quantity').optional().isInt({ min: 1 }),

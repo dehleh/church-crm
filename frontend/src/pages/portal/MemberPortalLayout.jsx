@@ -1,20 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Outlet, NavLink, useNavigate, useParams, Navigate } from 'react-router-dom';
-import { Home, User, DollarSign, Calendar, HandHeart, LogOut, Loader2, Heart, MessageCircle, Users, Menu, X, MapPin, BookOpen, GraduationCap } from 'lucide-react';
+import {
+  Home, User, DollarSign, Calendar, HandHeart, LogOut, Loader2,
+  Heart, MessageCircle, Users, Menu, X, MapPin, BookOpen, GraduationCap,
+  Cake, Film, Bell
+} from 'lucide-react';
 import { memberPortalAPI } from '../../api/memberClient';
 
 const NAV = [
-  { to: 'home',         label: 'Home',                 icon: Home },
-  { to: 'devotionals',  label: 'Daily Devotionals',    icon: BookOpen },
-  { to: 'discipleship', label: 'Discipleship School',  icon: GraduationCap },
-  { to: 'fellowship',   label: 'Fellowship / Cells',   icon: MapPin },
-  { to: 'groups',       label: 'My Groups',            icon: Users },
-  { to: 'giving',       label: 'My Giving',            icon: DollarSign },
-  { to: 'events',       label: 'Events & Services',    icon: Calendar },
-  { to: 'prayer',       label: 'Prayer Requests',      icon: HandHeart },
-  { to: 'counseling',   label: 'Pastoral Counseling',  icon: MessageCircle },
-  { to: 'welfare',      label: 'Welfare Support',      icon: Heart },
-  { to: 'profile',      label: 'My Profile',           icon: User },
+  { to: 'home',          label: 'Home',                 icon: Home },
+  { to: 'devotionals',   label: 'Daily Devotionals',    icon: BookOpen,      moduleKey: 'devotionals' },
+  { to: 'discipleship',  label: 'Discipleship School',  icon: GraduationCap, moduleKey: 'discipleship' },
+  { to: 'announcements', label: 'Announcements',        icon: Bell,          moduleKey: 'announcements' },
+  { to: 'media',         label: 'Media Library',        icon: Film,          moduleKey: 'media' },
+  { to: 'birthdays',     label: 'Birthdays',            icon: Cake,          moduleKey: 'birthdays' },
+  { to: 'giving',        label: 'My Giving',            icon: DollarSign,    moduleKey: 'giving' },
+  { to: 'events',        label: 'Events & Services',    icon: Calendar,      moduleKey: 'events' },
+  { to: 'fellowship',    label: 'Fellowship / Cells',   icon: MapPin,        moduleKey: 'fellowship' },
+  { to: 'groups',        label: 'My Groups',            icon: Users,         moduleKey: 'groups' },
+  { to: 'prayer',        label: 'Prayer Requests',      icon: HandHeart,     moduleKey: 'prayer' },
+  { to: 'counseling',    label: 'Pastoral Counseling',  icon: MessageCircle, moduleKey: 'counseling' },
+  { to: 'welfare',       label: 'Welfare Support',      icon: Heart,         moduleKey: 'welfare' },
+  { to: 'profile',       label: 'My Profile',           icon: User },
 ];
 
 
@@ -51,11 +58,20 @@ export default function MemberPortalLayout() {
   };
 
   const initials = `${me.firstName?.[0] || ''}${me.lastName?.[0] || ''}`.toUpperCase();
+  const churchSettings = me.churchSettings || {};
+  const enabledModules = churchSettings.portal?.enabledModules || {};
+  const primaryColor = churchSettings.theme?.primaryColor || '#1d4ed8';
+  const visibleNav = NAV.filter(it => !it.moduleKey || enabledModules[it.moduleKey] !== false);
 
   const SidebarBody = () => (
     <>
-      <div className="p-5 bg-gradient-to-br from-brand-700 to-brand-900 text-white">
-        <div className="text-[10px] uppercase tracking-widest text-brand-200 font-semibold">Member Portal</div>
+      <div
+        className="p-5 text-white shadow-inner"
+        style={{
+          background: `linear-gradient(135deg, ${primaryColor} 0%, #090d16 100%)`
+        }}
+      >
+        <div className="text-[10px] uppercase tracking-widest text-brand-200 font-semibold opacity-90">Member Portal</div>
         <div className="font-bold mt-1 truncate">{me.churchName}</div>
         <div className="flex items-center gap-3 mt-4">
           {me.profilePhotoUrl ? (
@@ -65,19 +81,19 @@ export default function MemberPortalLayout() {
           )}
           <div className="min-w-0">
             <div className="font-semibold truncate">{me.firstName} {me.lastName}</div>
-            <div className="text-xs text-brand-200 truncate">{me.memberNumber}</div>
+            <div className="text-xs text-brand-200 truncate opacity-80">{me.memberNumber}</div>
           </div>
         </div>
       </div>
       <nav className="flex-1 p-3 space-y-0.5 overflow-auto">
-        {NAV.map(({ to, label, icon: Icon }) => (
+        {visibleNav.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             onClick={() => setOpen(false)}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:bg-gray-50'
+                isActive ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'
               }`
             }
           >

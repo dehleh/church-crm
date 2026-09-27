@@ -9,45 +9,45 @@ import {
   User, KeyRound, ClipboardList, Globe, Home, BookOpen, GraduationCap
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { hasRole, getRoleTitle } from '../../utils/rbac';
 import GlobalSearch from '../ui/GlobalSearch';
 import clsx from 'clsx';
 
 const NAV = [
   { group: 'Overview', items: [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', allowedRoles: ['admin', 'pastor', 'director', 'finance', 'hod'] },
   ]},
   { group: 'People', items: [
-    { to: '/members',      icon: Users,         label: 'Members' },
-    { to: '/first-timers', icon: UserPlus,      label: 'First Timers' },
-    { to: '/departments',  icon: Building2,     label: 'Departments' },
-    { to: '/fellowship',   icon: Home,          label: 'Fellowship / Cells' },
-    { to: '/groups',       icon: Users2,        label: 'Groups' },
+    { to: '/members',      icon: Users,         label: 'Members',          allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+    { to: '/first-timers', icon: UserPlus,      label: 'First Timers',     allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+    { to: '/departments',  icon: Building2,     label: 'Departments',      allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+    { to: '/fellowship',   icon: Home,          label: 'Fellowship / Cells', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+    { to: '/groups',       icon: Users2,        label: 'Groups',           allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
   ]},
 
   { group: 'Church', items: [
-    { to: '/events',         icon: CalendarDays,   label: 'Events' },
-    { to: '/devotionals',    icon: BookOpen,       label: 'Daily Devotionals' },
-    { to: '/discipleship',   icon: GraduationCap,  label: 'Discipleship & School' },
-    { to: '/attendance',     icon: CheckSquare,    label: 'Attendance' },
-    { to: '/communications', icon: MessageSquare,  label: 'Communications' },
-    { to: '/follow-ups',     icon: PhoneCall,      label: 'Follow-ups' },
-    { to: '/prayer',         icon: HeartHandshake, label: 'Prayer' },
-    { to: '/counseling',     icon: HandHeart,      label: 'Counseling' },
-    { to: '/welfare',        icon: Heart,          label: 'Welfare' },
-    { to: '/media',          icon: Film,           label: 'Media' },
-    { to: '/assets',         icon: Package,        label: 'Inventory' },
+    { to: '/events',         icon: CalendarDays,   label: 'Events',                 allowedRoles: ['admin', 'pastor', 'director', 'hod', 'finance'] },
+    { to: '/devotionals',    icon: BookOpen,       label: 'Daily Devotionals',       allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+    { to: '/discipleship',   icon: GraduationCap,  label: 'Discipleship & School',   allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+    { to: '/attendance',     icon: CheckSquare,    label: 'Attendance',             allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+    { to: '/communications', icon: MessageSquare,  label: 'Communications',         allowedRoles: ['admin', 'pastor', 'director'] },
+    { to: '/follow-ups',     icon: PhoneCall,      label: 'Follow-ups',             allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+    { to: '/prayer',         icon: HeartHandshake, label: 'Prayer',                 allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+    { to: '/counseling',     icon: HandHeart,      label: 'Counseling',             allowedRoles: ['admin', 'pastor', 'director'] },
+    { to: '/welfare',        icon: Heart,          label: 'Welfare',                allowedRoles: ['admin', 'pastor', 'director', 'finance'] },
+    { to: '/media',          icon: Film,           label: 'Media',                  allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+    { to: '/assets',         icon: Package,        label: 'Inventory',              allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
   ]},
   { group: 'Finance', items: [
-    { to: '/finance',     icon: DollarSign,    label: 'Finance' },
-    { to: '/budgets',     icon: PiggyBank,     label: 'Budgets' },
-    { to: '/procurement', icon: ClipboardList, label: 'Procurement' },
+    { to: '/finance',     icon: DollarSign,    label: 'Finance',     allowedRoles: ['admin', 'finance'] },
+    { to: '/budgets',     icon: PiggyBank,     label: 'Budgets',     allowedRoles: ['admin', 'pastor', 'finance'] },
+    { to: '/procurement', icon: ClipboardList, label: 'Procurement', allowedRoles: ['admin', 'pastor', 'director', 'finance', 'hod'] },
   ]},
   { group: 'Admin', items: [
-    { to: '/branches', icon: GitBranch,   label: 'Branches', requiresMultiBranch: true },
-    { to: '/users',    icon: ShieldCheck, label: 'Users' },
-    { to: '/reports',  icon: BarChart2,   label: 'Reports' },
-    { to: '/settings', icon: Settings,    label: 'Settings' },
-    { to: '/platform', icon: Globe,       label: 'Platform Console', requiresSuperAdmin: true },
+    { to: '/branches', icon: GitBranch,   label: 'Branches',         allowedRoles: ['admin'], requiresMultiBranch: true },
+    { to: '/users',    icon: ShieldCheck, label: 'Users',            allowedRoles: ['admin'] },
+    { to: '/reports',  icon: BarChart2,   label: 'Reports',          allowedRoles: ['admin', 'pastor', 'director', 'finance'] },
+    { to: '/settings', icon: Settings,    label: 'Settings',         allowedRoles: ['admin'] },
   ]},
 ];
 
@@ -111,6 +111,7 @@ export default function Layout() {
             const items = group.items.filter(it => {
               if (it.requiresSuperAdmin && !user?.isSuperAdmin) return false;
               if (it.requiresMultiBranch && !user?.multiBranchEnabled && !user?.isWhitelisted) return false;
+              if (it.allowedRoles && !hasRole(user, it.allowedRoles)) return false;
               return true;
             });
             if (!items.length) return null;
@@ -150,7 +151,7 @@ export default function Layout() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-gray-800 truncate">{user?.firstName} {user?.lastName}</div>
-                <div className="text-xs text-gray-400 truncate capitalize">{user?.role?.replace('_', ' ')}</div>
+                <div className="text-xs text-gray-400 truncate">{getRoleTitle(user?.role)}</div>
               </div>
               <button onClick={handleLogout} title="Logout" className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
                 <LogOut size={15} />

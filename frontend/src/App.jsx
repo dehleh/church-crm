@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import Layout from './components/layout/Layout';
+import RoleRoute from './components/auth/RoleRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
@@ -61,6 +62,9 @@ const MemberPortalCounseling = lazy(() => import('./pages/portal/MemberPortalCou
 const MemberPortalWelfare = lazy(() => import('./pages/portal/MemberPortalWelfare'));
 const MemberPortalDevotional = lazy(() => import('./pages/portal/MemberPortalDevotional'));
 const MemberPortalDiscipleship = lazy(() => import('./pages/portal/MemberPortalDiscipleship'));
+const MemberPortalBirthdays = lazy(() => import('./pages/portal/MemberPortalBirthdays'));
+const MemberPortalAnnouncements = lazy(() => import('./pages/portal/MemberPortalAnnouncements'));
+const MemberPortalMedia = lazy(() => import('./pages/portal/MemberPortalMedia'));
 
 function PageLoader() {
   return (
@@ -139,6 +143,9 @@ export default function App() {
             <Route index element={<Navigate to="home" replace />} />
             <Route path="home" element={<L><MemberHome /></L>} />
             <Route path="profile" element={<L><MemberPortalProfile /></L>} />
+            <Route path="birthdays" element={<L><MemberPortalBirthdays /></L>} />
+            <Route path="announcements" element={<L><MemberPortalAnnouncements /></L>} />
+            <Route path="media" element={<L><MemberPortalMedia /></L>} />
             <Route path="devotionals" element={<L><MemberPortalDevotional /></L>} />
             <Route path="discipleship" element={<L><MemberPortalDiscipleship /></L>} />
             <Route path="fellowship" element={<L><MemberPortalFellowship /></L>} />
@@ -159,33 +166,33 @@ export default function App() {
 
           <Route path="/" element={<RootRoute />} />
           <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
-            <Route path="dashboard" element={<L><Dashboard /></L>} />
-            <Route path="members" element={<L><Members /></L>} />
-            <Route path="members/:id" element={<L><MemberProfile /></L>} />
-            <Route path="first-timers" element={<L><FirstTimers /></L>} />
-            <Route path="events" element={<L><Events /></L>} />
-            <Route path="events/:eventId/attendance" element={<L><Attendance /></L>} />
-            <Route path="attendance" element={<L><Attendance /></L>} />
-            <Route path="devotionals" element={<L><DailyDevotionals /></L>} />
-            <Route path="discipleship" element={<L><Discipleship /></L>} />
-            <Route path="finance" element={<L><Finance /></L>} />
-            <Route path="budgets" element={<L><Budgets /></L>} />
-            <Route path="departments" element={<L><Departments /></L>} />
-            <Route path="fellowship" element={<L><Fellowship /></L>} />
-            <Route path="groups" element={<L><Groups /></L>} />
+            <Route path="dashboard" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'finance', 'hod']}><L><Dashboard /></L></RoleRoute>} />
+            <Route path="members" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Members /></L></RoleRoute>} />
+            <Route path="members/:id" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><MemberProfile /></L></RoleRoute>} />
+            <Route path="first-timers" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><FirstTimers /></L></RoleRoute>} />
+            <Route path="events" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod', 'finance']}><L><Events /></L></RoleRoute>} />
+            <Route path="events/:eventId/attendance" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Attendance /></L></RoleRoute>} />
+            <Route path="attendance" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Attendance /></L></RoleRoute>} />
+            <Route path="devotionals" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><DailyDevotionals /></L></RoleRoute>} />
+            <Route path="discipleship" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Discipleship /></L></RoleRoute>} />
+            <Route path="finance" element={<RoleRoute allowedRoles={['admin', 'finance']}><L><Finance /></L></RoleRoute>} />
+            <Route path="budgets" element={<RoleRoute allowedRoles={['admin', 'pastor', 'finance']}><L><Budgets /></L></RoleRoute>} />
+            <Route path="departments" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Departments /></L></RoleRoute>} />
+            <Route path="fellowship" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Fellowship /></L></RoleRoute>} />
+            <Route path="groups" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Groups /></L></RoleRoute>} />
 
-            <Route path="branches" element={<L><Branches /></L>} />
-            <Route path="media" element={<L><Media /></L>} />
-            <Route path="prayer" element={<L><Prayer /></L>} />
-            <Route path="communications" element={<L><Communications /></L>} />
-            <Route path="users" element={<L><UserManagement /></L>} />
-            <Route path="reports" element={<L><Reports /></L>} />
-            <Route path="follow-ups" element={<L><FollowUps /></L>} />
-            <Route path="assets" element={<L><Assets /></L>} />
-            <Route path="counseling" element={<L><Counseling /></L>} />
-            <Route path="welfare" element={<L><Welfare /></L>} />
-            <Route path="procurement" element={<L><Procurement /></L>} />
-            <Route path="settings" element={<L><Settings /></L>} />
+            <Route path="branches" element={<RoleRoute allowedRoles={['admin']}><L><Branches /></L></RoleRoute>} />
+            <Route path="media" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Media /></L></RoleRoute>} />
+            <Route path="prayer" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Prayer /></L></RoleRoute>} />
+            <Route path="communications" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director']}><L><Communications /></L></RoleRoute>} />
+            <Route path="users" element={<RoleRoute allowedRoles={['admin']}><L><UserManagement /></L></RoleRoute>} />
+            <Route path="reports" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'finance']}><L><Reports /></L></RoleRoute>} />
+            <Route path="follow-ups" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><FollowUps /></L></RoleRoute>} />
+            <Route path="assets" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Assets /></L></RoleRoute>} />
+            <Route path="counseling" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director']}><L><Counseling /></L></RoleRoute>} />
+            <Route path="welfare" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'finance']}><L><Welfare /></L></RoleRoute>} />
+            <Route path="procurement" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'finance', 'hod']}><L><Procurement /></L></RoleRoute>} />
+            <Route path="settings" element={<RoleRoute allowedRoles={['admin']}><L><Settings /></L></RoleRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

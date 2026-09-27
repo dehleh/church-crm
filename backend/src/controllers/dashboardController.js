@@ -66,14 +66,24 @@ const getDashboard = async (req, res) => {
       )
     ]);
 
+    const userRole = req.user?.role;
+    const canViewFinance = Boolean(
+      req.user?.is_super_admin ||
+      ['head_pastor', 'admin', 'church_admin', 'pastor', 'branch_pastor', 'finance', 'accountant'].includes(userRole)
+    );
+
+    const filteredActivity = canViewFinance
+      ? recentActivity.rows
+      : recentActivity.rows.filter(a => a.type !== 'transaction');
+
     return res.json({
       success: true,
       data: {
         members: members.rows[0],
         firstTimers: firstTimers.rows[0],
         events: events.rows[0],
-        finance: finance.rows[0],
-        recentActivity: recentActivity.rows,
+        finance: canViewFinance ? finance.rows[0] : null,
+        recentActivity: filteredActivity,
         attendanceTrend: attendance.rows
       }
     });

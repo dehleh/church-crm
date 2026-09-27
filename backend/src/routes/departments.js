@@ -6,11 +6,11 @@ const { body } = require('express-validator');
 const { handleValidationErrors } = require('../middleware/errorHandler');
 
 router.use(authenticate);
-router.get('/', c.getDepartments);
-router.post('/', authorize('head_pastor', 'pastor', 'director'), [
+router.get('/', authorize('admin', 'pastor', 'director', 'hod'), c.getDepartments);
+router.post('/', authorize('admin', 'pastor', 'director'), [
   body('name').notEmpty().trim().escape(),
 ], handleValidationErrors, c.createDepartment);
-router.get('/:id/members', c.getDepartmentMembers);
+router.get('/:id/members', authorize('admin', 'pastor', 'director', 'hod'), c.getDepartmentMembers);
 router.post('/:id/members', authorize('head_pastor', 'pastor', 'director', 'hod'), [
   body('memberId').notEmpty().isUUID(),
 ], handleValidationErrors, c.addMemberToDepartment);

@@ -23,7 +23,7 @@ export default function PlatformLayout() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/platform/login');
   };
 
   return (

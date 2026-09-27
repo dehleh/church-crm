@@ -77,13 +77,36 @@ const authenticate = async (req, res, next) => {
   }
 };
 
+const ADMIN_ROLES = ['head_pastor', 'admin', 'church_admin'];
+
 const authorize = (...roles) => {
+  const allowed = roles.flat();
   return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Unauthenticated' });
+    }
     if (req.user?.is_super_admin) return next();
-    if (!roles.includes(req.user.role)) {
+
+    const userRole = req.user.role;
+
+    // Church Admin has general compound access to everything
+    if (ADMIN_ROLES.includes(userRole)) {
+      return next();
+    }
+
+    // Match exact role or standard aliases
+    const isAllowed = allowed.some((role) => {
+      if (role === userRole) return true;
+      if (role === 'admin' && ADMIN_ROLES.includes(userRole)) return true;
+      if (role === 'finance' && (userRole === 'finance' || userRole === 'accountant')) return true;
+      if (role === 'pastor' && (userRole === 'pastor' || userRole === 'branch_pastor')) return true;
+      return false;
+    });
+
+    if (!isAllowed) {
       return res.status(403).json({
         success: false,
-        message: `Role '${req.user.role}' is not authorized for this action`
+        message: `Role '${userRole}' is not authorized for this action`
       });
     }
     next();

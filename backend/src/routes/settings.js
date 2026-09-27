@@ -8,11 +8,11 @@ const { handleValidationErrors } = require('../middleware/errorHandler');
 router.use(authenticate);
 router.get('/', c.getChurchSettings);
 router.get('/stats', c.getChurchStats);
-router.get('/messaging', authorize('head_pastor', 'pastor'), c.getMessagingConfig);
-router.put('/messaging', authorize('head_pastor', 'pastor'), c.updateMessagingConfig);
-router.post('/messaging/test', authorize('head_pastor', 'pastor'), c.testMessaging);
-router.put('/church', authorize('head_pastor', 'pastor'), [
-  body('name').optional().trim().escape(),
+router.get('/messaging', authorize('admin'), c.getMessagingConfig);
+router.put('/messaging', authorize('admin'), c.updateMessagingConfig);
+router.post('/messaging/test', authorize('admin'), c.testMessaging);
+router.put('/church', authorize('admin'), [
+  body('name').optional().trim(),
 ], handleValidationErrors, c.updateChurchSettings);
 router.put('/profile', [
   body('firstName').optional().trim().escape(),

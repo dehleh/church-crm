@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const c = require('../controllers/reportsController');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 router.use(authenticate);
-router.get('/members', c.getMemberReport);
-router.get('/finance', c.getFinanceReport);
-router.get('/attendance', c.getAttendanceReport);
-router.get('/first-timers', c.getFirstTimerReport);
+router.get('/members', authorize('admin', 'pastor', 'director'), c.getMemberReport);
+router.get('/finance', authorize('admin', 'pastor', 'finance'), c.getFinanceReport);
+router.get('/attendance', authorize('admin', 'pastor', 'director', 'hod'), c.getAttendanceReport);
+router.get('/first-timers', authorize('admin', 'pastor', 'director'), c.getFirstTimerReport);
 module.exports = router;

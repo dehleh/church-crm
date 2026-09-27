@@ -22,7 +22,7 @@ router.get('/public/verify/:reference', ctrl.verifyGiving);
 router.get(
   '/transactions',
   authenticate,
-  authorize('head_pastor', 'pastor', 'director', 'hod', 'accountant'),
+  authorize('admin', 'pastor', 'finance'),
   ctrl.listGivingTransactions
 );
 

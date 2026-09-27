@@ -40,22 +40,41 @@ export default function PublicPrayerForm() {
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 className="animate-spin text-brand-600" size={28} /></div>;
   if (!meta?.church) return <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 text-center text-gray-600">This prayer form is not available.</div>;
 
+  const churchSettings = meta?.church?.settings || {};
+  const publicConnect = churchSettings.publicConnect || {};
+  const primaryColor = churchSettings.theme?.primaryColor || '#e11d48';
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-white px-4 py-10">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-rose-600 text-white flex items-center justify-center shadow-lg mb-4">
-            <HeartHandshake size={28} />
-          </div>
+          {meta.church.logoUrl ? (
+            <img
+              src={meta.church.logoUrl}
+              alt={meta.church.name}
+              className="mx-auto w-16 h-16 rounded-2xl object-contain bg-white p-1 border border-gray-200 shadow-md mb-4"
+            />
+          ) : (
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-rose-600 text-white flex items-center justify-center shadow-lg mb-4">
+              <HeartHandshake size={28} />
+            </div>
+          )}
           <h1 className="text-3xl font-display font-bold text-gray-900">{meta.church.name}</h1>
-          <p className="text-gray-600 mt-2">Prayer Request Form</p>
-          {location && <p className="text-sm text-gray-400 mt-1">{location}</p>}
+          <p className="text-gray-600 mt-2 font-medium">Prayer & Intercession Request</p>
+          {publicConnect.prayerEncouragement && (
+            <p className="text-xs sm:text-sm text-gray-500 mt-1.5 max-w-lg mx-auto italic">
+              "{publicConnect.prayerEncouragement}"
+            </p>
+          )}
+          {location && <p className="text-xs text-gray-400 mt-1">{location}</p>}
         </div>
         <div className="bg-white rounded-3xl border border-gray-100 shadow-xl p-6 md:p-8">
           {submitted ? (
             <div className="text-center py-10 space-y-3">
-              <h2 className="text-2xl font-display font-bold text-gray-900">Prayer received</h2>
-              <p className="text-gray-600">Your request is now in the prayer page for follow-up and intercession.</p>
+              <h2 className="text-2xl font-display font-bold text-gray-900">Prayer Request Received</h2>
+              <p className="text-gray-600">
+                {publicConnect.thankYouText || 'Your request is now in the hands of our pastoral and intercessory prayer ministry. Stand in faith!'}
+              </p>
               <button onClick={() => { setSubmitted(false); setForm({ requesterName: '', category: 'others', request: '', branchId: '', isAnonymous: false }); }} className="btn-secondary">Submit another request</button>
             </div>
           ) : (

@@ -9,17 +9,17 @@ router.use(authenticate);
 
 // Settings / Terminology
 router.get('/settings', ctrl.getFellowshipSettings);
-router.put('/settings', authorize('head_pastor', 'pastor', 'admin', 'branch_pastor', 'branch_admin', 'super_admin'), ctrl.updateFellowshipSettings);
+router.put('/settings', authorize('admin'), ctrl.updateFellowshipSettings);
 
 // Stats & Analytics
 router.get('/stats', ctrl.getFellowshipStats);
 
 // Zones / Districts
 router.get('/zones', ctrl.getZones);
-router.post('/zones', authorize('head_pastor', 'pastor', 'admin', 'branch_pastor', 'branch_admin', 'director', 'super_admin'), [
+router.post('/zones', authorize('admin', 'pastor', 'director'), [
   body('name').notEmpty().trim(),
 ], handleValidationErrors, ctrl.createZone);
-router.put('/zones/:id', authorize('head_pastor', 'pastor', 'admin', 'branch_pastor', 'branch_admin', 'director', 'super_admin'), ctrl.updateZone);
+router.put('/zones/:id', authorize('admin', 'pastor', 'director'), ctrl.updateZone);
 
 // Fellowship Centers
 router.get('/centers', ctrl.getCenters);

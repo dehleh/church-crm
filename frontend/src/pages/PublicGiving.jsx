@@ -253,6 +253,11 @@ export default function PublicGiving() {
             <Sparkles size={14} className="text-amber-400" />
             <span>Support the mission, ministries, and community welfare</span>
           </p>
+          {church?.settings?.publicConnect?.givingScripture && (
+            <div className="mt-4 max-w-xl mx-auto p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs sm:text-sm text-amber-200/90 italic font-medium leading-relaxed">
+              "{church.settings.publicConnect.givingScripture}"
+            </div>
+          )}
         </div>
 
         {/* Giving Card */}

@@ -6,9 +6,9 @@ const { body } = require('express-validator');
 const { handleValidationErrors } = require('../middleware/errorHandler');
 
 router.use(authenticate);
-router.get('/stats', c.getFirstTimerStats);
-router.get('/', c.getFirstTimers);
-router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), [
+router.get('/stats', authorize('admin', 'pastor', 'director', 'hod'), c.getFirstTimerStats);
+router.get('/', authorize('admin', 'pastor', 'director', 'hod'), c.getFirstTimers);
+router.post('/', authorize('admin', 'pastor', 'director', 'hod'), [
   body('firstName').notEmpty().trim().escape(),
   body('lastName').notEmpty().trim().escape(),
   body('phone').notEmpty().trim(),

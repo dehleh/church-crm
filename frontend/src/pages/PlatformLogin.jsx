@@ -107,14 +107,6 @@ export default function PlatformLogin() {
             <div className="text-xs text-slate-400">Development Company & Platform Management Portal</div>
           </div>
         </div>
-
-        <Link
-          to="/login"
-          className="text-xs font-medium text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg"
-        >
-          <ArrowLeft size={13} />
-          <span>Switch to Church Login</span>
-        </Link>
       </div>
 
       {/* Main Login Card */}

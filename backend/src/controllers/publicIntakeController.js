@@ -5,7 +5,7 @@ const { createFirstTimerRecord, createMemberRecord, ensureBranchBelongsToChurch 
 
 const getChurchBySlug = async (slug) => {
   const { rows } = await query(
-    `SELECT id, name, slug, logo_url, city, state, country, is_active
+    `SELECT id, name, slug, logo_url, banner_url, tagline, city, state, country, settings, is_active
      FROM churches
      WHERE slug = $1`,
     [slug]
@@ -64,9 +64,12 @@ const getIntakeContext = async (req, res) => {
           name: church.name,
           slug: church.slug,
           logoUrl: church.logo_url,
+          bannerUrl: church.banner_url,
+          tagline: church.tagline,
           city: church.city,
           state: church.state,
           country: church.country,
+          settings: church.settings || {},
         },
         branches,
         welfarePackages,

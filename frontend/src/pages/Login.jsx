@@ -244,23 +244,11 @@ export default function Login() {
                 </button>
               </form>
 
-              <div className="mt-6 pt-4 border-t border-gray-100 flex flex-col gap-2.5 text-center text-xs text-gray-400">
-                <div>
-                  Don't have an account?{' '}
-                  <Link to="/register" className="text-brand-600 hover:text-brand-700 font-medium">
-                    Register your church
-                  </Link>
-                </div>
-                <div className="pt-2 border-t border-gray-50 flex items-center justify-center gap-1.5">
-                  <Shield size={12} className="text-indigo-500" />
-                  <span className="text-gray-400">Platform Engineer / Super Admin?</span>
-                  <Link
-                    to="/platform/login"
-                    className="text-indigo-600 hover:text-indigo-700 font-semibold transition-colors"
-                  >
-                    Console Login →
-                  </Link>
-                </div>
+              <div className="mt-6 pt-4 border-t border-gray-100 text-center text-xs text-gray-500">
+                Don't have an account?{' '}
+                <Link to="/register" className="text-brand-600 hover:text-brand-700 font-semibold">
+                  Register your church
+                </Link>
               </div>
             </>
           )}

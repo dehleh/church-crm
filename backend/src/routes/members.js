@@ -16,9 +16,9 @@ router.use(authenticate);
  *     responses:
  *       200: { description: Member stats }
  */
-router.get('/stats', c.getMemberStats);
-router.get('/birthdays', c.getUpcomingBirthdays);
-router.post('/:id/birthday-wish', authorize('head_pastor', 'pastor', 'director', 'hod'), c.sendBirthdayWish);
+router.get('/stats', authorize('admin', 'pastor', 'director', 'hod'), c.getMemberStats);
+router.get('/birthdays', authorize('admin', 'pastor', 'director', 'hod'), c.getUpcomingBirthdays);
+router.post('/:id/birthday-wish', authorize('admin', 'pastor', 'director', 'hod'), c.sendBirthdayWish);
 
 /**
  * @swagger
@@ -55,8 +55,8 @@ router.post('/:id/birthday-wish', authorize('head_pastor', 'pastor', 'director',
  *     responses:
  *       201: { description: Member created }
  */
-router.get('/', c.getMembers);
-router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), [
+router.get('/', authorize('admin', 'pastor', 'director', 'hod'), c.getMembers);
+router.post('/', authorize('admin', 'pastor', 'director', 'hod'), [
   body('firstName').notEmpty().trim().escape(),
   body('lastName').notEmpty().trim().escape(),
   body('email').optional({ values: 'null' }).isEmail().normalizeEmail(),
@@ -90,17 +90,17 @@ router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), [
  *     responses:
  *       200: { description: Member deactivated }
  */
-router.get('/:id', c.getMember);
-router.put('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), [
+router.get('/:id', authorize('admin', 'pastor', 'director', 'hod'), c.getMember);
+router.put('/:id', authorize('admin', 'pastor', 'director', 'hod'), [
   body('firstName').optional().trim().escape(),
   body('lastName').optional().trim().escape(),
   body('email').optional({ values: 'null' }).isEmail().normalizeEmail(),
   body('gender').optional().isIn(['male', 'female']),
 ], handleValidationErrors, c.updateMember);
-router.delete('/:id', authorize('head_pastor', 'pastor'), c.deleteMember);
+router.delete('/:id', authorize('admin', 'pastor'), c.deleteMember);
 
 // CSV Import
 const csv = require('../controllers/csvImportController');
-router.post('/import', authorize('head_pastor', 'pastor', 'director', 'hod'), csv.importMembers);
+router.post('/import', authorize('admin', 'pastor', 'director', 'hod'), csv.importMembers);
 
 module.exports = router;

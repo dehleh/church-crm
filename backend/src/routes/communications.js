@@ -25,7 +25,7 @@ router.post('/upload-image', authorize('head_pastor','pastor','director','hod'),
  *     responses:
  *       200: { description: Stats }
  */
-router.get('/stats', c.getCommStats);
+router.get('/stats', authorize('admin', 'pastor', 'director', 'hod'), c.getCommStats);
 
 /**
  * @swagger
@@ -56,8 +56,8 @@ router.get('/stats', c.getCommStats);
  *     responses:
  *       201: { description: Draft created }
  */
-router.get('/', c.getCommunications);
-router.post('/', authorize('head_pastor','pastor','director','hod'), [
+router.get('/', authorize('admin', 'pastor', 'director', 'hod'), c.getCommunications);
+router.post('/', authorize('admin', 'pastor', 'director', 'hod'), [
   body('title').notEmpty().trim().escape(),
   body('body').notEmpty(),
   body('channel').notEmpty().isIn(['email', 'sms', 'whatsapp', 'push', 'in_app']),

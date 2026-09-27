@@ -19,7 +19,7 @@ router.use(authenticate);
  *     responses:
  *       200: { description: Financial summary }
  */
-router.get('/summary', c.getFinanceSummary);
+router.get('/summary', authorize('admin', 'pastor', 'finance'), c.getFinanceSummary);
 
 /**
  * @swagger
@@ -53,8 +53,8 @@ router.get('/summary', c.getFinanceSummary);
  *     responses:
  *       201: { description: Transaction created }
  */
-router.get('/transactions', c.getTransactions);
-router.post('/transactions', authorize('head_pastor', 'pastor', 'hod'), [
+router.get('/transactions', authorize('admin', 'pastor', 'finance'), c.getTransactions);
+router.post('/transactions', authorize('admin', 'finance'), [
   body('transactionType').notEmpty().isIn(['income', 'expense']),
   body('amount').isFloat({ gt: 0 }),
   body('paymentMethod').optional().isIn(['cash', 'transfer', 'card', 'cheque', 'ussd']),
@@ -74,8 +74,8 @@ router.post('/transactions', authorize('head_pastor', 'pastor', 'hod'), [
  *     responses:
  *       201: { description: Account created }
  */
-router.get('/accounts', c.getAccounts);
-router.post('/accounts', authorize('head_pastor', 'pastor'), [
+router.get('/accounts', authorize('admin', 'pastor', 'finance'), c.getAccounts);
+router.post('/accounts', authorize('admin', 'finance'), [
   body('name').notEmpty().trim().escape(),
 ], handleValidationErrors, c.createAccount);
 
@@ -88,13 +88,13 @@ router.post('/accounts', authorize('head_pastor', 'pastor'), [
  *     responses:
  *       200: { description: Category list }
  */
-router.get('/categories', c.getCategories);
-router.post('/categories', authorize('head_pastor', 'pastor', 'hod'), [
+router.get('/categories', authorize('admin', 'pastor', 'finance'), c.getCategories);
+router.post('/categories', authorize('admin', 'finance'), [
   body('name').notEmpty().trim().escape(),
 ], handleValidationErrors, c.createCategory);
 
 // CSV Import
 const csv = require('../controllers/csvImportController');
-router.post('/transactions/import', authorize('head_pastor', 'pastor', 'hod'), csv.importTransactions);
+router.post('/transactions/import', authorize('admin', 'finance'), csv.importTransactions);
 
 module.exports = router;

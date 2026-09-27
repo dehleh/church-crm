@@ -49,6 +49,7 @@ const getPublicGivingInfo = async (req, res) => {
           currency: church.currency || 'NGN',
           bankDetails,
           hasOnlinePayment: Boolean(paystackPublicKey || process.env.PAYSTACK_SECRET_KEY || true),
+          settings: church.settings || {},
         },
         categories,
         branches,

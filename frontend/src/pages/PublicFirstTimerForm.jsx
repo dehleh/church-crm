@@ -77,15 +77,32 @@ export default function PublicFirstTimerForm() {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 text-center text-gray-600">This church form is not available.</div>;
   }
 
+  const churchSettings = meta?.church?.settings || {};
+  const publicConnect = churchSettings.publicConnect || {};
+  const primaryColor = churchSettings.theme?.primaryColor || '#1d4ed8';
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-brand-50 via-white to-white px-4 py-10">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-brand-600 text-white flex items-center justify-center shadow-lg mb-4">
-            <Church size={28} />
-          </div>
+          {meta.church.logoUrl ? (
+            <img
+              src={meta.church.logoUrl}
+              alt={meta.church.name}
+              className="mx-auto w-16 h-16 rounded-2xl object-contain bg-white p-1 border border-gray-200 shadow-md mb-4"
+            />
+          ) : (
+            <div
+              className="mx-auto w-16 h-16 rounded-2xl text-white flex items-center justify-center shadow-lg mb-4"
+              style={{ backgroundColor: primaryColor }}
+            >
+              <Church size={28} />
+            </div>
+          )}
           <h1 className="text-3xl font-display font-bold text-gray-900">{meta.church.name}</h1>
-          <p className="text-gray-600 mt-2">First Timer Form</p>
+          <p className="text-gray-600 mt-2">
+            {publicConnect.visitorGreeting || 'First Timer Welcome & Connect Form'}
+          </p>
           {location && <p className="text-sm text-gray-400 mt-1">{location}</p>}
         </div>
 
@@ -93,7 +110,9 @@ export default function PublicFirstTimerForm() {
           {submitted ? (
             <div className="text-center py-10 space-y-3">
               <h2 className="text-2xl font-display font-bold text-gray-900">Submission received</h2>
-              <p className="text-gray-600">Thank you for worshipping with us. Our team can now follow up with you.</p>
+              <p className="text-gray-600">
+                {publicConnect.thankYouText || 'Thank you for worshipping with us! Our pastoral care team can now follow up with you.'}
+              </p>
               <button onClick={() => { setSubmitted(false); setForm({ firstName: '', lastName: '', phone: '', email: '', gender: '', visitDate: new Date().toISOString().slice(0, 10), dateOfBirth: '', howDidYouHear: '', address: '', branchId: '', prayerRequest: '', serviceAttended: '' }); }} className="btn-secondary">Submit another response</button>
             </div>
           ) : (

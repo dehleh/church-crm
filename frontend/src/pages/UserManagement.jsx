@@ -5,26 +5,18 @@ import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
+import { getRoleTitle, getRoleBadge, ROLE_DETAILS } from '../utils/rbac';
 
-const ROLE_BADGE = {
-  head_pastor: 'bg-red-100 text-red-700',
-  pastor: 'bg-orange-100 text-orange-700',
-  director: 'bg-purple-100 text-purple-700',
-  hod: 'bg-brand-100 text-brand-700',
-  branch_pastor: 'bg-blue-100 text-blue-700',
-  branch_admin: 'bg-cyan-100 text-cyan-700',
-  member: 'bg-gray-100 text-gray-700',
-};
-
-const ROLE_DESC = {
-  head_pastor: 'Full access to everything',
-  pastor: 'Manage members, finance, events',
-  director: 'Manage people & departments',
-  hod: 'Record members, transactions, attendance',
-  branch_pastor: 'Pastor scoped to a single branch',
-  branch_admin: 'Manage one branch (members, events, finance)',
-  member: 'Read-only access',
-};
+const ASSIGNABLE_ROLES = [
+  'admin',
+  'pastor',
+  'director',
+  'finance',
+  'hod',
+  'branch_pastor',
+  'branch_admin',
+  'member',
+];
 
 export default function UserManagement() {
   const { user: me } = useAuth();
@@ -111,11 +103,13 @@ export default function UserManagement() {
       </div>
 
       {/* Role guide */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-6">
-        {Object.entries(ROLE_DESC).map(([role, desc]) => (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-6">
+        {ASSIGNABLE_ROLES.map((role) => (
           <div key={role} className="card py-3 px-3">
-            <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${ROLE_BADGE[role]}`}>{role.replace('_', ' ')}</span>
-            <p className="text-xs text-gray-400 mt-1.5 leading-snug">{desc}</p>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full capitalize ${getRoleBadge(role)}`}>
+              {getRoleTitle(role)}
+            </span>
+            <p className="text-xs text-gray-400 mt-1.5 leading-snug">{ROLE_DETAILS[role]?.description}</p>
           </div>
         ))}
       </div>
@@ -141,8 +135,8 @@ export default function UserManagement() {
                     </div>
                   </td>
                   <td>
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full capitalize ${ROLE_BADGE[u.role] || 'bg-gray-100 text-gray-500'}`}>
-                      {u.role?.replace('_', ' ')}
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full capitalize ${getRoleBadge(u.role)}`}>
+                      {getRoleTitle(u.role)}
                     </span>
                   </td>
                   <td className="text-sm text-gray-500">{u.branch_name || 'All Branches'}</td>
@@ -185,8 +179,8 @@ export default function UserManagement() {
           <div>
             <label className="label">Role *</label>
             <select className="input" value={form.role||'hod'} onChange={set('role')}>
-              {['pastor','director','hod','branch_pastor','branch_admin','member'].map(r => (
-                <option key={r} value={r} className="capitalize">{r.replace('_',' ')} — {ROLE_DESC[r]}</option>
+              {ASSIGNABLE_ROLES.map(r => (
+                <option key={r} value={r} className="capitalize">{getRoleTitle(r)} — {ROLE_DETAILS[r]?.description}</option>
               ))}
             </select>
           </div>
@@ -213,7 +207,9 @@ export default function UserManagement() {
           <div>
             <label className="label">Role</label>
             <select className="input" value={form.role||''} onChange={set('role')}>
-              {['pastor','director','hod','branch_pastor','branch_admin','member'].map(r => <option key={r} value={r} className="capitalize">{r.replace('_',' ')}</option>)}
+              {ASSIGNABLE_ROLES.map(r => (
+                <option key={r} value={r} className="capitalize">{getRoleTitle(r)}</option>
+              ))}
             </select>
           </div>
           <div>

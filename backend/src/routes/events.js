@@ -6,9 +6,9 @@ const { body } = require('express-validator');
 const { handleValidationErrors } = require('../middleware/errorHandler');
 
 router.use(authenticate);
-router.get('/stats', c.getEventStats);
-router.get('/', c.getEvents);
-router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), [
+router.get('/stats', authorize('admin', 'pastor', 'director', 'hod', 'finance'), c.getEventStats);
+router.get('/', authorize('admin', 'pastor', 'director', 'hod', 'finance'), c.getEvents);
+router.post('/', authorize('admin', 'pastor', 'director', 'hod'), [
   body('title').notEmpty().trim().escape(),
   body().custom((value) => {
     if (!value.startDate && !value.startDatetime) {
@@ -18,11 +18,11 @@ router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), [
   }),
 ], handleValidationErrors, c.createEvent);
 
-router.put('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), [
+router.put('/:id', authorize('admin', 'pastor', 'director', 'hod'), [
   body('title').optional().trim().escape(),
 ], handleValidationErrors, c.updateEvent);
 
-router.delete('/:id', authorize('head_pastor', 'pastor', 'director'), c.deleteEvent);
+router.delete('/:id', authorize('admin', 'pastor'), c.deleteEvent);
 
 router.post('/:id/remind', authorize('head_pastor', 'pastor', 'director', 'hod'), c.triggerEventReminder);
 

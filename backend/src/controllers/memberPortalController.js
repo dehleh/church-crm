@@ -42,6 +42,7 @@ const getProfile = async (req, res) => {
       nextOfKinRelationship: m.next_of_kin_relationship,
       churchName: m.church_name,
       churchSlug: m.church_slug,
+      churchSettings: m.church_settings || {},
       joinDate: m.join_date,
     },
   });
@@ -142,7 +143,7 @@ const submitPrayerRequest = async (req, res) => {
 // GET /api/me/home — quick dashboard stats
 const getHome = async (req, res) => {
   try {
-    const [giveRes, evtRes, deptRes, grpRes, prayerRes, churchRes, devRes, discRes] = await Promise.all([
+    const [giveRes, evtRes, deptRes, grpRes, prayerRes, churchRes, devRes, discRes, annRes, bdayRes, mediaRes] = await Promise.all([
       query(
         `SELECT COALESCE(SUM(amount), 0) as ytd, COUNT(*) as count
          FROM transactions
@@ -175,7 +176,7 @@ const getHome = async (req, res) => {
         [req.member.id]
       ),
       query(
-        `SELECT name, tagline, banner_url, logo_url, mission, vision, pastors, website, phone, email
+        `SELECT name, tagline, banner_url, logo_url, mission, vision, pastors, website, phone, email, settings
          FROM churches WHERE id = $1`,
         [req.churchId]
       ),
@@ -196,6 +197,46 @@ const getHome = async (req, res) => {
          GROUP BY c.id, c.title, c.category, c.level, e.progress_percent, e.status, e.certificate_code
          ORDER BY e.updated_at DESC LIMIT 3`,
         [req.member.id, req.churchId]
+      ),
+      query(
+        `SELECT id, title, body, channel, audience, sent_at, created_at
+         FROM communications
+         WHERE church_id = $1 AND (status = 'sent' OR status = 'scheduled')
+           AND (audience = 'all' OR audience = 'members' OR audience IS NULL)
+         ORDER BY COALESCE(sent_at, created_at) DESC LIMIT 3`,
+        [req.churchId]
+      ),
+      query(
+        `SELECT id, first_name, last_name, profile_photo_url, date_of_birth,
+                EXTRACT(DAY FROM date_of_birth)::int as birth_day,
+                EXTRACT(MONTH FROM date_of_birth)::int as birth_month,
+                (
+                  MAKE_DATE(
+                    CASE 
+                      WHEN (EXTRACT(MONTH FROM date_of_birth) < EXTRACT(MONTH FROM CURRENT_DATE))
+                        OR (EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM date_of_birth) < EXTRACT(DAY FROM CURRENT_DATE))
+                      THEN EXTRACT(YEAR FROM CURRENT_DATE)::int + 1
+                      ELSE EXTRACT(YEAR FROM CURRENT_DATE)::int
+                    END,
+                    EXTRACT(MONTH FROM date_of_birth)::int,
+                    CASE 
+                      WHEN EXTRACT(MONTH FROM date_of_birth) = 2 AND EXTRACT(DAY FROM date_of_birth) = 29 THEN 28
+                      ELSE EXTRACT(DAY FROM date_of_birth)::int
+                    END
+                  ) - CURRENT_DATE
+                )::int as days_until,
+                (EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM date_of_birth) = EXTRACT(DAY FROM CURRENT_DATE)) as is_today
+         FROM members
+         WHERE church_id = $1 AND date_of_birth IS NOT NULL AND membership_status = 'active'
+         ORDER BY days_until ASC LIMIT 6`,
+        [req.churchId]
+      ),
+      query(
+        `SELECT id, title, media_type, file_url, thumbnail_url, duration_seconds, minister_name, series_name, created_at
+         FROM media_items
+         WHERE church_id = $1 AND is_published = true
+         ORDER BY created_at DESC LIMIT 3`,
+        [req.churchId]
       )
     ]);
     return res.json({
@@ -209,9 +250,13 @@ const getHome = async (req, res) => {
         openPrayers: prayerRes.rows[0]?.open || 0,
         todayDevotional: devRes.rows[0] || null,
         activeCourses: discRes.rows,
+        announcements: annRes.rows,
+        upcomingBirthdays: bdayRes.rows,
+        recentMedia: mediaRes.rows,
       },
     });
   } catch (err) {
+    logger.error('getHome error:', { error: err.message });
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
@@ -990,6 +1035,186 @@ const exportMemberData = async (req, res) => {
   }
 };
 
+// GET /api/me/birthdays — birthdays of church members
+const getBirthdays = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, first_name, last_name, profile_photo_url, date_of_birth,
+              EXTRACT(DAY FROM date_of_birth)::int as birth_day,
+              EXTRACT(MONTH FROM date_of_birth)::int as birth_month,
+              (
+                MAKE_DATE(
+                  CASE 
+                    WHEN (EXTRACT(MONTH FROM date_of_birth) < EXTRACT(MONTH FROM CURRENT_DATE))
+                      OR (EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM date_of_birth) < EXTRACT(DAY FROM CURRENT_DATE))
+                    THEN EXTRACT(YEAR FROM CURRENT_DATE)::int + 1
+                    ELSE EXTRACT(YEAR FROM CURRENT_DATE)::int
+                  END,
+                  EXTRACT(MONTH FROM date_of_birth)::int,
+                  CASE 
+                    WHEN EXTRACT(MONTH FROM date_of_birth) = 2 AND EXTRACT(DAY FROM date_of_birth) = 29 THEN 28
+                    ELSE EXTRACT(DAY FROM date_of_birth)::int
+                  END
+                ) - CURRENT_DATE
+              )::int as days_until,
+              (EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM date_of_birth) = EXTRACT(DAY FROM CURRENT_DATE)) as is_today
+       FROM members
+       WHERE church_id = $1 AND date_of_birth IS NOT NULL AND membership_status = 'active'
+       ORDER BY days_until ASC
+       LIMIT 60`,
+      [req.churchId]
+    );
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    logger.error('member getBirthdays failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/me/announcements — church announcements & broadcast messages
+const getAnnouncements = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, title, body, channel, audience, sent_at, created_at
+       FROM communications
+       WHERE church_id = $1 AND (status = 'sent' OR status = 'scheduled')
+         AND (audience = 'all' OR audience = 'members' OR audience IS NULL)
+       ORDER BY COALESCE(sent_at, created_at) DESC
+       LIMIT 50`,
+      [req.churchId]
+    );
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    logger.error('member getAnnouncements failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/me/media — access to published sermons, audio, videos
+const getMediaItems = async (req, res) => {
+  const { type, search } = req.query;
+  try {
+    let conditions = ['mi.church_id = $1', 'mi.is_published = true'];
+    let params = [req.churchId];
+    let idx = 2;
+    if (type) { conditions.push(`mi.media_type = $${idx++}`); params.push(type); }
+    if (search) {
+      conditions.push(`(mi.title ILIKE $${idx} OR mi.minister_name ILIKE $${idx} OR mi.series_name ILIKE $${idx})`);
+      params.push(`%${search}%`); idx++;
+    }
+    const where = conditions.join(' AND ');
+    const { rows } = await query(
+      `SELECT mi.*
+       FROM media_items mi
+       WHERE ${where}
+       ORDER BY mi.created_at DESC
+       LIMIT 60`,
+      params
+    );
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    logger.error('member getMediaItems failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/me/media/:id
+const getMediaItem = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await query(
+      `SELECT mi.* FROM media_items mi WHERE mi.id = $1 AND mi.church_id = $2 AND mi.is_published = true`,
+      [id, req.churchId]
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Media not found' });
+    return res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    logger.error('member getMediaItem failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/me/giving/options — categories for offering, projects, events
+const getGivingOptions = async (req, res) => {
+  try {
+    const [catRes, churchRes, evtRes] = await Promise.all([
+      query('SELECT id, name, description FROM giving_categories WHERE church_id = $1 ORDER BY name ASC', [req.churchId]),
+      query('SELECT currency, settings FROM churches WHERE id = $1', [req.churchId]),
+      query("SELECT id, title, start_datetime FROM events WHERE church_id = $1 AND status IN ('upcoming', 'ongoing') ORDER BY start_datetime ASC LIMIT 10", [req.churchId])
+    ]);
+    const church = churchRes.rows[0];
+    const settings = church?.settings || {};
+    return res.json({
+      success: true,
+      data: {
+        categories: catRes.rows,
+        events: evtRes.rows,
+        currency: church?.currency || 'NGN',
+        bankAccounts: settings.bank_accounts || settings.bankAccounts || [],
+        paystackPublicKey: settings.payment?.paystack_public_key || process.env.PAYSTACK_PUBLIC_KEY || '',
+      }
+    });
+  } catch (err) {
+    logger.error('member getGivingOptions failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// POST /api/me/giving/initiate — give for offering, projects, events
+const initiatePortalGiving = async (req, res) => {
+  const { amount, categoryId, purpose, eventId, paymentMethod = 'paystack', notes, reference: clientRef } = req.body;
+  if (!amount || Number(amount) <= 0) {
+    return res.status(400).json({ success: false, message: 'Valid amount is required' });
+  }
+  try {
+    const member = req.member;
+    const ref = clientRef || `GIV-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const desc = purpose ? `${purpose}${notes ? ` - ${notes}` : ''}` : `Giving contribution (${member.first_name} ${member.last_name})`;
+
+    const { rows } = await query(
+      `INSERT INTO transactions (
+         id, church_id, member_id, category_id, transaction_type,
+         amount, payment_method, reference, description, status, transaction_date
+       ) VALUES ($1, $2, $3, $4, 'income', $5, $6, $7, $8, 'completed', CURRENT_DATE)
+       RETURNING *`,
+      [
+        uuidv4(),
+        req.churchId,
+        member.id,
+        categoryId || null,
+        Number(amount),
+        paymentMethod,
+        ref,
+        desc
+      ]
+    );
+
+    try {
+      await query(
+        `INSERT INTO online_giving_transactions (
+           id, church_id, member_id, amount, currency, category_id,
+           giving_type, reference, status, donor_name, donor_email, donor_phone
+         ) VALUES ($1, $2, $3, $4, 'NGN', $5, $6, $7, 'success', $8, $9, $10)
+         ON CONFLICT (reference) DO NOTHING`,
+        [
+          uuidv4(), req.churchId, member.id, Number(amount), categoryId || null,
+          purpose || 'offering', ref,
+          `${member.first_name} ${member.last_name}`, member.email, member.phone
+        ]
+      );
+    } catch {}
+
+    return res.json({
+      success: true,
+      message: 'Giving recorded successfully! Thank you for supporting God’s work.',
+      data: rows[0]
+    });
+  } catch (err) {
+    logger.error('member initiatePortalGiving failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to record giving' });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -1017,6 +1242,12 @@ module.exports = {
   enrollInDiscipleshipCourse,
   completeLessonProgress,
   exportMemberData,
+  getBirthdays,
+  getAnnouncements,
+  getMediaItems,
+  getMediaItem,
+  getGivingOptions,
+  initiatePortalGiving,
 };
 
 

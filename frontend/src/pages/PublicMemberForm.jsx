@@ -94,9 +94,17 @@ export default function PublicMemberForm() {
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-white px-4 py-10">
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-lg mb-4">
-            <Church size={28} />
-          </div>
+          {meta.church.logoUrl ? (
+            <img
+              src={meta.church.logoUrl}
+              alt={meta.church.name}
+              className="mx-auto w-16 h-16 rounded-2xl object-contain bg-white p-1 border border-gray-200 shadow-md mb-4"
+            />
+          ) : (
+            <div className="mx-auto w-16 h-16 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-lg mb-4">
+              <Church size={28} />
+            </div>
+          )}
           <h1 className="text-3xl font-display font-bold text-gray-900">{meta.church.name}</h1>
           <p className="text-gray-600 mt-2">Member Registration & Membership Intake</p>
           {location && <p className="text-sm text-gray-400 mt-1">{location}</p>}

@@ -8,10 +8,10 @@ const { handleValidationErrors } = require('../middleware/errorHandler');
 router.use(authenticate);
 router.get('/', c.getBranches);
 router.get('/:id', c.getBranch);
-router.post('/', authorize('head_pastor', 'pastor'), [
+router.post('/', authorize('admin'), [
   body('name').notEmpty().trim().escape(),
 ], handleValidationErrors, c.createBranch);
-router.put('/:id', authorize('head_pastor', 'pastor'), [
+router.put('/:id', authorize('admin'), [
   body('name').optional().trim().escape(),
 ], handleValidationErrors, c.updateBranch);
 
