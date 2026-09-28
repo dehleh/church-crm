@@ -37,7 +37,7 @@ function getSmtpTransporter(cfg) {
 async function sendEmail({ to, subject, html, text }, churchSettings) {
   const cfg = churchSettings?.email || {};
   const provider = cfg.provider || (process.env.SENDGRID_API_KEY ? 'sendgrid' : 'smtp');
-  const fromEmail = cfg.fromEmail || process.env.SMTP_FROM || 'ChurchOS <noreply@churchos.app>';
+  const fromEmail = cfg.fromEmail || process.env.SMTP_FROM || 'ChurchOS <noreply@themobilemissionary.org>';
   const recipients = Array.isArray(to) ? to : [to];
 
   // ── SendGrid ──

@@ -31,29 +31,43 @@ const getPlatformStats = async (req, res) => {
         COUNT(*) FILTER (WHERE c.subscription_expires_at < NOW() AND c.is_whitelisted = false) AS expired_subscribers,
         COUNT(*) FILTER (WHERE c.is_whitelisted = true) AS whitelisted_churches,
         COUNT(DISTINCT c.id) FILTER (
-          WHERE EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= CURRENT_DATE)
+          WHERE EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.is_super_admin = false AND u.last_login_at >= CURRENT_DATE)
         ) AS logged_in_today,
         COUNT(DISTINCT c.id) FILTER (
-          WHERE EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= NOW() - INTERVAL '7 days')
+          WHERE EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.is_super_admin = false AND u.last_login_at >= NOW() - INTERVAL '7 days')
         ) AS logged_in_7d,
         COUNT(DISTINCT c.id) FILTER (
-          WHERE EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= NOW() - INTERVAL '30 days')
+          WHERE EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.is_super_admin = false AND u.last_login_at >= NOW() - INTERVAL '30 days')
         ) AS logged_in_30d,
         COUNT(DISTINCT c.id) FILTER (
-          WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at IS NOT NULL)
+          WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.is_super_admin = false AND u.last_login_at IS NOT NULL)
         ) AS never_logged_in
-      FROM churches c`),
+      FROM churches c
+      WHERE (c.is_system IS NULL OR c.is_system = false)
+        AND c.slug NOT IN ('platform-operations-system', 'platform-ops')`),
       query(`SELECT
         COUNT(*) AS total_users,
-        COUNT(*) FILTER (WHERE last_login_at >= NOW() - INTERVAL '30 days') AS active_30d
-      FROM users WHERE is_super_admin = false`),
+        COUNT(*) FILTER (WHERE u.last_login_at >= NOW() - INTERVAL '30 days') AS active_30d
+      FROM users u
+      LEFT JOIN churches c ON c.id = u.church_id
+      WHERE u.is_super_admin = false
+        AND (c.is_system IS NULL OR c.is_system = false)
+        AND (c.slug IS NULL OR c.slug NOT IN ('platform-operations-system', 'platform-ops'))`),
       query(`SELECT id, name, slug, denomination, is_active, created_at
-             FROM churches ORDER BY created_at DESC LIMIT 5`),
+             FROM churches
+             WHERE (is_system IS NULL OR is_system = false)
+               AND slug NOT IN ('platform-operations-system', 'platform-ops')
+             ORDER BY created_at DESC LIMIT 5`),
       query(`SELECT
-        (SELECT COUNT(*) FROM members)::int AS total_members,
-        (SELECT COUNT(*) FROM first_timers)::int AS total_first_timers,
-        (SELECT COUNT(*) FROM events)::int AS total_events`),
-      query(`SELECT COALESCE(SUM(amount_kobo), 0) / 100 AS total_rev FROM subscription_transactions WHERE status = 'success'`).catch(() => ({ rows: [{ total_rev: 0 }] }))
+        (SELECT COUNT(*) FROM members m JOIN churches c ON c.id = m.church_id WHERE (c.is_system IS NULL OR c.is_system = false) AND c.slug NOT IN ('platform-operations-system', 'platform-ops'))::int AS total_members,
+        (SELECT COUNT(*) FROM first_timers f JOIN churches c ON c.id = f.church_id WHERE (c.is_system IS NULL OR c.is_system = false) AND c.slug NOT IN ('platform-operations-system', 'platform-ops'))::int AS total_first_timers,
+        (SELECT COUNT(*) FROM events e JOIN churches c ON c.id = e.church_id WHERE (c.is_system IS NULL OR c.is_system = false) AND c.slug NOT IN ('platform-operations-system', 'platform-ops'))::int AS total_events`),
+      query(`SELECT COALESCE(SUM(st.amount_kobo), 0) / 100 AS total_rev
+             FROM subscription_transactions st
+             JOIN churches c ON c.id = st.church_id
+             WHERE st.status = 'success'
+               AND (c.is_system IS NULL OR c.is_system = false)
+               AND c.slug NOT IN ('platform-operations-system', 'platform-ops')`).catch(() => ({ rows: [{ total_rev: 0 }] }))
     ]);
 
     const totalRevenueNgn = Number(revResult.rows[0]?.total_rev || 0);

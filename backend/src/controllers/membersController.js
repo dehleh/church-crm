@@ -2,6 +2,7 @@ const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
 const { createMemberRecord } = require('../services/intakeService');
+const paymentService = require('../services/paymentService');
 
 // GET /api/members
 const getMembers = async (req, res) => {
@@ -350,6 +351,60 @@ const sendBirthdayWish = async (req, res) => {
   }
 };
 
+// GET /api/members/:id/virtual-account
+const getMemberVirtualAccount = async (req, res) => {
+  const { id } = req.params;
+  const churchId = req.churchId;
+  try {
+    const { rows } = await query(
+      `SELECT mva.*,
+         COALESCE((
+           SELECT SUM(amount) FROM transactions
+           WHERE member_id = mva.member_id AND payment_method = 'bank_transfer'
+         ), 0) as total_given
+       FROM member_virtual_accounts mva
+       WHERE mva.member_id = $1 AND mva.church_id = $2 AND mva.is_active = true`,
+      [id, churchId]
+    );
+    return res.json({ success: true, data: rows[0] || null });
+  } catch (err) {
+    logger.error('getMemberVirtualAccount error:', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// POST /api/members/:id/virtual-account
+const assignMemberVirtualAccount = async (req, res) => {
+  const { id } = req.params;
+  const churchId = req.churchId;
+  try {
+    const memberRes = await query(
+      `SELECT id, first_name, last_name, email, phone FROM members WHERE id = $1 AND church_id = $2`,
+      [id, churchId]
+    );
+    if (!memberRes.rows[0]) {
+      return res.status(404).json({ success: false, message: 'Member not found' });
+    }
+    const churchRes = await query(
+      `SELECT name, payment_settings FROM churches WHERE id = $1`,
+      [churchId]
+    );
+    const church = churchRes.rows[0] || {};
+
+    const account = await paymentService.assignDedicatedVirtualAccount({
+      churchId,
+      member: memberRes.rows[0],
+      churchName: church.name,
+      churchSettings: church.payment_settings,
+    });
+
+    return res.json({ success: true, data: account });
+  } catch (err) {
+    logger.error('assignMemberVirtualAccount error:', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to assign virtual bank account' });
+  }
+};
+
 module.exports = {
   getMembers,
   getMember,
@@ -358,5 +413,7 @@ module.exports = {
   deleteMember,
   getMemberStats,
   getUpcomingBirthdays,
-  sendBirthdayWish
+  sendBirthdayWish,
+  getMemberVirtualAccount,
+  assignMemberVirtualAccount
 };

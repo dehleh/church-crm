@@ -18,6 +18,8 @@ router.get('/affiliations', c.getAffiliations);
 router.get('/giving', c.getGiving);
 router.get('/giving/options', c.getGivingOptions);
 router.post('/giving/initiate', c.initiatePortalGiving);
+router.get('/giving/virtual-account', c.getMyVirtualAccount);
+router.post('/giving/virtual-account', c.generateMyVirtualAccount);
 
 // Events
 router.get('/events', c.getEvents);
@@ -58,6 +60,15 @@ router.get('/discipleship/courses/:id', c.getMyDiscipleshipCourseDetails);
 router.post('/discipleship/courses/:id/enroll', c.enrollInDiscipleshipCourse);
 router.post('/discipleship/lessons/:lessonId/complete', c.completeLessonProgress);
 
+// Push Notifications & Notification Preferences
+router.get('/push/vapid-key', c.getPushVapidKey);
+router.post('/push/subscribe', c.subscribePush);
+router.post('/push/unsubscribe', c.unsubscribePush);
+router.post('/push/test', c.sendTestPush);
+router.get('/notifications/preferences', c.getNotificationPreferences);
+router.put('/notifications/preferences', c.updateNotificationPreferences);
+
 module.exports = router;
+
 
 

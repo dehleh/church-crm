@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, User, Phone, Mail, MapPin, Briefcase, Users,
   Calendar, Heart, Edit2, CheckCircle, XCircle, Loader2,
-  Cake, Baby, Home, MessageCircle, Send, Award, Shield, UserCheck, Sparkles
+  Cake, Baby, Home, MessageCircle, Send, Award, Shield, UserCheck, Sparkles,
+  Landmark, Copy, Check, RefreshCw
 } from 'lucide-react';
 import { membersAPI, departmentsAPI, fellowshipAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
@@ -42,6 +43,44 @@ export default function MemberProfile() {
   const [saving, setSaving] = useState(false);
   const [sendingWish, setSendingWish] = useState(false);
 
+  // Dedicated Virtual Bank Account State
+  const [virtualAccount, setVirtualAccount] = useState(null);
+  const [loadingVA, setLoadingVA] = useState(false);
+  const [generatingVA, setGeneratingVA] = useState(false);
+  const [copiedVA, setCopiedVA] = useState(false);
+
+  const fetchVirtualAccount = useCallback(async () => {
+    setLoadingVA(true);
+    try {
+      const res = await membersAPI.getVirtualAccount(id);
+      setVirtualAccount(res.data.data);
+    } catch {
+      // not generated yet
+    } finally {
+      setLoadingVA(false);
+    }
+  }, [id]);
+
+  const handleGenerateVirtualAccount = async () => {
+    setGeneratingVA(true);
+    try {
+      const res = await membersAPI.generateVirtualAccount(id);
+      setVirtualAccount(res.data.data);
+      toast.success('Dedicated Virtual Bank Account assigned!');
+    } catch {
+      toast.error('Failed to assign virtual bank account');
+    } finally {
+      setGeneratingVA(false);
+    }
+  };
+
+  const copyAccountNumber = (accNo) => {
+    navigator.clipboard.writeText(accNo);
+    setCopiedVA(true);
+    toast.success('Account number copied to clipboard');
+    setTimeout(() => setCopiedVA(false), 2500);
+  };
+
   const fetchMember = async () => {
     try {
       const res = await membersAPI.get(id);
@@ -55,12 +94,13 @@ export default function MemberProfile() {
     }
   };
 
-  useEffect(() => { fetchMember(); }, [id]);
+  useEffect(() => { fetchMember(); fetchVirtualAccount(); }, [id, fetchVirtualAccount]);
   useEffect(() => {
     departmentsAPI.list().then(r => setAllDepts(r.data.data || [])).catch(() => {});
     fellowshipAPI.centers().then(r => setAllCenters(r.data.data || [])).catch(() => {});
     membersAPI.list({ designation: 'pastor', limit: 100 }).then(r => setPastors(r.data.data || [])).catch(() => {});
   }, []);
+
 
   const getInitials = (fn, ln) => `${fn?.[0]||''}${ln?.[0]||''}`.toUpperCase();
 
@@ -472,12 +512,109 @@ export default function MemberProfile() {
       )}
 
       {activeTab === 'Giving' && (
-        <div className="card text-center py-16">
-          <Heart size={40} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500 font-medium">Giving history</p>
-          <p className="text-gray-400 text-sm">Link transactions to this member to see giving history</p>
+        <div className="space-y-5">
+          {/* Dedicated Virtual Bank Account Card */}
+          <div className="p-6 bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 rounded-2xl text-white shadow-md relative overflow-hidden">
+            <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-40 h-40 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-emerald-300 flex-shrink-0">
+                  <Landmark size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-lg font-display tracking-tight">Dedicated Giving Bank Account</h3>
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/20">
+                      Auto-Reconciled
+                    </span>
+                  </div>
+                  <p className="text-emerald-200/80 text-xs mt-0.5">
+                    Personal NUBAN account for direct bank transfer tithes & kingdom investments
+                  </p>
+                </div>
+              </div>
+
+              {virtualAccount ? (
+                <button
+                  type="button"
+                  onClick={handleGenerateVirtualAccount}
+                  disabled={generatingVA}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  title="Refresh / Re-verify Virtual Account"
+                >
+                  {generatingVA ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                  <span>Re-sync Account</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleGenerateVirtualAccount}
+                  disabled={generatingVA}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-white text-emerald-900 hover:bg-emerald-50 shadow-md transition-all"
+                >
+                  {generatingVA ? <Loader2 size={15} className="animate-spin" /> : <Landmark size={15} />}
+                  <span>Generate Virtual Account</span>
+                </button>
+              )}
+            </div>
+
+            {virtualAccount ? (
+              <div className="mt-6 pt-5 border-t border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-4 relative z-10">
+                <div className="bg-white/5 rounded-xl p-3.5 border border-white/10">
+                  <span className="text-[11px] text-emerald-300 uppercase tracking-wider font-semibold block">Bank Name</span>
+                  <span className="text-base font-bold text-white mt-1 block">{virtualAccount.bank_name || 'Wema Bank'}</span>
+                </div>
+
+                <div className="bg-white/5 rounded-xl p-3.5 border border-white/10 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-emerald-300 uppercase tracking-wider font-semibold block">NUBAN Account Number</span>
+                    <span className="text-xl font-mono font-bold text-white mt-1 tracking-wider block">
+                      {virtualAccount.account_number}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyAccountNumber(virtualAccount.account_number)}
+                    className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-emerald-200 transition"
+                    title="Copy Account Number"
+                  >
+                    {copiedVA ? <Check size={16} className="text-emerald-300" /> : <Copy size={16} />}
+                  </button>
+                </div>
+
+                <div className="bg-white/5 rounded-xl p-3.5 border border-white/10">
+                  <span className="text-[11px] text-emerald-300 uppercase tracking-wider font-semibold block">Account Beneficiary</span>
+                  <span className="text-sm font-semibold text-white mt-1 block truncate">
+                    {virtualAccount.account_name}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 pt-4 border-t border-white/10 text-xs text-emerald-200/90 relative z-10">
+                This member does not have a dedicated NUBAN bank account yet. Click "Generate Virtual Account" to provision a personal Wema Bank NUBAN for direct mobile transfers.
+              </div>
+            )}
+
+            {virtualAccount && (
+              <div className="mt-4 flex items-center justify-between text-xs text-emerald-200/80 pt-3 border-t border-white/10">
+                <span>Total Received via Direct Bank Transfer: <strong>₦{Number(virtualAccount.total_given || 0).toLocaleString()}</strong></span>
+                <span className="text-[11px]">Instant settlement • Automated receipt SMS/WhatsApp</span>
+              </div>
+            )}
+          </div>
+
+          {/* Giving History Card */}
+          <div className="card text-center py-12">
+            <Heart size={36} className="mx-auto text-emerald-600 mb-2" />
+            <p className="text-gray-700 font-semibold text-base">Direct Giving History</p>
+            <p className="text-gray-500 text-xs max-w-md mx-auto mt-1">
+              All transfers made to the dedicated bank account above are automatically logged and credited to this member's profile.
+            </p>
+          </div>
         </div>
       )}
+
 
       {/* Edit Modal */}
       <Modal

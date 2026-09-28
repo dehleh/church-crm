@@ -28,6 +28,8 @@ export const membersAPI = {
   importCsv: (data) => api.post('/members/import', data),
   birthdays: (params) => api.get('/members/birthdays', { params }),
   sendBirthdayWish: (id, data = {}) => api.post(`/members/${id}/birthday-wish`, data),
+  getVirtualAccount: (id) => api.get(`/members/${id}/virtual-account`),
+  generateVirtualAccount: (id) => api.post(`/members/${id}/virtual-account`),
 };
 
 export const firstTimersAPI = {
@@ -38,7 +40,26 @@ export const firstTimersAPI = {
   convert: (id) => api.post(`/first-timers/${id}/convert`),
   stats: () => api.get('/first-timers/stats'),
   importCsv: (data) => api.post('/first-timers/import', data),
+  getSequenceSettings: () => api.get('/first-timers/sequence/settings'),
+  updateSequenceSettings: (data) => api.put('/first-timers/sequence/settings', data),
+  getMemberQueue: (id) => api.get(`/first-timers/${id}/sequence-queue`),
+  cancelMemberQueue: (id) => api.post(`/first-timers/${id}/cancel-sequence`),
+  triggerMemberSequence: (id) => api.post(`/first-timers/${id}/trigger-sequence`),
 };
+
+export const servicePlansAPI = {
+  list: (params) => api.get('/service-plans', { params }),
+  get: (id) => api.get(`/service-plans/${id}`),
+  create: (data) => api.post('/service-plans', data),
+  update: (id, data) => api.put(`/service-plans/${id}`, data),
+  delete: (id) => api.delete(`/service-plans/${id}`),
+  setTimeline: (id, items) => api.put(`/service-plans/${id}/timeline`, { items }),
+  addVolunteer: (id, data) => api.post(`/service-plans/${id}/volunteers`, data),
+  removeVolunteer: (id, volunteerId) => api.delete(`/service-plans/${id}/volunteers/${volunteerId}`),
+  sendVolunteerReminder: (id, volunteerId, data = {}) => api.post(`/service-plans/${id}/volunteers/${volunteerId}/remind`, data),
+  duplicate: (id, data) => api.post(`/service-plans/${id}/duplicate`, data),
+};
+
 
 export const eventsAPI = {
   list: (params) => api.get('/events', { params }),

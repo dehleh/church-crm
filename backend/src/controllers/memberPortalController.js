@@ -89,12 +89,57 @@ const getGiving = async (req, res) => {
        FROM transactions WHERE church_id = $1 AND member_id = $2 AND transaction_type = 'income'`,
       [req.churchId, req.member.id]
     );
-    return res.json({ success: true, data: { items: rows, totals: totalRes.rows[0] } });
+    const vaRes = await query(
+      `SELECT * FROM member_virtual_accounts WHERE church_id = $1 AND member_id = $2 AND is_active = true`,
+      [req.churchId, req.member.id]
+    );
+    return res.json({
+      success: true,
+      data: {
+        items: rows,
+        totals: totalRes.rows[0],
+        virtualAccount: vaRes.rows[0] || null,
+      },
+    });
   } catch (err) {
     logger.error('member getGiving failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
+// GET /api/me/giving/virtual-account
+const getMyVirtualAccount = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT * FROM member_virtual_accounts WHERE church_id = $1 AND member_id = $2 AND is_active = true`,
+      [req.churchId, req.member.id]
+    );
+    return res.json({ success: true, data: rows[0] || null });
+  } catch (err) {
+    logger.error('getMyVirtualAccount failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// POST /api/me/giving/virtual-account
+const generateMyVirtualAccount = async (req, res) => {
+  try {
+    const churchRes = await query(`SELECT name, payment_settings FROM churches WHERE id = $1`, [req.churchId]);
+    const church = churchRes.rows[0] || {};
+    const paymentService = require('../services/paymentService');
+    const account = await paymentService.assignDedicatedVirtualAccount({
+      churchId: req.churchId,
+      member: req.member,
+      churchName: church.name,
+      churchSettings: church.payment_settings,
+    });
+    return res.json({ success: true, data: account });
+  } catch (err) {
+    logger.error('generateMyVirtualAccount failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to generate virtual account' });
+  }
+};
+
 
 // GET /api/me/events
 const getEvents = async (req, res) => {
@@ -123,16 +168,27 @@ const submitPrayerRequest = async (req, res) => {
   }
   try {
     const m = req.member;
+    const reqId = uuidv4();
     await query(
       `INSERT INTO prayer_requests (id, church_id, branch_id, member_id, requester_name, request, category, is_anonymous)
        VALUES ($1,$2,$3,$4,$5,$6,$7,false)`,
       [
-        uuidv4(), req.churchId, m.branch_id || null, m.id,
+        reqId, req.churchId, m.branch_id || null, m.id,
         `${m.first_name} ${m.last_name}`,
         request.trim().slice(0, 2000),
         category || 'others',
       ]
     );
+
+    // Send instant confirmation push to member's phone
+    pushNotificationService.sendPushToMember(m.id, {
+      title: '🙏 Prayer Request Received',
+      body: `Hello ${m.first_name}, your prayer request has been recorded. Our pastoral and intercession team is standing with you in prayer!`,
+      icon: '/logo.png',
+      badge: '/favicon.png',
+      tag: `prayer-${reqId}`,
+    }).catch(() => {});
+
     return res.json({ success: true, message: 'Prayer request submitted' });
   } catch (err) {
     logger.error('member submitPrayerRequest failed', { error: err.message });
@@ -1245,6 +1301,166 @@ const initiatePortalGiving = async (req, res) => {
   }
 };
 
+// ── Web Push & Notification Preferences ─────────────────────────
+const pushNotificationService = require('../services/pushNotificationService');
+
+// GET /api/me/push/vapid-key
+const getPushVapidKey = async (req, res) => {
+  try {
+    const key = pushNotificationService.getPublicKey();
+    return res.json({ success: true, data: { publicKey: key } });
+  } catch (err) {
+    logger.error('getPushVapidKey failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to retrieve VAPID key' });
+  }
+};
+
+// POST /api/me/push/subscribe
+const subscribePush = async (req, res) => {
+  const { subscription } = req.body;
+  const userAgent = req.headers['user-agent'] || '';
+
+  try {
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ success: false, message: 'Valid subscription object is required' });
+    }
+
+    const sub = await pushNotificationService.subscribe({
+      churchId: req.churchId,
+      memberId: req.member.id,
+      subscription,
+      userAgent,
+    });
+
+    return res.json({ success: true, message: 'Phone push notifications enabled successfully', data: sub });
+  } catch (err) {
+    logger.error('subscribePush failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to register push subscription' });
+  }
+};
+
+// POST /api/me/push/unsubscribe
+const unsubscribePush = async (req, res) => {
+  const { endpoint } = req.body;
+  try {
+    if (endpoint) {
+      await pushNotificationService.unsubscribe({ endpoint });
+    } else {
+      await query(`DELETE FROM member_push_subscriptions WHERE member_id = $1`, [req.member.id]);
+    }
+    return res.json({ success: true, message: 'Phone notifications disabled' });
+  } catch (err) {
+    logger.error('unsubscribePush failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to unsubscribe' });
+  }
+};
+
+// GET /api/me/notifications/preferences
+const getNotificationPreferences = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT * FROM member_notification_preferences WHERE church_id = $1 AND member_id = $2`,
+      [req.churchId, req.member.id]
+    );
+
+    const prefs = rows[0] || {
+      push_enabled: true,
+      email_enabled: true,
+      whatsapp_enabled: true,
+      notify_devotionals: true,
+      notify_prayers: true,
+      notify_announcements: true,
+      notify_events: true,
+      notify_giving: true,
+    };
+
+    const subRes = await query(
+      `SELECT COUNT(*) as device_count FROM member_push_subscriptions WHERE church_id = $1 AND member_id = $2`,
+      [req.churchId, req.member.id]
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        preferences: prefs,
+        registeredDevices: parseInt(subRes.rows[0]?.device_count || 0),
+      },
+    });
+  } catch (err) {
+    logger.error('getNotificationPreferences failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// PUT /api/me/notifications/preferences
+const updateNotificationPreferences = async (req, res) => {
+  const {
+    push_enabled,
+    email_enabled,
+    whatsapp_enabled,
+    notify_devotionals,
+    notify_prayers,
+    notify_announcements,
+    notify_events,
+    notify_giving,
+  } = req.body;
+
+  try {
+    const { rows } = await query(
+      `INSERT INTO member_notification_preferences (
+        church_id, member_id, push_enabled, email_enabled, whatsapp_enabled,
+        notify_devotionals, notify_prayers, notify_announcements, notify_events, notify_giving, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+      ON CONFLICT (church_id, member_id)
+      DO UPDATE SET
+        push_enabled = COALESCE(EXCLUDED.push_enabled, member_notification_preferences.push_enabled),
+        email_enabled = COALESCE(EXCLUDED.email_enabled, member_notification_preferences.email_enabled),
+        whatsapp_enabled = COALESCE(EXCLUDED.whatsapp_enabled, member_notification_preferences.whatsapp_enabled),
+        notify_devotionals = COALESCE(EXCLUDED.notify_devotionals, member_notification_preferences.notify_devotionals),
+        notify_prayers = COALESCE(EXCLUDED.notify_prayers, member_notification_preferences.notify_prayers),
+        notify_announcements = COALESCE(EXCLUDED.notify_announcements, member_notification_preferences.notify_announcements),
+        notify_events = COALESCE(EXCLUDED.notify_events, member_notification_preferences.notify_events),
+        notify_giving = COALESCE(EXCLUDED.notify_giving, member_notification_preferences.notify_giving),
+        updated_at = NOW()
+      RETURNING *`,
+      [
+        req.churchId, req.member.id,
+        push_enabled ?? true, email_enabled ?? true, whatsapp_enabled ?? true,
+        notify_devotionals ?? true, notify_prayers ?? true, notify_announcements ?? true,
+        notify_events ?? true, notify_giving ?? true,
+      ]
+    );
+
+    return res.json({ success: true, message: 'Notification preferences updated', data: rows[0] });
+  } catch (err) {
+    logger.error('updateNotificationPreferences failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to update preferences' });
+  }
+};
+
+// POST /api/me/push/test
+const sendTestPush = async (req, res) => {
+  try {
+    const churchRes = await query(`SELECT name, slug FROM churches WHERE id = $1`, [req.churchId]);
+    const church = churchRes.rows[0] || {};
+
+    const payload = {
+      title: `🔔 ${church.name || 'ChurchOS'} Test Pop-Up`,
+      body: `Hello ${req.member.first_name}! Your phone is successfully configured to receive instant devotionals, prayers & church updates.`,
+      icon: '/logo.png',
+      badge: '/favicon.png',
+      url: `/portal/${church.slug || ''}/home`,
+      tag: 'test-popup',
+    };
+
+    const result = await pushNotificationService.sendPushToMember(req.member.id, payload);
+    return res.json({ success: true, message: 'Test notification dispatched to your phone', data: result });
+  } catch (err) {
+    logger.error('sendTestPush failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to send test notification' });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -1278,6 +1494,15 @@ module.exports = {
   getMediaItem,
   getGivingOptions,
   initiatePortalGiving,
+  getMyVirtualAccount,
+  generateMyVirtualAccount,
+  getPushVapidKey,
+  subscribePush,
+  unsubscribePush,
+  getNotificationPreferences,
+  updateNotificationPreferences,
+  sendTestPush,
 };
+
 
 

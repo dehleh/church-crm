@@ -28,6 +28,13 @@ router.patch('/:id/follow-up', authorize('head_pastor', 'pastor', 'director', 'h
 ], handleValidationErrors, c.updateFollowUpStatus);
 router.post('/:id/convert', authorize('head_pastor', 'pastor', 'director'), c.convertToMember);
 
+// Automated Follow-Up Sequences
+router.get('/sequence', authorize('head_pastor', 'pastor', 'director', 'hod'), c.getSequenceSettings);
+router.put('/sequence', authorize('head_pastor', 'pastor', 'director'), c.updateSequenceSettings);
+router.get('/:id/queue', authorize('head_pastor', 'pastor', 'director', 'hod'), c.getFirstTimerQueue);
+router.post('/:id/cancel-sequence', authorize('head_pastor', 'pastor', 'director'), c.cancelFirstTimerSequence);
+router.post('/:id/trigger-sequence', authorize('head_pastor', 'pastor', 'director'), c.triggerFirstTimerSequence);
+
 // CSV Import
 const csv = require('../controllers/csvImportController');
 router.post('/import', authorize('head_pastor', 'pastor', 'director', 'hod'), csv.importFirstTimers);

@@ -1,6 +1,7 @@
 const { query } = require('../config/database');
 const { sendEmail } = require('./emailService');
 const { sendSMS, sendWhatsApp } = require('./smsService');
+const pushNotificationService = require('./pushNotificationService');
 const logger = require('../config/logger');
 const sanitizeHtml = require('sanitize-html');
 
@@ -278,94 +279,201 @@ async function processAutomatedBirthdayGreetings() {
 }
 
 /**
- * Checks and dispatches automated daily morning/night devotional reminders to members.
+ * Checks and dispatches automated daily morning/night devotional reminders and Web Push to members.
  */
 async function processAutomatedDevotionalReminders() {
   try {
     const now = new Date();
     const currentHour = now.getHours(); // 0 to 23
 
-    // Determine current window: 'morning' (6-8am) or 'night' (20-22pm)
-    const isMorning = currentHour >= 6 && currentHour <= 8;
-    const isNight = currentHour >= 20 && currentHour <= 22;
+    // Determine current window: 'morning' (5-11am) or 'night' (20-23pm)
+    const isMorning = currentHour >= 5 && currentHour <= 11;
+    const isNight = currentHour >= 20 && currentHour <= 23;
 
-    if (!isMorning && !isNight) return;
-
-    // Find churches with active devotional reminders and today's published devotional
-    const { rows: churches } = await query(
-      `SELECT c.id, c.name, c.settings,
-              d.id as devotional_id, d.title, d.theme_scripture, d.scripture_text,
+    // Find churches with today's published devotional that need Web Push or email broadcast
+    const { rows: devotionals } = await query(
+      `SELECT d.id as devotional_id, d.title, d.theme_scripture, d.scripture_text,
               d.content, d.confession, d.prayer_point, d.bible_reading_plan,
-              d.reminder_sent_at
-       FROM churches c
-       JOIN daily_devotionals d ON d.church_id = c.id AND d.date = CURRENT_DATE AND d.is_published = true
-       WHERE (c.settings->'devotional_reminders'->>'enabled')::boolean = true
-         AND (d.reminder_sent_at IS NULL OR d.reminder_sent_at::date < CURRENT_DATE)
-       LIMIT 10`
+              d.morning_pushed_at, d.morning_emailed_at, d.reminder_sent_at,
+              c.id as church_id, c.name as church_name, c.slug as church_slug, c.settings as church_settings
+       FROM daily_devotionals d
+       JOIN churches c ON c.id = d.church_id
+       WHERE d.date = CURRENT_DATE AND d.is_published = true
+         AND (
+           d.morning_pushed_at IS NULL 
+           OR (d.morning_emailed_at IS NULL AND $1 = true)
+           OR ((c.settings->'devotional_reminders'->>'enabled')::boolean = true AND d.reminder_sent_at IS NULL)
+         )
+       LIMIT 15`,
+      [isMorning]
     );
 
-    for (const church of churches) {
-      const devConfig = church.settings?.devotional_reminders || {};
-      const schedule = devConfig.schedule || 'morning'; // 'morning', 'night', 'both'
+    for (const dev of devotionals) {
+      const churchSettings = dev.church_settings || {};
+      const devConfig = churchSettings.devotional_reminders || {};
 
-      const shouldTrigger =
-        (schedule === 'morning' && isMorning) ||
-        (schedule === 'night' && isNight) ||
-        (schedule === 'both' && (isMorning || isNight));
+      // 1. AUTOMATIC PHONE POP-UP (Web Push)
+      if (!dev.morning_pushed_at) {
+        try {
+          const pushPayload = {
+            title: `📖 ${dev.title}`,
+            body: `${dev.theme_scripture ? dev.theme_scripture + ' · ' : ''}${dev.scripture_text ? '"' + dev.scripture_text.slice(0, 100) + '..."' : (dev.content || '').slice(0, 110) + '...'} Tap to read today's word.`,
+            icon: '/logo.png',
+            badge: '/favicon.png',
+            url: `/portal/${dev.church_slug || ''}/devotionals/today`,
+            tag: `devotional-${dev.devotional_id}`,
+            data: { url: `/portal/${dev.church_slug || ''}/devotionals/today` },
+            actions: [
+              { action: 'read', title: '📖 Read Now' },
+            ],
+          };
 
-      if (!shouldTrigger) continue;
+          const pushResult = await pushNotificationService.sendPushToChurch(dev.church_id, pushPayload, { topic: 'devotionals' });
+          logger.info('Dispatched daily devotional phone push pop-up', {
+            churchId: dev.church_id,
+            devotionalId: dev.devotional_id,
+            sentCount: pushResult.sent,
+          });
 
-      logger.info('Dispatching automated devotional broadcast', {
-        churchId: church.id,
-        churchName: church.name,
-        devotionalTitle: church.title,
-        slot: isMorning ? 'morning' : 'night'
-      });
-
-      const { rows: members } = await query(
-        `SELECT first_name, last_name, email, phone
-         FROM members
-         WHERE church_id = $1 AND membership_status = 'active' AND (phone IS NOT NULL OR email IS NOT NULL)
-         LIMIT 200`,
-        [church.id]
-      );
-
-      const churchMessaging = church.settings?.messaging || {};
-      const channels = devConfig.channels || ['whatsapp'];
-
-      const broadcastMsg = `📖 *${church.name} Daily Devotional*\n*${church.title}*\n\n` +
-        `📜 *Scripture:* ${church.theme_scripture}\n` +
-        (church.scripture_text ? `_"${church.scripture_text}"_\n\n` : '\n') +
-        `${church.content.slice(0, 450)}...\n\n` +
-        (church.confession ? `✨ *Declaration:* ${church.confession}\n\n` : '') +
-        (church.prayer_point ? `🙏 *Prayer Point:* ${church.prayer_point}\n\n` : '') +
-        (church.bible_reading_plan ? `📚 *Today's Bible Reading:* ${church.bible_reading_plan}\n\n` : '') +
-        `May God's presence and peace guide your day! ✨`;
-
-      for (const m of members) {
-        if (channels.includes('whatsapp') && m.phone) {
-          await sendWhatsApp({ to: m.phone, body: broadcastMsg }, churchMessaging);
-        } else if (channels.includes('email') && m.email) {
-          await sendEmail({
-            to: m.email,
-            subject: `Daily Devotional: ${church.title} - ${church.name}`,
-            html: `<div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; line-height: 1.6;">
-              <h2 style="color: #4f46e5;">${church.title}</h2>
-              <p><strong>Scripture:</strong> ${church.theme_scripture}</p>
-              ${church.scripture_text ? `<blockquote style="background: #f3f4f6; padding: 12px; border-left: 4px solid #4f46e5;"><em>"${church.scripture_text}"</em></blockquote>` : ''}
-              <div>${church.content.replace(/\n/g, '<br/>')}</div>
-              ${church.confession ? `<p><strong>Faith Declaration:</strong> ${church.confession}</p>` : ''}
-              ${church.prayer_point ? `<p><strong>Prayer Point:</strong> ${church.prayer_point}</p>` : ''}
-              ${church.bible_reading_plan ? `<p><strong>Bible Reading:</strong> ${church.bible_reading_plan}</p>` : ''}
-            </div>`
-          }, churchMessaging);
+          await query(`UPDATE daily_devotionals SET morning_pushed_at = NOW() WHERE id = $1`, [dev.devotional_id]);
+        } catch (pushErr) {
+          logger.error('Error dispatching devotional web push', { devotionalId: dev.devotional_id, error: pushErr.message });
         }
       }
 
-      await query(
-        `UPDATE daily_devotionals SET reminder_sent_at = NOW() WHERE id = $1`,
-        [church.devotional_id]
-      );
+      // 2. AUTOMATIC EMAIL TO SUBSCRIBED MEMBERS
+      if (!dev.morning_emailed_at && isMorning) {
+        try {
+          // Fetch active members who have not opted out of devotional emails
+          const { rows: emailMembers } = await query(
+            `SELECT m.id, m.first_name, m.last_name, m.email
+             FROM members m
+             LEFT JOIN member_notification_preferences mnp ON mnp.member_id = m.id AND mnp.church_id = m.church_id
+             WHERE m.church_id = $1 
+               AND m.membership_status = 'active' 
+               AND m.email IS NOT NULL AND m.email != ''
+               AND (mnp.email_enabled IS NULL OR mnp.email_enabled = true)
+               AND (mnp.notify_devotionals IS NULL OR mnp.notify_devotionals = true)
+             LIMIT 500`,
+            [dev.church_id]
+          );
+
+          if (emailMembers.length > 0) {
+            const portalUrl = `${process.env.APP_URL || 'https://cos.themobilemissionary.org'}/portal/${dev.church_slug || ''}/devotionals/today`;
+            const churchMessaging = churchSettings.messaging || {};
+
+            const emailHtml = `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0;">
+                <div style="text-align: center; margin-bottom: 24px;">
+                  <span style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #4f46e5; background: #eef2ff; padding: 4px 12px; border-radius: 9999px;">Daily Devotional</span>
+                  <h1 style="color: #0f172a; margin-top: 14px; margin-bottom: 6px; font-size: 24px; font-weight: 800;">${dev.title}</h1>
+                  <p style="color: #64748b; font-size: 14px; margin: 0;">${dev.church_name} · ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                </div>
+
+                <div style="background: #f8fafc; border-left: 4px solid #4f46e5; padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px;">
+                  <p style="font-size: 13px; font-weight: 700; color: #4f46e5; text-transform: uppercase; margin: 0 0 6px 0;">Theme Scripture: ${dev.theme_scripture}</p>
+                  ${dev.scripture_text ? `<p style="font-size: 16px; font-style: italic; color: #334155; margin: 0; line-height: 1.5;">"${dev.scripture_text}"</p>` : ''}
+                </div>
+
+                <div style="font-size: 15px; line-height: 1.7; color: #334155; margin-bottom: 24px;">
+                  ${dev.content.replace(/\n/g, '<br/>')}
+                </div>
+
+                ${dev.confession ? `
+                  <div style="background: #fefce8; border: 1px solid #fef08a; padding: 14px 18px; border-radius: 8px; margin-bottom: 16px;">
+                    <strong style="color: #854d0e; font-size: 13px; text-transform: uppercase; display: block; margin-bottom: 4px;">✨ Faith Declaration</strong>
+                    <span style="color: #713f12; font-size: 14px;">${dev.confession}</span>
+                  </div>
+                ` : ''}
+
+                ${dev.prayer_point ? `
+                  <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 14px 18px; border-radius: 8px; margin-bottom: 16px;">
+                    <strong style="color: #166534; font-size: 13px; text-transform: uppercase; display: block; margin-bottom: 4px;">🙏 Today's Prayer Point</strong>
+                    <span style="color: #14532d; font-size: 14px;">${dev.prayer_point}</span>
+                  </div>
+                ` : ''}
+
+                ${dev.bible_reading_plan ? `
+                  <div style="background: #f1f5f9; padding: 12px 18px; border-radius: 8px; margin-bottom: 24px; font-size: 13px; color: #475569;">
+                    📚 <strong>Today's Bible Reading:</strong> ${dev.bible_reading_plan}
+                  </div>
+                ` : ''}
+
+                <div style="text-align: center; margin: 28px 0;">
+                  <a href="${portalUrl}" style="background-color: #4f46e5; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Open in Member Portal</a>
+                </div>
+
+                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0 16px 0;" />
+                <p style="color: #94a3b8; font-size: 12px; text-align: center; margin: 0;">
+                  You are receiving this because you are an active member of ${dev.church_name}.
+                  Manage your notification preferences anytime in your Member Profile.
+                </p>
+              </div>
+            `;
+
+            for (const member of emailMembers) {
+              await sendEmail({
+                to: member.email,
+                subject: `📖 ${dev.title} — Today's Devotional`,
+                html: emailHtml,
+              }, churchMessaging).catch(err => {
+                logger.warn('Failed to send devotional email to member', { email: member.email, error: err.message });
+              });
+            }
+
+            logger.info('Dispatched daily devotional email broadcast', {
+              churchId: dev.church_id,
+              devotionalId: dev.devotional_id,
+              recipients: emailMembers.length,
+            });
+          }
+
+          await query(`UPDATE daily_devotionals SET morning_emailed_at = NOW() WHERE id = $1`, [dev.devotional_id]);
+        } catch (emailErr) {
+          logger.error('Error dispatching devotional emails', { devotionalId: dev.devotional_id, error: emailErr.message });
+        }
+      }
+
+      // 3. OPTIONAL WHATSAPP BROADCAST (If enabled in church settings)
+      if (devConfig.enabled && !dev.reminder_sent_at) {
+        const schedule = devConfig.schedule || 'morning';
+        const shouldTrigger =
+          (schedule === 'morning' && isMorning) ||
+          (schedule === 'night' && isNight) ||
+          (schedule === 'both' && (isMorning || isNight));
+
+        if (shouldTrigger && (devConfig.channels || []).includes('whatsapp')) {
+          try {
+            const { rows: waMembers } = await query(
+              `SELECT m.phone FROM members m
+               LEFT JOIN member_notification_preferences mnp ON mnp.member_id = m.id AND mnp.church_id = m.church_id
+               WHERE m.church_id = $1 AND m.membership_status = 'active' AND m.phone IS NOT NULL
+                 AND (mnp.whatsapp_enabled IS NULL OR mnp.whatsapp_enabled = true)
+                 AND (mnp.notify_devotionals IS NULL OR mnp.notify_devotionals = true)
+               LIMIT 200`,
+              [dev.church_id]
+            );
+
+            const broadcastMsg = `📖 *${dev.church_name} Daily Devotional*\n*${dev.title}*\n\n` +
+              `📜 *Scripture:* ${dev.theme_scripture}\n` +
+              (dev.scripture_text ? `_"${dev.scripture_text}"_\n\n` : '\n') +
+              `${(dev.content || '').slice(0, 450)}...\n\n` +
+              (dev.confession ? `✨ *Declaration:* ${dev.confession}\n\n` : '') +
+              (dev.prayer_point ? `🙏 *Prayer Point:* ${dev.prayer_point}\n\n` : '') +
+              (dev.bible_reading_plan ? `📚 *Today's Bible Reading:* ${dev.bible_reading_plan}\n\n` : '') +
+              `May God's presence and peace guide your day! ✨`;
+
+            const churchMessaging = churchSettings.messaging || {};
+            for (const m of waMembers) {
+              await sendWhatsApp({ to: m.phone, body: broadcastMsg }, churchMessaging).catch(() => {});
+            }
+
+            await query(`UPDATE daily_devotionals SET reminder_sent_at = NOW() WHERE id = $1`, [dev.devotional_id]);
+          } catch (waErr) {
+            logger.error('Error dispatching devotional WhatsApp broadcast', { error: waErr.message });
+          }
+        }
+      }
     }
   } catch (err) {
     logger.error('Error processing automated devotional reminders', { error: err.message });
@@ -516,6 +624,12 @@ async function runSchedulerTick() {
     await processAutomatedBirthdayGreetings();
     await processAutomatedDevotionalReminders();
     await processSubscriptionTrialReminders();
+    try {
+      const { processDueSequenceQueue } = require('./firstTimerSequenceService');
+      await processDueSequenceQueue();
+    } catch (seqErr) {
+      logger.warn('Error in first-timer sequence queue job', { error: seqErr.message });
+    }
   } catch (err) {
     logger.error('Scheduler tick error', { error: err.message });
   } finally {

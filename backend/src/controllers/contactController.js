@@ -27,7 +27,7 @@ async function notify(submission) {
   if (!m) return;
   try {
     await m.sendMail({
-      from: process.env.SMTP_FROM || `ChurchOS <no-reply@churchos.app>`,
+      from: process.env.SMTP_FROM || `ChurchOS <no-reply@themobilemissionary.org>`,
       to,
       subject: `New ChurchOS lead: ${submission.name}${submission.church ? ' — ' + submission.church : ''}`,
       text: `Name: ${submission.name}\nEmail: ${submission.email}\nChurch: ${submission.church || '-'}\n\nMessage:\n${submission.message}\n\nSubmitted: ${submission.created_at}`,

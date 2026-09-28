@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Loader2, Save, Camera, Download } from 'lucide-react';
+import { Loader2, Save, Camera, Download, Bell, Smartphone, Mail, MessageSquare, Send, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { memberPortalAPI } from '../../api/memberClient';
+import { isPushSupported, subscribeUserToPush } from '../../utils/pushNotifications';
 
 const fmtDate = (d) => d ? String(d).slice(0, 10) : '';
 
@@ -27,6 +28,63 @@ export default function MemberPortalProfile() {
   });
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const [prefs, setPrefs] = useState({
+    push_enabled: true,
+    email_enabled: true,
+    whatsapp_enabled: true,
+    notify_devotionals: true,
+    notify_prayers: true,
+    notify_announcements: true,
+    notify_events: true,
+    notify_giving: true,
+  });
+  const [loadingPrefs, setLoadingPrefs] = useState(true);
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [testingPush, setTestingPush] = useState(false);
+
+  useEffect(() => {
+    memberPortalAPI.getPreferences()
+      .then(res => {
+        if (res.data?.data) {
+          setPrefs(prev => ({ ...prev, ...res.data.data }));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingPrefs(false));
+  }, []);
+
+  const togglePref = (k) => {
+    setPrefs(p => ({ ...p, [k]: !p[k] }));
+  };
+
+  const handleSavePrefs = async () => {
+    setSavingPrefs(true);
+    try {
+      await memberPortalAPI.updatePreferences(prefs);
+      toast.success('Notification preferences updated successfully');
+    } catch (err) {
+      toast.error('Failed to update notification preferences');
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    setTestingPush(true);
+    try {
+      const res = await memberPortalAPI.sendTestPush();
+      if (res.data?.data?.sent > 0) {
+        toast.success('Test pop-up sent to your phone!');
+      } else {
+        toast('No active push subscription found on this device. Tap "Enable Phone Pop-ups" on Home first.');
+      }
+    } catch (err) {
+      toast.error('Failed to send test notification');
+    } finally {
+      setTestingPush(false);
+    }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -188,6 +246,131 @@ export default function MemberPortalProfile() {
           </button>
         </div>
       </form>
+
+      {/* Phone Pop-ups & Notification Settings Card */}
+      <div className="mt-8 bg-white border border-gray-200 rounded-2xl p-6 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+              <Bell size={20} />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Phone Pop-ups & Notifications</h2>
+              <p className="text-xs text-gray-500">Manage what pops up on your phone screen, email inbox & WhatsApp</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleSendTestPush}
+            disabled={testingPush}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {testingPush ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+            <span>Test Phone Pop-up</span>
+          </button>
+        </div>
+
+        {loadingPrefs ? (
+          <div className="py-6 flex justify-center">
+            <Loader2 size={24} className="animate-spin text-gray-400" />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Delivery Channels */}
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Notification Channels</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <label className="flex items-center justify-between p-3.5 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50/80 transition-all">
+                  <div className="flex items-center gap-2.5">
+                    <Smartphone size={18} className="text-indigo-600" />
+                    <div>
+                      <div className="text-xs font-bold text-gray-900">Phone Pop-ups</div>
+                      <div className="text-[11px] text-gray-500">Lock screen & push</div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={prefs.push_enabled}
+                    onChange={() => togglePref('push_enabled')}
+                    className="w-4 h-4 text-indigo-600 rounded"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3.5 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50/80 transition-all">
+                  <div className="flex items-center gap-2.5">
+                    <Mail size={18} className="text-blue-600" />
+                    <div>
+                      <div className="text-xs font-bold text-gray-900">Email Digest</div>
+                      <div className="text-[11px] text-gray-500">Inbox summaries</div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={prefs.email_enabled}
+                    onChange={() => togglePref('email_enabled')}
+                    className="w-4 h-4 text-indigo-600 rounded"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3.5 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50/80 transition-all">
+                  <div className="flex items-center gap-2.5">
+                    <MessageSquare size={18} className="text-emerald-600" />
+                    <div>
+                      <div className="text-xs font-bold text-gray-900">WhatsApp</div>
+                      <div className="text-[11px] text-gray-500">Direct messages</div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={prefs.whatsapp_enabled}
+                    onChange={() => togglePref('whatsapp_enabled')}
+                    className="w-4 h-4 text-indigo-600 rounded"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Notification Topics */}
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">What You Receive</h3>
+              <div className="space-y-2.5">
+                {[
+                  { key: 'notify_devotionals', title: 'Daily Morning Devotionals', desc: 'Receive morning scripture, reflections, faith declarations & Bible reading at 6:00 AM' },
+                  { key: 'notify_prayers', title: 'Urgent Prayer Alerts', desc: 'Instant notifications when prayer requests are received or urgent intercession is needed' },
+                  { key: 'notify_announcements', title: 'Church Announcements', desc: 'Important notices, special services, and administrative broadcasts' },
+                  { key: 'notify_events', title: 'Service & Event Reminders', desc: '24-hour and 1-hour reminders before Sunday services, conferences, and programs' },
+                  { key: 'notify_giving', title: 'Giving & Tithe Confirmations', desc: 'Instant notifications and digital receipts for contributions' },
+                ].map((item) => (
+                  <label key={item.key} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+                    <div className="pr-4">
+                      <div className="text-xs font-semibold text-gray-900">{item.title}</div>
+                      <div className="text-[11px] text-gray-500">{item.desc}</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={prefs[item.key]}
+                      onChange={() => togglePref(item.key)}
+                      className="w-4 h-4 text-indigo-600 rounded"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={handleSavePrefs}
+                disabled={savingPrefs}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg shadow-xs transition-colors"
+              >
+                {savingPrefs ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                <span>Save Notification Preferences</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

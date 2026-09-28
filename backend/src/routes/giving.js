@@ -17,6 +17,7 @@ router.post(
 );
 
 router.get('/public/verify/:reference', ctrl.verifyGiving);
+router.post('/webhook', ctrl.handleGivingWebhook);
 
 // ── Authenticated Church Staff Routes ─────────────────────────
 router.get(

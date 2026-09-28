@@ -19,7 +19,7 @@ const OPTIONAL_DEFAULTS = {
   SMTP_PORT: '587',
   SMTP_USER: '',
   SMTP_PASS: '',
-  SMTP_FROM: 'noreply@churchos.app',
+  SMTP_FROM: 'noreply@themobilemissionary.org',
   SMS_PROVIDER: '',
   TWILIO_SID: '',
   TWILIO_AUTH_TOKEN: '',

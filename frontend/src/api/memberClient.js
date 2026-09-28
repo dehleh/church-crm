@@ -74,6 +74,14 @@ export const memberPortalAPI = {
   mediaItem: (id) => memberApi.get(`/me/media/${id}`),
   givingOptions: () => memberApi.get('/me/giving/options'),
   initiateGiving: (data) => memberApi.post('/me/giving/initiate', data),
+  getVirtualAccount: () => memberApi.get('/me/giving/virtual-account'),
+  generateVirtualAccount: () => memberApi.post('/me/giving/virtual-account'),
+  getPushVapidKey: () => memberApi.get('/me/push/vapid-key'),
+  subscribePush: (data) => memberApi.post('/me/push/subscribe', data),
+  unsubscribePush: (data) => memberApi.post('/me/push/unsubscribe', data),
+  sendTestPush: () => memberApi.post('/me/push/test'),
+  getPreferences: () => memberApi.get('/me/notifications/preferences'),
+  updatePreferences: (data) => memberApi.put('/me/notifications/preferences', data),
 };
 
 

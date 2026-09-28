@@ -27,6 +27,7 @@ export default function MemberPortalGiving() {
   const [transferRef, setTransferRef] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [copiedAccount, setCopiedAccount] = useState(false);
+  const [generatingVA, setGeneratingVA] = useState(false);
 
   const fetchGivingData = () => {
     setLoading(true);
@@ -52,6 +53,20 @@ export default function MemberPortalGiving() {
     toast.success('Account number copied to clipboard');
     setTimeout(() => setCopiedAccount(false), 2500);
   };
+
+  const handleGenerateMyVirtualAccount = async () => {
+    setGeneratingVA(true);
+    try {
+      const res = await memberPortalAPI.generateVirtualAccount();
+      setData(prev => ({ ...prev, virtualAccount: res.data.data }));
+      toast.success('Your dedicated giving bank account has been generated!');
+    } catch {
+      toast.error('Failed to generate virtual bank account');
+    } finally {
+      setGeneratingVA(false);
+    }
+  };
+
 
   const handleGiveSubmit = async (e) => {
     e.preventDefault();
@@ -110,7 +125,90 @@ export default function MemberPortalGiving() {
         </button>
       </div>
 
+      {/* Dedicated Virtual Bank Account Card (Direct Bank Transfer) */}
+      <div className="p-6 bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900 rounded-2xl text-white shadow-md relative overflow-hidden">
+        <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-44 h-44 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center text-emerald-300 flex-shrink-0">
+              <Landmark size={24} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-lg font-display tracking-tight">Your Dedicated Church Bank Account</h3>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/20">
+                  Instant Auto-Reconciled
+                </span>
+              </div>
+              <p className="text-emerald-200/80 text-xs mt-0.5">
+                Transfer directly from any mobile banking app or USSD — it instantly logs to your kingdom giving record
+              </p>
+            </div>
+          </div>
+
+          {data.virtualAccount ? (
+            <button
+              type="button"
+              onClick={() => handleCopyAccount(data.virtualAccount.account_number)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
+            >
+              {copiedAccount ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
+              <span>{copiedAccount ? 'Copied!' : 'Copy Account'}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleGenerateMyVirtualAccount}
+              disabled={generatingVA}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white text-emerald-950 hover:bg-emerald-50 shadow-md transition-all"
+            >
+              {generatingVA ? <Loader2 size={14} className="animate-spin" /> : <Landmark size={14} />}
+              <span>Generate My Account</span>
+            </button>
+          )}
+        </div>
+
+        {data.virtualAccount ? (
+          <div className="mt-5 pt-4 border-t border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-3 relative z-10">
+            <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+              <span className="text-[10px] text-emerald-300 uppercase tracking-wider font-semibold block">Bank Name</span>
+              <span className="text-base font-bold text-white mt-0.5 block">{data.virtualAccount.bank_name || 'Wema Bank'}</span>
+            </div>
+
+            <div className="bg-white/5 rounded-xl p-3 border border-white/10 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-emerald-300 uppercase tracking-wider font-semibold block">Your Personal NUBAN</span>
+                <span className="text-xl font-mono font-bold text-white mt-0.5 tracking-wider block">
+                  {data.virtualAccount.account_number}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleCopyAccount(data.virtualAccount.account_number)}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-emerald-200 transition"
+                title="Copy NUBAN"
+              >
+                {copiedAccount ? <Check size={15} className="text-emerald-300" /> : <Copy size={15} />}
+              </button>
+            </div>
+
+            <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+              <span className="text-[10px] text-emerald-300 uppercase tracking-wider font-semibold block">Account Beneficiary</span>
+              <span className="text-sm font-semibold text-white mt-0.5 block truncate">
+                {data.virtualAccount.account_name}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 pt-3 border-t border-white/10 text-xs text-emerald-200/90 relative z-10 flex items-center justify-between">
+            <span>Click "Generate My Account" to receive a personal bank account number dedicated to your kingdom giving.</span>
+          </div>
+        )}
+      </div>
+
       {/* Metrics */}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs">
           <div className="text-xs text-gray-500 uppercase font-semibold">This year (YTD)</div>

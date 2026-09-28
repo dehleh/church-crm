@@ -46,6 +46,20 @@ const createFirstTimerRecord = async ({ churchId, data }) => {
     );
   }
 
+  // Trigger automated WhatsApp / SMS follow-up sequence
+  try {
+    const { enrollFirstTimerInSequence } = require('./firstTimerSequenceService');
+    const { rows: churchInfo } = await query('SELECT name FROM churches WHERE id = $1', [churchId]);
+    enrollFirstTimerInSequence({
+      churchId,
+      firstTimer: rows[0],
+      churchName: churchInfo[0]?.name || 'ChurchOS',
+      pastorName: 'the Pastorate',
+    }).catch(seqErr => console.warn('Could not auto-enroll first timer sequence:', seqErr.message));
+  } catch (err) {
+    // Non-fatal if sequence service encounters issue
+  }
+
   return rows[0];
 };
 

@@ -99,6 +99,10 @@ router.put('/:id', authorize('admin', 'pastor', 'director', 'hod'), [
 ], handleValidationErrors, c.updateMember);
 router.delete('/:id', authorize('admin', 'pastor'), c.deleteMember);
 
+// Dedicated Virtual Bank Account for Giving
+router.get('/:id/virtual-account', authorize('admin', 'pastor', 'director', 'hod', 'finance'), c.getMemberVirtualAccount);
+router.post('/:id/virtual-account', authorize('admin', 'pastor', 'director', 'hod', 'finance'), c.assignMemberVirtualAccount);
+
 // CSV Import
 const csv = require('../controllers/csvImportController');
 router.post('/import', authorize('admin', 'pastor', 'director', 'hod'), csv.importMembers);

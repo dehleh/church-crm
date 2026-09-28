@@ -175,4 +175,78 @@ const updateFirstTimer = async (req, res) => {
   }
 };
 
-module.exports = { getFirstTimers, createFirstTimer, updateFirstTimer, updateFollowUpStatus, convertToMember, getFirstTimerStats };
+const sequenceService = require('../services/firstTimerSequenceService');
+
+const getSequenceSettings = async (req, res) => {
+  try {
+    const data = await sequenceService.getOrCreateChurchSequence(req.churchId);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error fetching sequence settings' });
+  }
+};
+
+const updateSequenceSettings = async (req, res) => {
+  try {
+    const { title, isActive, steps } = req.body;
+    const data = await sequenceService.updateChurchSequence(req.churchId, { title, isActive, steps });
+    return res.json({ success: true, data, message: 'Follow-up sequence settings updated' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error updating sequence settings' });
+  }
+};
+
+const getFirstTimerQueue = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await sequenceService.getFirstTimerQueue(req.churchId, id);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error fetching sequence queue' });
+  }
+};
+
+const cancelFirstTimerSequence = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await sequenceService.cancelFirstTimerSequence(req.churchId, id);
+    return res.json({ success: true, data, message: 'Pending automated follow-ups cancelled' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error cancelling sequence' });
+  }
+};
+
+const triggerFirstTimerSequence = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await query('SELECT * FROM first_timers WHERE id = $1 AND church_id = $2', [id, req.churchId]);
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'First timer not found' });
+
+    const { rows: churchInfo } = await query('SELECT name FROM churches WHERE id = $1', [req.churchId]);
+    await sequenceService.enrollFirstTimerInSequence({
+      churchId: req.churchId,
+      firstTimer: rows[0],
+      churchName: churchInfo[0]?.name || 'ChurchOS',
+      pastorName: 'the Pastorate',
+    });
+
+    const queue = await sequenceService.getFirstTimerQueue(req.churchId, id);
+    return res.json({ success: true, data: queue, message: 'Automated follow-up sequence triggered' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error triggering sequence' });
+  }
+};
+
+module.exports = {
+  getFirstTimers,
+  createFirstTimer,
+  updateFirstTimer,
+  updateFollowUpStatus,
+  convertToMember,
+  getFirstTimerStats,
+  getSequenceSettings,
+  updateSequenceSettings,
+  getFirstTimerQueue,
+  cancelFirstTimerSequence,
+  triggerFirstTimerSequence,
+};

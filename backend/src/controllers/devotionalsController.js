@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
 const { sendWhatsApp, sendSMS } = require('../services/smsService');
 const { sendEmail } = require('../services/emailService');
+const pushNotificationService = require('../services/pushNotificationService');
 
 // GET /api/devotionals
 const getDevotionals = async (req, res) => {
@@ -214,11 +215,34 @@ const broadcastDevotional = async (req, res) => {
       `Have a victorious and blessed day in Christ! ✨`;
 
     let sentCount = 0;
+
+    // Web Push Notification to members' phone lockscreens & browsers
+    if (channel === 'push' || channel === 'all') {
+      try {
+        const pushPayload = {
+          title: `📖 ${dev.title}`,
+          body: `${dev.theme_scripture ? dev.theme_scripture + ' · ' : ''}${dev.scripture_text ? '"' + dev.scripture_text.slice(0, 100) + '..."' : (dev.content || '').slice(0, 110) + '...'} Tap to read today's word.`,
+          icon: '/logo.png',
+          badge: '/favicon.png',
+          url: `/portal/${dev.church_slug || ''}/devotionals/today`,
+          tag: `devotional-${dev.id}`,
+          data: { url: `/portal/${dev.church_slug || ''}/devotionals/today` },
+          actions: [
+            { action: 'read', title: '📖 Read Now' },
+          ],
+        };
+        const pushRes = await pushNotificationService.sendPushToChurch(req.churchId, pushPayload, { topic: 'devotionals' });
+        sentCount += (pushRes.sent || 0);
+      } catch (pushErr) {
+        logger.warn('Broadcast devotional push failed', { error: pushErr.message });
+      }
+    }
+
     for (const m of members) {
       if ((channel === 'whatsapp' || channel === 'all') && m.phone) {
         await sendWhatsApp({ to: m.phone, body: messageText }, churchSettings);
         sentCount++;
-      } else if (channel === 'email' && m.email) {
+      } else if ((channel === 'email' || channel === 'all') && m.email) {
         await sendEmail({
           to: m.email,
           subject: `Daily Devotional: ${dev.title} - ${dev.church_name}`,
@@ -237,7 +261,7 @@ const broadcastDevotional = async (req, res) => {
     }
 
     await query(
-      `UPDATE daily_devotionals SET reminder_sent_at = NOW() WHERE id = $1`,
+      `UPDATE daily_devotionals SET reminder_sent_at = NOW(), morning_pushed_at = COALESCE(morning_pushed_at, NOW()) WHERE id = $1`,
       [id]
     );
 

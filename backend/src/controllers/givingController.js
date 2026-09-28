@@ -189,7 +189,7 @@ const initializeGiving = async (req, res) => {
         memberId,
         resolvedCampaignId,
         isAnonymous ? 'Anonymous' : (donorName || 'Beloved Donor'),
-        donorEmail || 'giving@churchos.online',
+        donorEmail || 'giving@themobilemissionary.org',
         donorPhone || null,
         categoryId || null,
         campaignTitle ? `${campaignTitle} (${categoryName})` : categoryName,
@@ -204,7 +204,7 @@ const initializeGiving = async (req, res) => {
 
     // Initialize Paystack payment
     const initResult = await paymentService.initializePaystack({
-      email: donorEmail || 'donor@churchos.online',
+      email: donorEmail || 'donor@themobilemissionary.org',
       amount,
       reference,
       callbackUrl: callbackUrl || `${process.env.FRONTEND_URL || ''}/give/verify?reference=${reference}`,
@@ -326,7 +326,7 @@ const verifyGiving = async (req, res) => {
       if (tx.donor_phone) {
         sendWhatsApp({ to: tx.donor_phone, body: receiptMessage }, tx.payment_settings).catch(() => {});
       }
-      if (tx.donor_email && tx.donor_email !== 'giving@churchos.online') {
+      if (tx.donor_email && tx.donor_email !== 'giving@themobilemissionary.org') {
         sendEmail({
           to: tx.donor_email,
           subject: `Donation Receipt — ${tx.church_name} [${receiptNumber}]`,
@@ -463,9 +463,110 @@ const listGivingTransactions = async (req, res) => {
   }
 };
 
+// POST /api/giving/webhook (Paystack webhook for card giving & dedicated bank accounts)
+const handleGivingWebhook = async (req, res) => {
+  const signature = req.headers['x-paystack-signature'];
+  const rawBody = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
+
+  if (process.env.PAYSTACK_SECRET_KEY && signature) {
+    const isValid = paymentService.verifyPaystackSignature(rawBody, signature);
+    if (!isValid && process.env.NODE_ENV === 'production') {
+      logger.warn('Invalid Paystack webhook signature for giving');
+      return res.status(400).send('Invalid signature');
+    }
+  }
+
+  const event = req.body;
+  if (!event || event.event !== 'charge.success') {
+    return res.status(200).send('Event ignored');
+  }
+
+  const data = event.data || {};
+  const reference = data.reference;
+  const amount = Number(data.amount) / 100;
+  const currency = data.currency || 'NGN';
+
+  try {
+    const dvaAccountNumber = data.dedicated_account?.account_number;
+    const customerCode = data.customer?.customer_code;
+
+    let account = null;
+    if (dvaAccountNumber) {
+      const { rows } = await query(
+        `SELECT mva.*, m.first_name, m.last_name, m.phone, m.email, c.name as church_name, c.payment_settings
+         FROM member_virtual_accounts mva
+         JOIN members m ON m.id = mva.member_id
+         JOIN churches c ON c.id = mva.church_id
+         WHERE mva.account_number = $1`,
+        [dvaAccountNumber]
+      );
+      account = rows[0];
+    } else if (customerCode) {
+      const { rows } = await query(
+        `SELECT mva.*, m.first_name, m.last_name, m.phone, m.email, c.name as church_name, c.payment_settings
+         FROM member_virtual_accounts mva
+         JOIN members m ON m.id = mva.member_id
+         JOIN churches c ON c.id = mva.church_id
+         WHERE mva.paystack_customer_code = $1`,
+        [customerCode]
+      );
+      account = rows[0];
+    }
+
+    if (account) {
+      const client = await getClient();
+      try {
+        await client.query('BEGIN');
+        const desc = `Direct Bank Transfer (Virtual Account ${account.account_number}) - ${account.first_name} ${account.last_name}`;
+        await client.query(
+          `INSERT INTO transactions (
+            id, church_id, member_id, transaction_type, amount, currency,
+            description, payment_method, reference, transaction_date, status
+          ) VALUES ($1, $2, $3, 'income', $4, $5, $6, 'bank_transfer', $7, CURRENT_DATE, 'completed')
+          ON CONFLICT (reference) DO NOTHING`,
+          [uuidv4(), account.church_id, account.member_id, amount, currency, desc, reference]
+        );
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+
+      const msg = `Dear ${account.first_name},\nWe have received your gift of ${currency} ${amount.toLocaleString()} via your dedicated church bank account (${account.bank_name} - ${account.account_number}).\nThank you for honoring the Lord with your substance! May the Lord bless and reward you abundantly.`;
+      if (account.phone) {
+        sendWhatsApp({ to: account.phone, body: msg }, account.payment_settings).catch(() => {});
+      }
+
+      return res.status(200).send('DVA transfer recorded');
+    }
+
+    if (reference) {
+      const { rows } = await query(
+        `SELECT * FROM online_giving_transactions WHERE reference = $1`,
+        [reference]
+      );
+      if (rows.length && rows[0].status !== 'successful') {
+        await query(
+          `UPDATE online_giving_transactions SET status = 'successful', paid_at = NOW(), updated_at = NOW() WHERE id = $1`,
+          [rows[0].id]
+        );
+      }
+    }
+
+    return res.status(200).send('OK');
+  } catch (err) {
+    logger.error('Giving webhook error:', { error: err.message, reference });
+    return res.status(500).send('Error');
+  }
+};
+
 module.exports = {
   getPublicGivingInfo,
   initializeGiving,
   verifyGiving,
   listGivingTransactions,
+  handleGivingWebhook,
 };
+

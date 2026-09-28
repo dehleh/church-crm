@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { memberPortalAPI } from '../../api/memberClient';
+import PushNotificationPrompt from '../../components/portal/PushNotificationPrompt';
 
 const fmtCurrency = (n) => '₦' + Number(n || 0).toLocaleString();
 
@@ -46,6 +47,9 @@ export default function MemberHome() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-4">
+      {/* Mobile Lock Screen Pop-up & Morning Devotional Notification Prompt */}
+      <PushNotificationPrompt churchName={church?.name || 'Our Church'} />
+
       {/* Pinned Church Announcement Notice */}
       {portalSettings.bannerNoticeActive && portalSettings.bannerNoticeMessage && (
         <div className={`rounded-2xl p-4 sm:p-5 border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs transition-all ${

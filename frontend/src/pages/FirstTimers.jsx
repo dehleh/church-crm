@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { UserPlus, Plus, Search, Phone, Mail, ArrowRightCircle, Loader2, CheckCircle, Edit2, FileSpreadsheet, QrCode } from 'lucide-react';
+import { UserPlus, Plus, Search, Phone, Mail, ArrowRightCircle, Loader2, CheckCircle, Edit2, FileSpreadsheet, QrCode, Bot, Sparkles, Clock, Send, MessageSquare, Play, XCircle } from 'lucide-react';
 import { firstTimersAPI, branchesAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import CsvImportModal from '../components/ui/CsvImportModal';
@@ -32,11 +32,81 @@ export default function FirstTimers() {
   const [showImport, setShowImport] = useState(false);
   const [showShare, setShowShare] = useState(false);
 
+  // Automated Drip Follow-up Sequence state
+  const [showSequenceModal, setShowSequenceModal] = useState(false);
+  const [savingSequence, setSavingSequence] = useState(false);
+  const [sequenceSettings, setSequenceSettings] = useState(null);
+  const [showQueueModal, setShowQueueModal] = useState(false);
+  const [queueVisitor, setQueueVisitor] = useState(null);
+  const [queueList, setQueueList] = useState([]);
+  const [loadingQueue, setLoadingQueue] = useState(false);
+
   const churchSlug = user?.church_slug || user?.churchSlug;
   const publicFirstTimerFormUrl = useMemo(() => {
     if (!churchSlug || typeof window === 'undefined') return '';
     return `${window.location.origin}/connect/${churchSlug}/first-timer`;
   }, [churchSlug]);
+
+  const openSequenceModal = async () => {
+    setShowSequenceModal(true);
+    try {
+      const res = await firstTimersAPI.getSequenceSettings();
+      setSequenceSettings(res.data.data);
+    } catch {
+      toast.error('Failed to load automation settings');
+    }
+  };
+
+  const handleSaveSequence = async () => {
+    if (!sequenceSettings) return;
+    setSavingSequence(true);
+    try {
+      await firstTimersAPI.updateSequenceSettings(sequenceSettings);
+      toast.success('Automated drip sequence updated!');
+      setShowSequenceModal(false);
+    } catch {
+      toast.error('Failed to save sequence settings');
+    } finally {
+      setSavingSequence(false);
+    }
+  };
+
+  const openQueueModal = async (visitor) => {
+    setQueueVisitor(visitor);
+    setShowQueueModal(true);
+    setLoadingQueue(true);
+    try {
+      const res = await firstTimersAPI.getMemberQueue(visitor.id);
+      setQueueList(res.data.data || []);
+    } catch {
+      toast.error('Failed to load sequence queue');
+    } finally {
+      setLoadingQueue(false);
+    }
+  };
+
+  const handleCancelQueue = async (visitorId) => {
+    if (!window.confirm('Cancel remaining automated follow-up messages for this visitor?')) return;
+    try {
+      await firstTimersAPI.cancelMemberQueue(visitorId);
+      toast.success('Automated sequence cancelled');
+      const res = await firstTimersAPI.getMemberQueue(visitorId);
+      setQueueList(res.data.data || []);
+    } catch {
+      toast.error('Failed to cancel sequence');
+    }
+  };
+
+  const handleTriggerQueue = async (visitorId) => {
+    try {
+      await firstTimersAPI.triggerMemberSequence(visitorId);
+      toast.success('Automated sequence re-enrolled!');
+      const res = await firstTimersAPI.getMemberQueue(visitorId);
+      setQueueList(res.data.data || []);
+    } catch {
+      toast.error('Failed to trigger sequence');
+    }
+  };
 
   const fetch = useCallback(async (page = 1) => {
     setLoading(true);
@@ -128,6 +198,9 @@ export default function FirstTimers() {
           <p className="text-gray-500 text-sm mt-1">Track and follow up on new visitors</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={openSequenceModal} className="btn-secondary flex items-center gap-1.5 text-brand-700 bg-brand-50 border-brand-200 hover:bg-brand-100">
+            <Bot size={16} /> Automated Drip
+          </button>
           {publicFirstTimerFormUrl && (
             <button onClick={() => setShowShare(true)} className="btn-secondary flex items-center gap-1.5">
               <QrCode size={16} /> Visitor Form
@@ -219,10 +292,20 @@ export default function FirstTimers() {
                   </td>
                   <td className="text-sm text-gray-500 capitalize">{item.how_did_you_hear || '—'}</td>
                   <td>
-                    <span className={`badge capitalize ${FOLLOW_UP_BADGE[item.follow_up_status] || 'badge-gray'}`}>
-                      {item.follow_up_status}
-                    </span>
+                    <div className="flex flex-col items-start gap-1">
+                      <span className={`badge capitalize ${FOLLOW_UP_BADGE[item.follow_up_status] || 'badge-gray'}`}>
+                        {item.follow_up_status}
+                      </span>
+                      <button
+                        onClick={() => openQueueModal(item)}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-600 hover:text-brand-800 transition-colors"
+                        title="View Automated Follow-up Drip Schedule"
+                      >
+                        <Bot size={11} /> Drip Queue
+                      </button>
+                    </div>
                   </td>
+
                   <td className="text-sm text-gray-500">{item.assigned_to_name || 'Unassigned'}</td>
                   <td>
                     <div className="flex items-center gap-1">
@@ -342,6 +425,208 @@ export default function FirstTimers() {
         description="Share this QR code or link with first-timers so they can fill their details themselves and appear on the First Timers page."
         url={publicFirstTimerFormUrl}
       />
+
+      {/* Automated Follow-up Drip Sequence Settings Modal */}
+      <Modal
+        open={showSequenceModal}
+        onClose={() => setShowSequenceModal(false)}
+        title="Automated Drip Follow-up Sequence"
+        size="lg"
+        footer={<>
+          <button onClick={() => setShowSequenceModal(false)} className="btn-secondary">Cancel</button>
+          <button onClick={handleSaveSequence} disabled={savingSequence} className="btn-primary">
+            {savingSequence ? <Loader2 size={15} className="animate-spin" /> : 'Save Automation Rules'}
+          </button>
+        </>}
+      >
+        {sequenceSettings ? (
+          <div className="space-y-5 max-h-[72vh] overflow-y-auto pr-1">
+            <div className="p-4 bg-brand-50 border border-brand-100 rounded-xl flex items-start gap-3">
+              <Bot className="text-brand-600 mt-0.5 flex-shrink-0" size={20} />
+              <div className="text-sm">
+                <p className="font-semibold text-brand-900">Multi-Step Automated Follow-up</p>
+                <p className="text-brand-700 text-xs mt-0.5">
+                  When a first-timer registers or is recorded, ChurchOS automatically enrolls them in a timed 3-step drip campaign via WhatsApp/SMS to warm their heart and integrate them into fellowship.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border border-gray-100">
+              <div>
+                <label className="text-sm font-semibold text-gray-800">Enable Automated Drip Campaign</label>
+                <p className="text-xs text-gray-500">Automatically queue messages for all new connect-card entries</p>
+              </div>
+              <input
+                type="checkbox"
+                className="w-5 h-5 accent-brand-600 cursor-pointer rounded"
+                checked={sequenceSettings.is_active ?? true}
+                onChange={e => setSequenceSettings(s => ({ ...s, is_active: e.target.checked }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="label">Delivery Channel</label>
+                <select
+                  className="input"
+                  value={sequenceSettings.channel || 'whatsapp'}
+                  onChange={e => setSequenceSettings(s => ({ ...s, channel: e.target.value }))}
+                >
+                  <option value="whatsapp">WhatsApp (Recommended)</option>
+                  <option value="sms">SMS</option>
+                  <option value="both">Both (WhatsApp + SMS Fallback)</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Available Dynamic Placeholders</label>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {['{{firstName}}', '{{lastName}}', '{{churchName}}', '{{serviceTheme}}'].map(tag => (
+                    <span key={tag} className="text-[11px] font-mono bg-gray-100 text-gray-700 px-2 py-0.5 rounded border border-gray-200">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Step 1: Day 0 */}
+            <div className="p-4 border border-gray-200 rounded-xl space-y-2.5 bg-white">
+              <div className="flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                  <Clock size={12} /> Step 1: Day 0 (Immediate Welcome)
+                </span>
+                <span className="text-xs text-gray-400">Sent ~1 hour after service/intake</span>
+              </div>
+              <textarea
+                className="input min-h-[90px] text-sm font-sans"
+                value={sequenceSettings.step1_template || ''}
+                onChange={e => setSequenceSettings(s => ({ ...s, step1_template: e.target.value }))}
+                placeholder="Welcome template..."
+              />
+            </div>
+
+            {/* Step 2: Day 3 */}
+            <div className="p-4 border border-gray-200 rounded-xl space-y-2.5 bg-white">
+              <div className="flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
+                  <Clock size={12} /> Step 2: Day 3 (Midweek Check-in & Prayer)
+                </span>
+                <span className="text-xs text-gray-400">Sent on Wednesday or 72 hours later</span>
+              </div>
+              <textarea
+                className="input min-h-[90px] text-sm font-sans"
+                value={sequenceSettings.step2_template || ''}
+                onChange={e => setSequenceSettings(s => ({ ...s, step2_template: e.target.value }))}
+                placeholder="Midweek prayer check-in template..."
+              />
+            </div>
+
+            {/* Step 3: Day 7 */}
+            <div className="p-4 border border-gray-200 rounded-xl space-y-2.5 bg-white">
+              <div className="flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                  <Clock size={12} /> Step 3: Day 7 (Sunday Return Reminder)
+                </span>
+                <span className="text-xs text-gray-400">Sent Saturday morning before next Sunday</span>
+              </div>
+              <textarea
+                className="input min-h-[90px] text-sm font-sans"
+                value={sequenceSettings.step3_template || ''}
+                onChange={e => setSequenceSettings(s => ({ ...s, step3_template: e.target.value }))}
+                placeholder="Next Sunday reminder template..."
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 size={24} className="animate-spin text-brand-600" />
+          </div>
+        )}
+      </Modal>
+
+      {/* Visitor Sequence Queue Modal */}
+      <Modal
+        open={showQueueModal}
+        onClose={() => setShowQueueModal(false)}
+        title={queueVisitor ? `Automated Follow-up: ${queueVisitor.first_name} ${queueVisitor.last_name}` : 'Follow-up Queue'}
+        size="lg"
+        footer={<>
+          <button onClick={() => setShowQueueModal(false)} className="btn-secondary">Close</button>
+          {queueVisitor && (
+            <>
+              <button
+                onClick={() => handleCancelQueue(queueVisitor.id)}
+                className="btn-secondary text-red-600 border-red-200 hover:bg-red-50"
+              >
+                Cancel Remaining
+              </button>
+              <button
+                onClick={() => handleTriggerQueue(queueVisitor.id)}
+                className="btn-primary"
+              >
+                Re-Enroll in Sequence
+              </button>
+            </>
+          )}
+        </>}
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-between text-xs text-gray-600">
+            <span><strong>Visitor:</strong> {queueVisitor?.first_name} {queueVisitor?.last_name}</span>
+            <span><strong>Phone:</strong> {queueVisitor?.phone || 'No phone'}</span>
+            <span><strong>Visited:</strong> {queueVisitor?.visit_date ? format(new Date(queueVisitor.visit_date), 'MMM d, yyyy') : '—'}</span>
+          </div>
+
+          {loadingQueue ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-brand-600" />
+            </div>
+          ) : queueList.length === 0 ? (
+            <div className="text-center py-10">
+              <Bot size={36} className="mx-auto text-gray-300 mb-2" />
+              <p className="text-gray-500 font-medium">No messages currently in queue for this visitor</p>
+              <p className="text-xs text-gray-400 mt-1">You can click "Re-Enroll in Sequence" to generate and schedule the 3-step follow-up.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {queueList.map((item, idx) => (
+                <div key={item.id} className="p-3.5 border rounded-xl bg-white shadow-xs space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-gray-800 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-[10px] font-bold">
+                        {item.step_number}
+                      </span>
+                      Step {item.step_number}: Day {item.scheduled_days_after ?? (idx === 0 ? 0 : idx === 1 ? 3 : 7)}
+                    </span>
+                    <span className={`badge uppercase text-[10px] font-bold ${
+                      item.status === 'sent' ? 'badge-green' :
+                      item.status === 'cancelled' ? 'badge-gray' :
+                      item.status === 'failed' ? 'badge-red' :
+                      'badge-blue'
+                    }`}>
+                      {item.status}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-gray-700 bg-gray-50 p-2.5 rounded-lg border border-gray-100 whitespace-pre-wrap">
+                    {item.message_body}
+                  </p>
+
+                  <div className="flex items-center justify-between text-[11px] text-gray-400">
+                    <span>Channel: {item.channel?.toUpperCase() || 'WHATSAPP'}</span>
+                    <span>
+                      {item.status === 'sent' && item.sent_at
+                        ? `Sent: ${format(new Date(item.sent_at), 'MMM d, h:mm a')}`
+                        : `Scheduled: ${item.scheduled_for ? format(new Date(item.scheduled_for), 'MMM d, h:mm a') : 'Due soon'}`}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
+

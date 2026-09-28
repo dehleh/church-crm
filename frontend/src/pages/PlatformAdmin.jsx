@@ -321,7 +321,25 @@ export default function PlatformAdmin() {
         {loading ? (
           <div className="p-12 flex justify-center"><Loader2 className="animate-spin text-brand-600" size={28}/></div>
         ) : churches.length === 0 ? (
-          <div className="p-12 text-center text-gray-500">No churches found matching this criteria</div>
+          <div className="p-16 text-center">
+            <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <h3 className="font-bold text-gray-900 text-base mb-1">
+              {search || status || activity ? 'No churches found matching this criteria' : 'No Churches Onboarded Yet'}
+            </h3>
+            <p className="text-xs text-gray-500 max-w-sm mx-auto mb-5">
+              {search || status || activity
+                ? 'Try adjusting your search terms or filter selection.'
+                : 'All customer accounts are currently clear. Click "+ New Church" to manually provision a church tenant or wait for pastors to sign up.'}
+            </p>
+            {!search && !status && !activity && (
+              <button
+                onClick={() => setCreateOpen(true)}
+                className="btn-primary text-xs px-4 py-2 mx-auto inline-flex items-center"
+              >
+                <Plus size={14} className="mr-1.5" /> Provision First Church
+              </button>
+            )}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
