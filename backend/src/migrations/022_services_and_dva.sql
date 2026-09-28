@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS member_virtual_accounts (
 CREATE INDEX IF NOT EXISTS idx_member_virtual_accounts_church
   ON member_virtual_accounts(church_id, member_id);
 
--- Add channel / virtual account reference to finance_transactions if not present
-ALTER TABLE finance_transactions
+-- Add channel / virtual account reference to transactions if not present
+ALTER TABLE transactions
   ADD COLUMN IF NOT EXISTS payment_channel VARCHAR(50) DEFAULT 'manual',
   ADD COLUMN IF NOT EXISTS virtual_account_number VARCHAR(30);
