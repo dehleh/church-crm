@@ -198,7 +198,7 @@ export default function Landing() {
                   <div className="w-3 h-3 rounded-full bg-red-400"></div>
                   <div className="w-3 h-3 rounded-full bg-amber-400"></div>
                   <div className="w-3 h-3 rounded-full bg-emerald-400"></div>
-                  <div className="ml-3 text-xs font-mono text-gray-500">app.themobilemissionary.org / dashboard</div>
+                  <div className="ml-3 text-xs font-mono text-gray-500">cos.themobilemissionary.org / dashboard</div>
                 </div>
                 <div className="flex items-center gap-2 text-xs font-medium text-brand-700 bg-brand-50 px-2.5 py-1 rounded-md border border-brand-100">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Live Campus

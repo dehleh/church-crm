@@ -103,7 +103,9 @@ export default function PlatformAdmin() {
       toast.success('Church deleted');
       setConfirmDelete(null);
       loadAll();
-    } catch { toast.error('Failed'); } finally { setBusyId(null); }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to delete church');
+    } finally { setBusyId(null); }
   };
 
   const handleAccess = async (church) => {

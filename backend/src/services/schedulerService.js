@@ -427,7 +427,7 @@ async function processSubscriptionTrialReminders() {
       if (!reminderType) continue;
 
       const churchSettings = church.settings?.messaging || {};
-      const loginUrl = `${process.env.APP_URL || 'https://churchos.ng'}/settings?tab=subscription`;
+      const loginUrl = `${process.env.APP_URL || 'https://cos.themobilemissionary.org'}/settings?tab=subscription`;
 
       let subject = '';
       let emailHtml = '';
@@ -453,7 +453,7 @@ async function processSubscriptionTrialReminders() {
                 Subscribe with Paystack →
               </a>
             </div>
-            <p style="font-size: 12px; color: #6b7280;">If you have any questions or need Denominational / Enterprise support, reply to this email or contact support@churchos.ng.</p>
+            <p style="font-size: 12px; color: #6b7280;">If you have any questions or need Denominational / Enterprise support, reply to this email or contact hello@themobilemissionary.org.</p>
           </div>
         `;
       } else if (reminderType === 'expired') {

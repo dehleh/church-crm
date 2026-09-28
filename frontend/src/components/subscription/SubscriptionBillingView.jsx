@@ -457,8 +457,8 @@ export default function SubscriptionBillingView({ isExpiredScreen = false, onPay
                   </div>
                   <span className="text-xl font-display font-extrabold text-gray-900 tracking-tight">ChurchOS</span>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-1">Cloud Church Management & Monetization System</p>
-                <p className="text-[11px] text-gray-400">support@churchos.ng · www.churchos.ng</p>
+                <p className="text-[11px] text-gray-400 mt-1">Cloud Church Management & Operations Platform</p>
+                <p className="text-[11px] text-gray-400">hello@themobilemissionary.org · cos.themobilemissionary.org</p>
               </div>
               <div className="sm:text-right">
                 <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -483,7 +483,7 @@ export default function SubscriptionBillingView({ isExpiredScreen = false, onPay
                 <span className="text-gray-400 uppercase font-semibold text-[10px] tracking-wider block mb-1">Customer / Church</span>
                 <p className="font-bold text-gray-900 text-sm">{data?.churchName || user?.churchName || 'Church Account'}</p>
                 <p className="text-gray-500 mt-0.5">Admin: {user?.firstName} {user?.lastName} ({user?.email})</p>
-                <p className="text-gray-500">Domain: {data?.churchSlug ? `${data.churchSlug}.churchos.ng` : 'churchos.ng'}</p>
+                <p className="text-gray-500">Domain: {data?.churchSlug ? `cos.themobilemissionary.org/${data.churchSlug}` : 'cos.themobilemissionary.org'}</p>
               </div>
               <div className="text-right">
                 <span className="text-gray-400 uppercase font-semibold text-[10px] tracking-wider block mb-1">Billing Details</span>

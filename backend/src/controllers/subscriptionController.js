@@ -178,7 +178,7 @@ const initializeSubscription = async (req, res) => {
       ]
     );
 
-    const origin = req.headers.origin || process.env.APP_URL || 'http://localhost:5173';
+    const origin = req.headers.origin || process.env.APP_URL || 'https://cos.themobilemissionary.org';
     const callbackUrl = `${origin}/settings?tab=subscription&reference=${reference}`;
 
     const initResult = await paymentService.initializePaystack({

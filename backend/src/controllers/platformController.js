@@ -99,6 +99,10 @@ const listChurches = async (req, res) => {
     conditions.push(`(c.name ILIKE $${i} OR c.slug ILIKE $${i} OR c.denomination ILIKE $${i})`);
     params.push(`%${search}%`); i++;
   }
+  // Exclude internal platform system tenants
+  conditions.push('(c.is_system IS NULL OR c.is_system = false)');
+  conditions.push("c.slug NOT IN ('platform-operations-system', 'platform-ops')");
+
   if (status === 'active') conditions.push('c.is_active = true');
   if (status === 'suspended') conditions.push('c.is_active = false');
 
@@ -208,16 +212,46 @@ const activateChurch = async (req, res) => {
 // DELETE /api/platform/churches/:id  — destructive; cascades via FK
 const deleteChurch = async (req, res) => {
   try {
-    const { rows } = await query(
-      `DELETE FROM churches WHERE id = $1 RETURNING id, name`,
-      [req.params.id]
+    const churchId = req.params.id;
+
+    // 1. Fetch church to check existence and protected status
+    const { rows: churchRows } = await query(
+      `SELECT id, name, slug, COALESCE(is_system, false) AS is_system FROM churches WHERE id = $1`,
+      [churchId]
     );
-    if (!rows[0]) return res.status(404).json({ success: false, message: 'Church not found' });
-    await audit(req.user.id, 'delete_church', req.params.id, { name: rows[0].name });
-    return res.json({ success: true, data: rows[0] });
+    const church = churchRows[0];
+    if (!church) {
+      return res.status(404).json({ success: false, message: 'Church not found' });
+    }
+
+    // 2. Protect system platform operations tenant
+    if (church.is_system || church.slug === 'platform-operations-system' || church.slug === 'platform-ops' || churchId === '00000000-0000-0000-0000-000000000001') {
+      return res.status(403).json({ success: false, message: 'Cannot delete the Platform Operations system tenant.' });
+    }
+
+    // 3. Ensure any superadmin accounts are safely reassigned to the system church so they are NEVER cascade-deleted
+    const systemChurchId = '00000000-0000-0000-0000-000000000001';
+    await query(
+      `INSERT INTO churches (id, name, slug, subscription_plan, is_active, is_system)
+       VALUES ($1, 'ChurchOS Platform Operations', 'platform-operations-system', 'enterprise', true, true)
+       ON CONFLICT (id) DO UPDATE SET is_system = true`,
+      [systemChurchId]
+    );
+    await query(
+      `UPDATE users SET church_id = $1 WHERE (church_id = $2 OR church_id IS NULL) AND is_super_admin = true`,
+      [systemChurchId, churchId]
+    );
+
+    // 4. Audit log BEFORE deletion with target_church_id = null so FK constraint is satisfied
+    await audit(req.user?.id, 'delete_church', null, { deleted_church_id: churchId, church_name: church.name });
+
+    // 5. Delete church
+    await query(`DELETE FROM churches WHERE id = $1`, [churchId]);
+
+    return res.json({ success: true, message: `Church '${church.name}' deleted successfully.` });
   } catch (err) {
     logger.error('delete church error', { err: err.message });
-    return res.status(500).json({ success: false, message: 'Server error' });
+    return res.status(500).json({ success: false, message: 'Server error deleting church' });
   }
 };
 

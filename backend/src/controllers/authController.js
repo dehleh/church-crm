@@ -123,12 +123,12 @@ const registerChurch = async (req, res) => {
             </p>
 
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${process.env.APP_URL || 'https://churchos.ng'}/dashboard" style="background: #4338ca; color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">
+              <a href="${process.env.APP_URL || 'https://cos.themobilemissionary.org'}/dashboard" style="background: #4338ca; color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">
                 Access Church Dashboard →
               </a>
             </div>
             <p style="font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 12px;">
-              Need any assistance? Reply to this email or contact support@churchos.ng.
+              Need any assistance? Reply to this email or contact hello@themobilemissionary.org.
             </p>
           </div>
         `,
@@ -170,7 +170,7 @@ const LOCKOUT_MINUTES = 15;
 const login = async (req, res) => {
   const { email, password } = req.body;
   try {
-    const { rows } = await query(
+    let { rows } = await query(
       `SELECT u.*,
          c.name as church_name, c.slug as church_slug, c.is_active as church_active,
          c.multi_branch_enabled, c.is_whitelisted, c.subscription_plan, c.subscription_expires_at,
@@ -179,6 +179,23 @@ const login = async (req, res) => {
        WHERE LOWER(u.email) = LOWER($1)`,
       [(email || '').trim()]
     );
+
+    const platformAdminEmail = (process.env.PLATFORM_ADMIN_EMAIL || 'superadmin@churchos.platform').toLowerCase().trim();
+    if (!rows[0] && (email || '').toLowerCase().trim() === platformAdminEmail) {
+      logger.info('Platform Super Admin user missing during login attempt — auto-recovering now...', { email });
+      const { ensureSuperAdmin } = require('../scripts/initSuperAdmin');
+      await ensureSuperAdmin();
+      const retry = await query(
+        `SELECT u.*,
+           c.name as church_name, c.slug as church_slug, c.is_active as church_active,
+           c.multi_branch_enabled, c.is_whitelisted, c.subscription_plan, c.subscription_expires_at,
+           c.branch_limit, c.member_limit
+         FROM users u LEFT JOIN churches c ON c.id = u.church_id
+         WHERE LOWER(u.email) = LOWER($1)`,
+        [(email || '').trim()]
+      );
+      rows = retry.rows;
+    }
 
     if (!rows[0]) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });

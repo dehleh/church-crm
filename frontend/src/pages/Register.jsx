@@ -188,7 +188,7 @@ export default function Register() {
               <div>
                 <label className="label">Church URL Slug *</label>
                 <div className="flex">
-                  <span className="inline-flex items-center px-3 bg-gray-50 border border-r-0 border-gray-200 rounded-l-lg text-gray-500 text-sm">themobilemissionary.org/</span>
+                  <span className="inline-flex items-center px-3 bg-gray-50 border border-r-0 border-gray-200 rounded-l-lg text-gray-500 text-sm">cos.themobilemissionary.org/</span>
                   <input className={`input rounded-l-none ${errors.churchSlug ? 'border-red-400' : ''}`} placeholder="tbc-lekki" value={form.churchSlug} onChange={set('churchSlug')} />
                 </div>
                 {errors.churchSlug ? <p className="text-xs text-red-500 mt-1">{errors.churchSlug}</p> : <p className="text-xs text-gray-400 mt-1">Only lowercase letters, numbers, and hyphens</p>}
@@ -244,7 +244,7 @@ export default function Register() {
                 {[
                   { label: 'Church Name', value: form.churchName },
                   { label: 'Church Structure', value: form.branchMode === 'multi' ? 'Multi-Branch Network (Growth Plan)' : 'Single Campus (Starter Plan)' },
-                  { label: 'Church Slug', value: `themobilemissionary.org/${form.churchSlug}` },
+                  { label: 'Church Slug', value: `cos.themobilemissionary.org/${form.churchSlug}` },
                   { label: 'Denomination', value: form.denomination || 'Not specified' },
                   { label: 'Admin Name', value: `${form.adminFirstName} ${form.adminLastName}` },
                   { label: 'Admin Email', value: form.adminEmail },

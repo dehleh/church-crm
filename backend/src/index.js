@@ -68,7 +68,7 @@ if (isProduction) {
 }
 
 // CORS — allow multiple origins (comma-separated APP_URL) + railway / custom domains
-const allowedOrigins = (process.env.APP_URL || 'http://localhost:3000,http://localhost:5173')
+const allowedOrigins = (process.env.APP_URL || 'http://localhost:3000,http://localhost:5173,https://cos.themobilemissionary.org')
   .split(',')
   .map(o => o.trim());
 app.use(cors({
