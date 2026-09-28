@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users, UserPlus, CalendarDays, DollarSign,
-  TrendingUp, TrendingDown, ArrowRight, Clock
+  TrendingUp, TrendingDown, ArrowRight, Clock, Sparkles,
+  CheckCircle2, Circle, AlertTriangle, ChevronDown, ChevronUp, X, GitBranch, UserCheck
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -59,6 +60,10 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [guideDismissed, setGuideDismissed] = useState(() => {
+    return localStorage.getItem('churchos_guide_dismissed') === 'true';
+  });
+  const [guideCollapsed, setGuideCollapsed] = useState(false);
 
   useEffect(() => {
     dashboardAPI.get()
@@ -90,6 +95,64 @@ export default function Dashboard() {
     attendance: Number(r.actual_attendance || 0),
   }));
 
+  // Trial duration calculation
+  const daysLeft = user?.subscriptionExpiresAt
+    ? Math.max(0, Math.ceil((new Date(user.subscriptionExpiresAt) - new Date()) / (1000 * 60 * 60 * 24)))
+    : 14;
+  const isUrgent = daysLeft <= 3;
+  const isTrial = user && (user.subscriptionPlan === 'trial' || user.subscriptionPlan?.startsWith('trial_')) && !user.isSuperAdmin;
+
+  // Checklist items
+  const hasMembers = Number(data?.members?.total || 0) > 0;
+  const hasEvents = Number(data?.events?.upcoming || 0) > 0 || (data?.attendanceTrend && data.attendanceTrend.length > 0);
+  const hasFinance = Number(data?.finance?.month_income || 0) > 0 || Number(data?.finance?.month_expense || 0) > 0;
+  const hasCampusOrTeam = Boolean(user?.multiBranchEnabled ? true : (localStorage.getItem('churchos_team_setup_done') === 'true'));
+
+  const checklist = [
+    {
+      id: 'members',
+      title: 'Add your congregation members',
+      desc: 'Register first members manually or import your existing directory via CSV.',
+      done: hasMembers,
+      to: '/members',
+      actionLabel: 'Add Members',
+    },
+    {
+      id: 'events',
+      title: 'Schedule a service or church event',
+      desc: 'Create your Sunday service or weekly fellowship to start tracking attendance.',
+      done: hasEvents,
+      to: '/events',
+      actionLabel: 'Create Event',
+    },
+    {
+      id: 'finance',
+      title: 'Record tithes & offerings',
+      desc: 'Log church donations or expenses to generate automated financial summaries.',
+      done: hasFinance,
+      to: '/finance',
+      actionLabel: 'Record Giving',
+    },
+    {
+      id: 'branches',
+      title: user?.multiBranchEnabled ? 'Setup Campus Branches' : 'Invite Pastoral Team & Staff',
+      desc: user?.multiBranchEnabled
+        ? 'Add your regional branches and assign campus pastors.'
+        : 'Invite ministers and administrators to collaborate on ChurchOS.',
+      done: hasCampusOrTeam,
+      to: user?.multiBranchEnabled ? '/branches' : '/users',
+      actionLabel: user?.multiBranchEnabled ? 'Manage Branches' : 'Invite Team',
+    },
+  ];
+
+  const completedCount = checklist.filter(c => c.done).length;
+  const progressPercent = Math.round((completedCount / checklist.length) * 100);
+
+  const handleDismissGuide = () => {
+    localStorage.setItem('churchos_guide_dismissed', 'true');
+    setGuideDismissed(true);
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -97,6 +160,142 @@ export default function Dashboard() {
         <h1 className="page-title">Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}, {user?.firstName} 👋</h1>
         <p className="text-gray-500 text-sm mt-1">{new Date().toLocaleDateString('en-NG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
       </div>
+
+      {/* Trial Banner */}
+      {isTrial && (
+        <div
+          className={`mb-6 p-4 sm:p-5 rounded-2xl text-white shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all ${
+            isUrgent
+              ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 shadow-orange-600/20 border border-amber-300/30'
+              : 'bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 shadow-brand-600/15'
+          }`}
+        >
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isUrgent ? 'bg-amber-400/20 text-white' : 'bg-white/15'}`}>
+              {isUrgent ? (
+                <AlertTriangle size={22} className="text-amber-200 animate-pulse" />
+              ) : (
+                <Sparkles size={20} className="text-amber-300" />
+              )}
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-display font-bold text-base">
+                  {isUrgent ? '⚠️ Urgent: Trial Expiring Soon' : '14-Day Full Access Trial'}
+                </span>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${isUrgent ? 'bg-rose-900/60 text-white border border-rose-400/30' : 'bg-white/20 backdrop-blur'}`}>
+                  {daysLeft === 0 ? 'Expires today' : `${daysLeft} days remaining`}
+                </span>
+                <span className="text-[11px] bg-black/15 font-medium px-2 py-0.5 rounded-full hidden sm:inline-block">
+                  {user.multiBranchEnabled ? 'Multi-Branch (Growth: ₦600k/yr)' : 'Single Branch (Starter: ₦250k/yr)'}
+                </span>
+              </div>
+              <p className={`text-xs sm:text-sm mt-1 ${isUrgent ? 'text-amber-100 font-medium' : 'text-brand-100'}`}>
+                {isUrgent
+                  ? `Your trial ends in ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}. Subscribe to an annual plan now to keep your records accessible and prevent campus lockouts.`
+                  : 'Enjoy full access to ChurchOS. Subscribe to an annual plan anytime to lock in your church network and keep going uninterrupted.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 w-full md:w-auto flex-shrink-0">
+            <Link
+              to="/settings?tab=subscription"
+              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap w-full md:w-auto ${
+                isUrgent
+                  ? 'bg-white text-orange-700 hover:bg-orange-50'
+                  : 'bg-white text-brand-700 hover:bg-brand-50'
+              }`}
+            >
+              {isUrgent ? 'Subscribe to Annual Plan' : 'Subscribe to Plan'} <ArrowRight size={14} />
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Getting Started Guide */}
+      {!guideDismissed && (
+        <div className="mb-6 card border border-brand-100/80 bg-gradient-to-br from-brand-50/40 via-white to-white shadow-xs p-5 transition-all">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center font-bold text-xs">
+                {completedCount}/{checklist.length}
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-gray-900 text-sm">Getting Started Checklist</h3>
+                <p className="text-xs text-gray-500">Complete these key steps to get your ministry fully operational on ChurchOS.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setGuideCollapsed(!guideCollapsed)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg text-xs flex items-center gap-1"
+                title={guideCollapsed ? 'Expand guide' : 'Collapse guide'}
+              >
+                {guideCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+              </button>
+              <button
+                onClick={handleDismissGuide}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg text-xs"
+                title="Dismiss checklist"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mt-3">
+            <div className="flex justify-between items-center text-[11px] font-semibold text-gray-500 mb-1">
+              <span>Setup Progress</span>
+              <span className="text-brand-600">{progressPercent}% Completed</span>
+            </div>
+            <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-brand-600 rounded-full transition-all duration-500"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Steps List */}
+          {!guideCollapsed && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+              {checklist.map((item) => (
+                <div
+                  key={item.id}
+                  className={`p-3.5 rounded-xl border flex items-start justify-between gap-3 transition ${
+                    item.done
+                      ? 'bg-emerald-50/40 border-emerald-200/60'
+                      : 'bg-white border-gray-100 hover:border-brand-200'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    {item.done ? (
+                      <CheckCircle2 size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <Circle size={18} className="text-gray-300 flex-shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <h4 className={`text-xs font-semibold ${item.done ? 'text-gray-700 line-through' : 'text-gray-900'}`}>
+                        {item.title}
+                      </h4>
+                      <p className="text-[11px] text-gray-400 mt-0.5">{item.desc}</p>
+                    </div>
+                  </div>
+                  {!item.done && (
+                    <Link
+                      to={item.to}
+                      className="px-2.5 py-1 rounded-lg bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold text-[11px] whitespace-nowrap transition flex-shrink-0 flex items-center gap-1"
+                    >
+                      {item.actionLabel} <ArrowRight size={10} />
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

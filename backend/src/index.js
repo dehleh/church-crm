@@ -88,7 +88,12 @@ app.use(cors({
   credentials: true
 }));
 app.use(morgan(isProduction ? 'combined' : 'dev', { stream: logger.stream }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve uploaded files
@@ -157,6 +162,7 @@ app.use('/api/devotionals',     require('./routes/devotionals'));
 app.use('/api/giving',          require('./routes/giving'));
 app.use('/api/campaigns',       require('./routes/campaigns'));
 app.use('/api/auth/2fa',        require('./routes/twoFactor'));
+app.use('/api/subscription',    require('./routes/subscription'));
 
 // Initialize background job queue (BullMQ if REDIS_URL set, in-process otherwise).
 // Importing csvImportController here also registers the CSV processors.

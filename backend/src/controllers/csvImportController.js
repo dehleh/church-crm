@@ -47,8 +47,22 @@ const processBatch = async (rows, runRow, { updateProgress } = {}) => {
 // ── Processors ──────────────────────────────────────────────
 
 registerProcessor('csv-members', async ({ churchId, rows }, ctx) => {
-  const countRes = await query('SELECT COUNT(*) FROM members WHERE church_id = $1', [churchId]);
+  const [countRes, churchRes] = await Promise.all([
+    query('SELECT COUNT(*) FROM members WHERE church_id = $1', [churchId]),
+    query('SELECT member_limit, is_whitelisted FROM churches WHERE id = $1', [churchId])
+  ]);
   let memberSeq = parseInt(countRes.rows[0].count, 10);
+  const church = churchRes.rows[0];
+
+  if (church && !church.is_whitelisted && church.member_limit != null) {
+    if (memberSeq >= church.member_limit) {
+      throw new Error(`Your plan has reached its limit of ${church.member_limit} members. Upgrade your plan to import more members.`);
+    }
+    if (memberSeq + rows.length > church.member_limit) {
+      throw new Error(`Importing ${rows.length} members would exceed your plan limit of ${church.member_limit} members (current: ${memberSeq}). Please upgrade your plan.`);
+    }
+  }
+
   return processBatch(rows, async (client, r) => {
     const firstName = sanitize(r.firstName || r.first_name || r.FirstName || '');
     const lastName = sanitize(r.lastName || r.last_name || r.LastName || '');

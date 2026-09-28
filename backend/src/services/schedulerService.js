@@ -373,6 +373,138 @@ async function processAutomatedDevotionalReminders() {
 }
 
 /**
+ * Automatically checks expiring and expired church subscriptions.
+ * Dispatches Day 3, Day 1, and Expiration reminder emails to church admins.
+ */
+async function processSubscriptionTrialReminders() {
+  try {
+    // 1. Mark overdue accounts as expired (if not whitelisted and not already marked expired)
+    await query(`
+      UPDATE churches
+      SET subscription_status = 'expired'
+      WHERE subscription_expires_at < NOW()
+        AND is_whitelisted = false
+        AND subscription_status != 'expired'
+    `);
+
+    // 2. Find trial churches needing reminder notices
+    const { rows: churches } = await query(`
+      SELECT c.id, c.name, c.slug, c.subscription_plan, c.subscription_expires_at,
+             c.settings,
+             u.email AS admin_email, u.first_name AS admin_name
+      FROM churches c
+      LEFT JOIN LATERAL (
+        SELECT email, first_name
+        FROM users
+        WHERE church_id = c.id AND role = 'admin' AND is_active = true
+        ORDER BY created_at ASC
+        LIMIT 1
+      ) u ON true
+      WHERE c.is_whitelisted = false
+        AND c.subscription_expires_at IS NOT NULL
+        AND c.is_active = true
+        AND (c.subscription_plan = 'trial' OR c.subscription_plan LIKE 'trial_%')
+        AND u.email IS NOT NULL
+      LIMIT 20
+    `);
+
+    const now = new Date();
+
+    for (const church of churches) {
+      const exp = new Date(church.subscription_expires_at);
+      const diffDays = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const remindersSent = church.settings?.subscription_reminders || {};
+
+      let reminderType = null;
+      if (diffDays === 3 && !remindersSent.day_3) {
+        reminderType = 'day_3';
+      } else if (diffDays === 1 && !remindersSent.day_1) {
+        reminderType = 'day_1';
+      } else if (diffDays <= 0 && !remindersSent.expired) {
+        reminderType = 'expired';
+      }
+
+      if (!reminderType) continue;
+
+      const churchSettings = church.settings?.messaging || {};
+      const loginUrl = `${process.env.APP_URL || 'https://churchos.ng'}/settings?tab=subscription`;
+
+      let subject = '';
+      let emailHtml = '';
+
+      if (reminderType === 'day_3' || reminderType === 'day_1') {
+        const daysText = reminderType === 'day_3' ? '3 days' : '24 hours';
+        subject = `⚠️ Your ChurchOS free trial ends in ${daysText} — ${church.name}`;
+        emailHtml = `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
+            <div style="margin-bottom: 20px;">
+              <span style="font-size: 20px; font-weight: bold; color: #4338ca;">⛪ ChurchOS</span>
+            </div>
+            <h2 style="color: #111827; margin-top: 0;">Your free trial ends in ${daysText}</h2>
+            <p>Dear ${church.admin_name || 'Pastor / Administrator'},</p>
+            <p>We hope ChurchOS has been a blessing to <strong>${church.name}</strong> over the past two weeks.</p>
+            <p>Your 14-day trial period is ending in <strong>${daysText}</strong>. To keep uninterrupted access to your member directory, service check-ins, financial records, and church branches, please choose a subscription plan:</p>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+              <p style="margin: 0 0 8px 0;"><strong>• Starter Plan:</strong> ₦250,000 / year (Single Campus HQ — Billed Annually)</p>
+              <p style="margin: 0;"><strong>• Growth Plan:</strong> ₦600,000 / year (Up to 3 Campuses & Branches — Billed Annually)</p>
+            </div>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${loginUrl}" style="background: #4338ca; color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">
+                Subscribe with Paystack →
+              </a>
+            </div>
+            <p style="font-size: 12px; color: #6b7280;">If you have any questions or need Denominational / Enterprise support, reply to this email or contact support@churchos.ng.</p>
+          </div>
+        `;
+      } else if (reminderType === 'expired') {
+        subject = `Your ChurchOS trial has expired — Reactivate ${church.name}`;
+        emailHtml = `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
+            <div style="margin-bottom: 20px;">
+              <span style="font-size: 20px; font-weight: bold; color: #4338ca;">⛪ ChurchOS</span>
+            </div>
+            <h2 style="color: #b91c1c; margin-top: 0;">Trial Concluded</h2>
+            <p>Dear ${church.admin_name || 'Pastor / Administrator'},</p>
+            <p>Your 14-day free trial for <strong>${church.name}</strong> has now expired. Your church records and member data remain safely saved in our database.</p>
+            <p>To reactivate full access for your pastoral team and ministerial staff, please subscribe to an active plan:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${loginUrl}" style="background: #059669; color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">
+                Reactivate Subscription Now →
+              </a>
+            </div>
+            <p style="font-size: 12px; color: #6b7280;">Thank you for partnering with ChurchOS.</p>
+          </div>
+        `;
+      }
+
+      await sendEmail({
+        to: church.admin_email,
+        subject,
+        html: emailHtml,
+      }, churchSettings);
+
+      // Record reminder milestone in church settings
+      const updatedReminders = { ...remindersSent, [reminderType]: now.toISOString() };
+      await query(
+        `UPDATE churches
+         SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{subscription_reminders}', $1::jsonb)
+         WHERE id = $2`,
+        [JSON.stringify(updatedReminders), church.id]
+      );
+
+      logger.info('Dispatched automated subscription trial reminder', {
+        churchId: church.id,
+        churchName: church.name,
+        reminderType,
+        recipient: church.admin_email,
+      });
+    }
+  } catch (err) {
+    logger.error('Error in subscription trial reminder job', { error: err.message });
+  }
+}
+
+/**
  * Main scheduler loop.
  */
 async function runSchedulerTick() {
@@ -383,6 +515,7 @@ async function runSchedulerTick() {
     await processAutomatedEventReminders();
     await processAutomatedBirthdayGreetings();
     await processAutomatedDevotionalReminders();
+    await processSubscriptionTrialReminders();
   } catch (err) {
     logger.error('Scheduler tick error', { error: err.message });
   } finally {
@@ -392,7 +525,7 @@ async function runSchedulerTick() {
 
 function initScheduler(intervalMs = 60000) {
   if (schedulerTimer) clearInterval(schedulerTimer);
-  logger.info('Automated broadcast & event reminder scheduler started (60s tick)');
+  logger.info('Automated broadcast, event & subscription reminder scheduler started (60s tick)');
   schedulerTimer = setInterval(runSchedulerTick, intervalMs);
   // Run first tick after 5 seconds
   setTimeout(runSchedulerTick, 5000);
@@ -413,5 +546,7 @@ module.exports = {
   processAutomatedEventReminders,
   processAutomatedBirthdayGreetings,
   processAutomatedDevotionalReminders,
+  processSubscriptionTrialReminders,
 };
+
 

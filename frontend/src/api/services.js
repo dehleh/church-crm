@@ -323,4 +323,12 @@ export const campaignsAPI = {
   getPublicCampaign: (churchSlug, campaignSlug) => axios.get(`${API_BASE}/campaigns/public/${churchSlug}/${campaignSlug}`),
 };
 
+export const subscriptionAPI = {
+  getCurrent: () => api.get('/subscription/current'),
+  getHistory: () => api.get('/subscription/history'),
+  initialize: (data) => api.post('/subscription/initialize', data),
+  verify: (data) => api.post('/subscription/verify', data),
+};
+
+
 

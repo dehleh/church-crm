@@ -20,12 +20,16 @@ const audit = async (actorUserId, action, targetChurchId, details = {}) => {
 // GET /api/platform/stats
 const getPlatformStats = async (req, res) => {
   try {
-    const [{ rows: churchStats }, { rows: userStats }, { rows: recent }, { rows: totals }] = await Promise.all([
+    const [{ rows: churchStats }, { rows: userStats }, { rows: recent }, { rows: totals }, revResult] = await Promise.all([
       query(`SELECT
         COUNT(*) AS total,
         COUNT(*) FILTER (WHERE c.is_active = true) AS active,
         COUNT(*) FILTER (WHERE c.is_active = false) AS suspended,
         COUNT(*) FILTER (WHERE c.created_at >= NOW() - INTERVAL '30 days') AS new_30d,
+        COUNT(*) FILTER (WHERE c.subscription_plan IN ('starter', 'growth', 'enterprise')) AS paid_subscribers,
+        COUNT(*) FILTER (WHERE c.subscription_plan = 'trial' OR c.subscription_plan LIKE 'trial_%') AS trial_subscribers,
+        COUNT(*) FILTER (WHERE c.subscription_expires_at < NOW() AND c.is_whitelisted = false) AS expired_subscribers,
+        COUNT(*) FILTER (WHERE c.is_whitelisted = true) AS whitelisted_churches,
         COUNT(DISTINCT c.id) FILTER (
           WHERE EXISTS (SELECT 1 FROM users u WHERE u.church_id = c.id AND u.last_login_at >= CURRENT_DATE)
         ) AS logged_in_today,
@@ -48,8 +52,11 @@ const getPlatformStats = async (req, res) => {
       query(`SELECT
         (SELECT COUNT(*) FROM members)::int AS total_members,
         (SELECT COUNT(*) FROM first_timers)::int AS total_first_timers,
-        (SELECT COUNT(*) FROM events)::int AS total_events`)
+        (SELECT COUNT(*) FROM events)::int AS total_events`),
+      query(`SELECT COALESCE(SUM(amount_kobo), 0) / 100 AS total_rev FROM subscription_transactions WHERE status = 'success'`).catch(() => ({ rows: [{ total_rev: 0 }] }))
     ]);
+
+    const totalRevenueNgn = Number(revResult.rows[0]?.total_rev || 0);
 
     return res.json({
       success: true,
@@ -58,6 +65,13 @@ const getPlatformStats = async (req, res) => {
         users: userStats[0],
         totals: totals[0],
         recentChurches: recent,
+        monetization: {
+          totalRevenueNgn,
+          paidCount: parseInt(churchStats[0]?.paid_subscribers || 0, 10),
+          trialCount: parseInt(churchStats[0]?.trial_subscribers || 0, 10),
+          expiredCount: parseInt(churchStats[0]?.expired_subscribers || 0, 10),
+          whitelistedCount: parseInt(churchStats[0]?.whitelisted_churches || 0, 10),
+        },
         systemHealth: {
           status: 'operational',
           uptimeHours: Math.round((process.uptime() / 3600) * 10) / 10,

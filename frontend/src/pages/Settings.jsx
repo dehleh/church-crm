@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Settings as SettingsIcon, Building2, User, Lock, Save, Loader2, CheckCircle,
   Mail, MessageCircle, Phone, Send, ToggleLeft, ToggleRight, Users, Plus, Trash2,
@@ -10,10 +11,12 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { twoFactorAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
+import SubscriptionBillingView from '../components/subscription/SubscriptionBillingView';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 
 const TABS = [
+  { id: 'subscription', label: 'Subscription & Plans',   icon: Sparkles },
   { id: 'church',    label: 'Profile & Brand Identity',  icon: Building2 },
   { id: 'theme',     label: 'Visual Theme & Colors',     icon: Palette },
   { id: 'services',  label: 'Service Times & Schedule',  icon: Clock },
@@ -73,7 +76,14 @@ function TabButton({ tab, active, onClick }) {
 
 export default function Settings() {
   const { user, login } = useAuth();
-  const [activeTab, setActiveTab] = useState('church');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'church');
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    searchParams.set('tab', tabId);
+    setSearchParams(searchParams, { replace: true });
+  };
   const [church, setChurch] = useState({});
   const [churchStats, setChurchStats] = useState({});
   const [profile, setProfile] = useState({});
@@ -529,7 +539,7 @@ export default function Settings() {
       <div className="flex flex-col md:flex-row gap-6">
         {/* Sidebar */}
         <div className="w-full md:w-60 flex-shrink-0 space-y-1">
-          {TABS.map(tab => <TabButton key={tab.id} tab={tab} active={activeTab === tab.id} onClick={setActiveTab} />)}
+          {TABS.map(tab => <TabButton key={tab.id} tab={tab} active={activeTab === tab.id} onClick={handleTabChange} />)}
 
           {/* Church stats */}
           <div className="mt-6 pt-4 border-t border-gray-100 hidden md:block">
@@ -550,6 +560,11 @@ export default function Settings() {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
+          {/* TAB 0: SUBSCRIPTION & BILLING */}
+          {activeTab === 'subscription' && (
+            <SubscriptionBillingView />
+          )}
+
           {/* TAB 1: CHURCH PROFILE & BRANDING */}
           {activeTab === 'church' && (
             <div className="card space-y-6">

@@ -51,7 +51,7 @@ const createFirstTimerRecord = async ({ churchId, data }) => {
 
 const { autoAssignFellowshipCell } = require('./fellowshipAssignmentService');
 
-const createMemberRecord = async ({ churchId, data }) => {
+const createMemberRecord = async ({ churchId, data, user }) => {
   const {
     firstName, lastName, middleName, email, phone, phoneAlt,
     dateOfBirth, gender, maritalStatus, address, city, state, country,
@@ -65,7 +65,19 @@ const createMemberRecord = async ({ churchId, data }) => {
 
   const safeBranchId = await ensureBranchBelongsToChurch(churchId, branchId || null);
   const countRes = await query('SELECT COUNT(*) FROM members WHERE church_id = $1', [churchId]);
-  const memberNumber = `MBR-${String(parseInt(countRes.rows[0].count, 10) + 1).padStart(5, '0')}`;
+  const currentMembers = parseInt(countRes.rows[0].count, 10);
+
+  // Check plan member limit from authenticated user context
+  const memberLimit = user ? user.member_limit : null;
+  const isWhitelisted = user ? Boolean(user.is_whitelisted || user.is_super_admin) : false;
+  if (!isWhitelisted && memberLimit != null && currentMembers >= memberLimit) {
+    const limitErr = new Error(`Your plan has reached its limit of ${memberLimit} members. Upgrade your plan to add more members.`);
+    limitErr.status = 403;
+    limitErr.code = 'MEMBER_LIMIT_REACHED';
+    throw limitErr;
+  }
+
+  const memberNumber = `MBR-${String(currentMembers + 1).padStart(5, '0')}`;
 
   const cCount = parseInt(childrenCount) || 0;
   const tCount = parseInt(teenagersCount) || 0;

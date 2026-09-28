@@ -4,8 +4,8 @@ import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import { licenseAPI } from '../api/services';
 
 const PLANS = [
-  { code: 'starter',    label: 'Starter',    price: '₦25,000 / month', desc: 'Single branch · up to 250 members' },
-  { code: 'growth',     label: 'Growth',     price: '₦60,000 / month', desc: 'Up to 3 branches · up to 500 members' },
+  { code: 'starter',    label: 'Starter',    price: '₦250,000 / year', desc: 'Single branch · up to 250 members (Billed annually)' },
+  { code: 'growth',     label: 'Growth',     price: '₦600,000 / year', desc: 'Up to 3 branches · up to 500 members (Billed annually)' },
   { code: 'enterprise', label: 'Enterprise', price: 'Custom',           desc: '10+ branches or 5,000+ members' },
 ];
 

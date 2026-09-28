@@ -116,3 +116,26 @@
 
 /* Sidebar transition */
 .sidebar-enter { animation: slideInLeft 0.25s ease-out; }
+
+/* Print optimization for church tax invoices & receipts */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #churchos-printable-receipt,
+  #churchos-printable-receipt * {
+    visibility: visible;
+  }
+  #churchos-printable-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 24px;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+}

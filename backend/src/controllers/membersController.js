@@ -109,7 +109,7 @@ const getMember = async (req, res) => {
 // POST /api/members
 const createMember = async (req, res) => {
   try {
-    const record = await createMemberRecord({ churchId: req.churchId, data: req.body });
+    const record = await createMemberRecord({ churchId: req.churchId, data: req.body, user: req.user });
     return res.status(201).json({ success: true, data: record });
   } catch (err) {
     logger.error(err.message, { error: err.message });

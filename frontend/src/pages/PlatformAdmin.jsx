@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Building2, Users, ShieldAlert, ShieldCheck, Trash2,
   Search, Loader2, BarChart3, Eye, RefreshCw, Plus, Copy, CheckCircle2, KeyRound,
-  Settings as SettingsIcon, ArrowRightCircle, Server, Activity, Clock, AlertTriangle
+  Settings as SettingsIcon, ArrowRightCircle, Server, Activity, Clock, AlertTriangle, CreditCard
 } from 'lucide-react';
 
 import toast from 'react-hot-toast';
@@ -252,13 +252,25 @@ export default function PlatformAdmin() {
 
       {/* Stat cards */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <StatCard icon={Building2} color="brand" label="Total Churches" value={stats.churches.total} />
-          <StatCard icon={Activity} color="green" label="Logged in Today" value={stats.churches.logged_in_today || 0} badge="Live" />
-          <StatCard icon={Clock} color="blue" label="Active (7 Days)" value={stats.churches.logged_in_7d || 0} />
-          <StatCard icon={Users} color="purple" label="Platform Members" value={stats.totals?.total_members || 0} />
-          <StatCard icon={AlertTriangle} color="amber" label="Never Logged In" value={stats.churches.never_logged_in || 0} />
-          <StatCard icon={ShieldAlert} color="red" label="Suspended" value={stats.churches.suspended} />
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <StatCard icon={Building2} color="brand" label="Total Churches" value={stats.churches.total} />
+            <StatCard icon={Activity} color="green" label="Logged in Today" value={stats.churches.logged_in_today || 0} badge="Live" />
+            <StatCard icon={Clock} color="blue" label="Active (7 Days)" value={stats.churches.logged_in_7d || 0} />
+            <StatCard icon={Users} color="purple" label="Platform Members" value={stats.totals?.total_members || 0} />
+            <StatCard icon={AlertTriangle} color="amber" label="Never Logged In" value={stats.churches.never_logged_in || 0} />
+            <StatCard icon={ShieldAlert} color="red" label="Suspended" value={stats.churches.suspended} />
+          </div>
+
+          {/* Monetization & Subscription Stats */}
+          {stats?.monetization && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <StatCard icon={CreditCard} color="green" label="Platform Revenue (Paystack)" value={`₦${Number(stats.monetization.totalRevenueNgn || 0).toLocaleString()}`} />
+              <StatCard icon={ShieldCheck} color="brand" label="Active Paid Churches" value={stats.monetization.paidCount || 0} />
+              <StatCard icon={Clock} color="amber" label="Churches on 14d Trial" value={stats.monetization.trialCount || 0} />
+              <StatCard icon={AlertTriangle} color="red" label="Expired Subscriptions" value={stats.monetization.expiredCount || 0} />
+            </div>
+          )}
         </div>
       )}
 
@@ -353,7 +365,7 @@ export default function PlatformAdmin() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <PlanBadge plan={c.subscription_plan} multiBranch={c.multi_branch_enabled} whitelisted={c.is_whitelisted} />
+                        <PlanBadge plan={c.subscription_plan} multiBranch={c.multi_branch_enabled} whitelisted={c.is_whitelisted} expiresAt={c.subscription_expires_at} />
                       </td>
                       <td className="px-4 py-3">
                         {c.is_active
@@ -506,9 +518,10 @@ export default function PlatformAdmin() {
               <label className="label">Subscription plan</label>
               <select className="input" value={settingsForm.subscriptionPlan}
                 onChange={(e)=>setSettingsForm(f=>({...f, subscriptionPlan: e.target.value}))}>
-                <option value="starter">Starter — ₦25,000 (single branch)</option>
-                <option value="growth">Growth — ₦60,000 (≤3 branches / ≤500 members)</option>
-                <option value="enterprise">Enterprise — Contact admin (10+ branches / 5,000+ members)</option>
+                <option value="trial">14-Day Free Trial</option>
+                <option value="starter">Starter — ₦250,000 / year (single branch)</option>
+                <option value="growth">Growth — ₦600,000 / year (≤3 branches / ≤500 members)</option>
+                <option value="enterprise">Enterprise — Custom quotation (10+ branches / 5,000+ members)</option>
               </select>
             </div>
 
@@ -551,7 +564,44 @@ export default function PlatformAdmin() {
             </div>
 
             <div>
-              <label className="label">Subscription expires</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="label mb-0">Subscription expires</label>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 14);
+                      setSettingsForm(f => ({ ...f, subscriptionExpiresAt: d.toISOString().slice(0, 10), subscriptionPlan: 'trial' }));
+                    }}
+                    className="text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded border border-amber-200"
+                  >
+                    +14d Trial
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 30);
+                      setSettingsForm(f => ({ ...f, subscriptionExpiresAt: d.toISOString().slice(0, 10) }));
+                    }}
+                    className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded border border-indigo-200"
+                  >
+                    +30d
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setFullYear(d.getFullYear() + 1);
+                      setSettingsForm(f => ({ ...f, subscriptionExpiresAt: d.toISOString().slice(0, 10) }));
+                    }}
+                    className="text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-200"
+                  >
+                    +1 Year
+                  </button>
+                </div>
+              </div>
               <input type="date" className="input"
                 value={settingsForm.subscriptionExpiresAt}
                 onChange={(e)=>setSettingsForm(f=>({...f, subscriptionExpiresAt: e.target.value}))}/>
@@ -718,7 +768,11 @@ function Row({ k, v }) {
   );
 }
 
-function PlanBadge({ plan, multiBranch, whitelisted }) {
+function PlanBadge({ plan, multiBranch, whitelisted, expiresAt }) {
+  const isTrial = plan === 'trial' || plan?.startsWith('trial_');
+  const isExpired = expiresAt && new Date(expiresAt) < new Date() && !whitelisted;
+  const daysLeft = expiresAt ? Math.max(0, Math.ceil((new Date(expiresAt) - new Date()) / (1000 * 60 * 60 * 24))) : null;
+
   const map = {
     starter:    { label: 'Starter',    cls: 'bg-gray-100 text-gray-700' },
     growth:     { label: 'Growth',     cls: 'bg-indigo-100 text-indigo-700' },
@@ -726,10 +780,22 @@ function PlanBadge({ plan, multiBranch, whitelisted }) {
     free:       { label: 'Free',       cls: 'bg-gray-100 text-gray-500' },
     pro:        { label: 'Pro',        cls: 'bg-indigo-100 text-indigo-700' },
   };
-  const p = map[plan] || { label: plan || '—', cls: 'bg-gray-100 text-gray-500' };
+
+  let badge = map[plan] || { label: plan || '—', cls: 'bg-gray-100 text-gray-500' };
+
+  if (isTrial) {
+    if (isExpired) {
+      badge = { label: 'Trial Expired', cls: 'bg-rose-100 text-rose-800 font-bold' };
+    } else {
+      badge = { label: daysLeft !== null ? `Trial (${daysLeft}d)` : '14d Trial', cls: 'bg-amber-100 text-amber-800' };
+    }
+  } else if (isExpired) {
+    badge = { label: `${badge.label} (Expired)`, cls: 'bg-red-100 text-red-800 font-bold' };
+  }
+
   return (
     <div className="flex items-center gap-1 flex-wrap">
-      <span className={`px-2 py-0.5 text-[11px] rounded-full font-semibold ${p.cls}`}>{p.label}</span>
+      <span className={`px-2 py-0.5 text-[11px] rounded-full font-semibold ${badge.cls}`}>{badge.label}</span>
       {multiBranch && <span className="px-1.5 py-0.5 text-[10px] rounded bg-emerald-100 text-emerald-700 font-semibold">multi</span>}
       {whitelisted && <span className="px-1.5 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 font-semibold">licensed</span>}
     </div>

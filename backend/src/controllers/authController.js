@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { query, getClient } = require('../config/database');
 const logger = require('../config/logger');
+const { sendEmail } = require('../services/emailService');
 
 const generateTokens = (userId, churchId, role) => {
   const accessToken = jwt.sign(
@@ -49,12 +50,21 @@ const registerChurch = async (req, res) => {
     try {
       await client.query('BEGIN');
 
+      // Single-branch vs Multi-branch trial setup
+      const isMultiBranch = Boolean(
+        req.body.multiBranch === true ||
+        req.body.multiBranch === 'true' ||
+        req.body.churchType === 'multi' ||
+        req.body.plan === 'growth'
+      );
+      const branchLimit = isMultiBranch ? 3 : 1;
+
       // Create church (auto-grant 14-day free trial)
       const trialExpires = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
       await client.query(
-        `INSERT INTO churches (id, name, slug, denomination, subscription_plan, subscription_expires_at)
-         VALUES ($1, $2, $3, $4, 'trial', $5)`,
-        [churchId, churchName, churchSlug, denomination, trialExpires]
+        `INSERT INTO churches (id, name, slug, denomination, subscription_plan, subscription_expires_at, multi_branch_enabled, branch_limit)
+         VALUES ($1, $2, $3, $4, 'trial', $5, $6, $7)`,
+        [churchId, churchName, churchSlug, denomination, trialExpires, isMultiBranch, branchLimit]
       );
 
       // Create default HQ branch
@@ -86,6 +96,44 @@ const registerChurch = async (req, res) => {
 
       await client.query('COMMIT');
 
+      // Dispatch welcome email asynchronously
+      sendEmail({
+        to: adminEmail,
+        subject: `Welcome to ChurchOS — Let's get ${churchName} started!`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
+            <div style="margin-bottom: 20px;">
+              <span style="font-size: 22px; font-weight: bold; color: #4338ca;">⛪ ChurchOS</span>
+            </div>
+            <h2 style="color: #111827; margin-top: 0;">Welcome, ${adminFirstName}!</h2>
+            <p>Thank you for choosing ChurchOS for <strong>${churchName}</strong>. Your 14-day free trial has been activated with full access to all features.</p>
+            
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+              <h4 style="margin: 0 0 10px 0; color: #1e3a8a;">4 Quick Steps to Get Started:</h4>
+              <ol style="margin: 0; padding-left: 20px; font-size: 13px; color: #374151; line-height: 1.8;">
+                <li><strong>Add Members:</strong> Enter congregation members or bulk import via CSV.</li>
+                <li><strong>Schedule Services:</strong> Set up your Sunday service and mid-week fellowships.</li>
+                <li><strong>Track Giving:</strong> Record tithes, offerings, and donations.</li>
+                <li><strong>Invite Team:</strong> Add branch pastors and administrators to collaborate.</li>
+              </ol>
+            </div>
+
+            <p style="font-size: 13px; color: #4b5563;">
+              Your trial mode: <strong>${isMultiBranch ? 'Multi-Branch (Growth)' : 'Single-Branch (Starter)'}</strong>.
+            </p>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.APP_URL || 'https://churchos.ng'}/dashboard" style="background: #4338ca; color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">
+                Access Church Dashboard →
+              </a>
+            </div>
+            <p style="font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 12px;">
+              Need any assistance? Reply to this email or contact support@churchos.ng.
+            </p>
+          </div>
+        `,
+      }).catch(err => logger.warn('Failed to send welcome email', { error: err.message }));
+
       return res.status(201).json({
         success: true,
         message: 'Church registered successfully',
@@ -97,7 +145,8 @@ const registerChurch = async (req, res) => {
             email: adminEmail, role: 'head_pastor', churchId, churchName, churchSlug,
             subscriptionPlan: 'trial',
             subscriptionExpiresAt: trialExpires.toISOString(),
-            multiBranchEnabled: false,
+            multiBranchEnabled: isMultiBranch,
+            branchLimit: branchLimit,
             isWhitelisted: false,
           }
         }

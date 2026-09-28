@@ -27,31 +27,33 @@ const STEPS = [
 
 const PRICING = [
   {
-    name: 'Starter', price: '₦25,000', period: '/ month', tagline: 'Perfect for a single-branch church getting started',
+    name: 'Starter', price: '₦250,000', period: '/ year', tagline: 'Billed annually — perfect for a single-branch church getting started',
     features: [
-      'Single branch',
+      'Single branch HQ',
       'Up to 250 members',
       'Member directory & profiles',
       'Events & attendance',
       'First-timers tracking',
       'Basic reports',
+      'Includes 2 months free',
       'Email support',
     ],
-    cta: 'Get Started', highlight: false,
+    cta: 'Start 14-Day Trial', highlight: false,
   },
   {
-    name: 'Growth', price: '₦60,000', period: '/ month', tagline: 'For growing churches with multiple branches',
+    name: 'Growth', price: '₦600,000', period: '/ year', tagline: 'Billed annually — for growing churches with multiple branches',
     features: [
-      'Up to 3 branches',
+      'Up to 3 branch campuses',
       'Up to 500 members',
       'Everything in Starter',
+      'Consolidated multi-branch view',
       'Finance & budgets',
       'SMS & bulk email',
       'Counseling & welfare',
-      'Advanced reports',
+      'Includes 2 months free',
       'Priority support',
     ],
-    cta: 'Get Started', highlight: true,
+    cta: 'Start 14-Day Trial', highlight: true,
   },
   {
     name: 'Enterprise', price: 'Custom', period: '', tagline: 'For denominations & large multi-site churches (10+ branches or 5,000+ members)',
@@ -64,7 +66,7 @@ const PRICING = [
       'On-premise option',
       '24/7 support',
     ],
-    cta: 'Contact Admin', highlight: false,
+    cta: 'Contact Sales', highlight: false,
   },
 ];
 
@@ -130,8 +132,8 @@ export default function Landing() {
           </nav>
           <div className="hidden md:flex items-center gap-3">
             <Link to="/login" className="text-sm font-medium text-gray-700 hover:text-brand-600">Sign in</Link>
-            <Link to="/get-started" className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700">
-              Get Started
+            <Link to="/register" className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700">
+              Start Free Trial
             </Link>
           </div>
           <button className="md:hidden p-2" onClick={() => setOpen(!open)} aria-label="Menu">
@@ -148,7 +150,7 @@ export default function Landing() {
               <a href="#contact" onClick={() => setOpen(false)}>Contact</a>
               <div className="flex gap-2 pt-2 border-t border-gray-100">
                 <Link to="/login" className="flex-1 px-4 py-2 text-center rounded-lg border border-gray-300">Sign in</Link>
-                <Link to="/get-started" className="flex-1 px-4 py-2 text-center rounded-lg bg-brand-600 text-white">Get Started</Link>
+                <Link to="/register" className="flex-1 px-4 py-2 text-center rounded-lg bg-brand-600 text-white">Start Free Trial</Link>
               </div>
             </Section>
           </div>
@@ -169,12 +171,12 @@ export default function Landing() {
               The Mobile Missionaries is the all-in-one platform to manage your members, finances, events, communications, and multiple branches. Spend less time on admin, more time on ministry.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/get-started" className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white font-semibold hover:bg-brand-700 shadow-lg shadow-brand-600/20">
-                Get Started <ArrowRight className="w-4 h-4" />
+              <Link to="/register" className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white font-semibold hover:bg-brand-700 shadow-lg shadow-brand-600/20">
+                Start 14-day free trial <ArrowRight className="w-4 h-4" />
               </Link>
-              <Link to="/register" className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-gray-300 font-semibold hover:bg-gray-50">
-                Start 14-day free trial
-              </Link>
+              <a href="#pricing" className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-gray-300 font-semibold hover:bg-gray-50">
+                View Pricing Plans
+              </a>
             </div>
             <div className="mt-8 flex items-center gap-6 text-sm text-gray-500">
               <div className="flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-500" /> 14-day free trial</div>
@@ -285,7 +287,7 @@ export default function Landing() {
         <div className="text-center max-w-2xl mx-auto mb-14">
           <div className="inline-block px-3 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-semibold mb-4">PRICING</div>
           <h2 className="text-3xl sm:text-4xl font-display font-bold">Simple, honest pricing</h2>
-          <p className="mt-4 text-lg text-gray-600">Pick a plan that fits your size. Upgrade or downgrade anytime.</p>
+          <p className="mt-4 text-lg text-gray-600">Pick an annual plan that fits your church structure. Start with a 14-day full access free trial.</p>
         </div>
         <div className="grid md:grid-cols-3 gap-6">
           {PRICING.map((p) => (
@@ -310,7 +312,7 @@ export default function Landing() {
                 ))}
               </ul>
               <Link
-                to={p.name === 'Enterprise' ? '/get-started?plan=enterprise' : `/get-started?plan=${p.name.toLowerCase()}`}
+                to={p.name === 'Enterprise' ? '/get-started?plan=enterprise' : `/register?plan=${p.name.toLowerCase()}`}
                 className={`mt-8 block text-center px-6 py-3 rounded-lg font-semibold transition ${
                   p.highlight ? 'bg-brand-600 text-white hover:bg-brand-700' : 'border-2 border-gray-200 hover:border-brand-600 hover:text-brand-600'
                 }`}

@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
-import { GitBranch, Plus, Users, MapPin, Phone, Mail, Crown, Loader2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { GitBranch, Plus, Users, MapPin, Phone, Mail, Crown, Loader2, Sparkles, ArrowRight, ShieldAlert } from 'lucide-react';
 import { branchesAPI } from '../api/services';
+import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 
 export default function Branches() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
@@ -21,6 +25,15 @@ export default function Branches() {
   useEffect(() => { fetch(); }, []);
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
+  const onAddClick = () => {
+    if (!user?.multiBranchEnabled && !user?.isWhitelisted && branches.length >= 1) {
+      setModal('upgrade');
+      return;
+    }
+    setForm({});
+    setModal('add');
+  };
+
   const handleSave = async () => {
     if (!form.name) return toast.error('Branch name required');
     setSaving(true);
@@ -28,18 +41,43 @@ export default function Branches() {
       await branchesAPI.create(form);
       toast.success('Branch created!');
       setModal(null); fetch();
-    } catch { toast.error('Failed to create branch'); }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to create branch');
+    }
     finally { setSaving(false); }
   };
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      {/* Single Branch Upgrade Banner */}
+      {!user?.multiBranchEnabled && !user?.isWhitelisted && (
+        <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+              <Sparkles size={18} />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-amber-900">Single-Branch Mode Active</h4>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Your church is currently configured as a single campus. To create multiple branch locations, assign campus pastors, and get multi-site metrics, upgrade to the Growth plan.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/settings?tab=subscription"
+            className="btn-primary text-xs px-3.5 py-1.5 whitespace-nowrap bg-amber-600 hover:bg-amber-700 text-white border-none shadow-xs flex items-center gap-1.5"
+          >
+            Upgrade to Multi-Branch <ArrowRight size={13} />
+          </Link>
+        </div>
+      )}
+
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="page-title">Branches</h1>
-          <p className="text-gray-500 text-sm mt-1">{branches.length} branch{branches.length !== 1 ? 'es' : ''} in your church network</p>
+          <h1 className="page-title">Branches & Campuses</h1>
+          <p className="text-gray-500 text-sm mt-1">{branches.length} campus{branches.length !== 1 ? 'es' : ''} in your church network</p>
         </div>
-        <button onClick={() => { setForm({}); setModal('add'); }} className="btn-primary">
+        <button onClick={onAddClick} className="btn-primary">
           <Plus size={16} /> Add Branch
         </button>
       </div>
@@ -104,6 +142,38 @@ export default function Branches() {
             <div><label className="label">Email</label><input type="email" className="input" value={form.email || ''} onChange={set('email')} /></div>
           </div>
           <div><label className="label">Pastor / Branch Head</label><input className="input" placeholder="Pastor James Okafor" value={form.pastorName || ''} onChange={set('pastorName')} /></div>
+        </div>
+      </Modal>
+
+      {/* Upgrade Modal for Single Branch */}
+      <Modal
+        open={modal === 'upgrade'}
+        onClose={() => setModal(null)}
+        title="Multi-Branch Management"
+        size="md"
+        footer={(
+          <>
+            <button onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
+            <Link to="/settings?tab=subscription" className="btn-primary flex items-center gap-1.5">
+              View Plans & Upgrade <ArrowRight size={14} />
+            </Link>
+          </>
+        )}
+      >
+        <div className="text-center py-2">
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-3">
+            <GitBranch size={24} />
+          </div>
+          <h3 className="font-display font-bold text-gray-900 text-lg">Unlock Multi-Branch Network</h3>
+          <p className="text-sm text-gray-600 mt-2 max-w-sm mx-auto">
+            Your church is currently on the Single-Branch setup. Upgrading to the <strong>Growth Plan</strong> (₦600,000 / year — billed annually) unlocks up to 3 physical campuses, campus pastor delegation, and cross-site attendance.
+          </p>
+          <div className="mt-4 p-3.5 bg-gray-50 rounded-xl text-xs text-gray-600 border border-gray-100 text-left space-y-2">
+            <div className="flex items-center gap-2 font-medium">✓ Up to 3 independent branch locations</div>
+            <div className="flex items-center gap-2 font-medium">✓ Campus-scoped member rosters & event check-in</div>
+            <div className="flex items-center gap-2 font-medium">✓ Branch-specific finance, tithes & offerings</div>
+            <div className="flex items-center gap-2 font-medium">✓ Network-wide pastoral dashboard for General Overseers</div>
+          </div>
         </div>
       </Modal>
     </div>

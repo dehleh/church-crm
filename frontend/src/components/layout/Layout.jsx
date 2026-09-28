@@ -6,7 +6,8 @@ import {
   ChevronLeft, ChevronRight, Bell, Menu,
   MessageSquare, ShieldCheck, BarChart2, PiggyBank, CheckSquare,
   Settings, PhoneCall, Users2, Package, HandHeart, Heart,
-  User, KeyRound, ClipboardList, Globe, Home, BookOpen, GraduationCap
+  User, KeyRound, ClipboardList, Globe, Home, BookOpen, GraduationCap,
+  Clock, CreditCard, Sparkles
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { hasRole, getRoleTitle } from '../../utils/rbac';
@@ -45,7 +46,7 @@ const NAV = [
     { to: '/procurement',      icon: ClipboardList,  label: 'Procurement',         allowedRoles: ['admin', 'pastor', 'director', 'finance', 'hod'] },
   ]},
   { group: 'Admin', items: [
-    { to: '/branches', icon: GitBranch,   label: 'Branches',         allowedRoles: ['admin'], requiresMultiBranch: true },
+    { to: '/branches', icon: GitBranch,   label: 'Branches',         allowedRoles: ['admin'] },
     { to: '/users',    icon: ShieldCheck, label: 'Users',            allowedRoles: ['admin'] },
     { to: '/reports',  icon: BarChart2,   label: 'Reports',          allowedRoles: ['admin', 'pastor', 'director', 'finance'] },
     { to: '/settings', icon: Settings,    label: 'Settings',         allowedRoles: ['admin'] },
@@ -182,6 +183,27 @@ export default function Layout() {
           <div className="flex-1 flex items-center gap-3 hidden md:flex">
             <GlobalSearch />
           </div>
+          {/* Trial countdown badge */}
+          {user && (user.subscriptionPlan === 'trial' || user.subscriptionPlan?.startsWith('trial_')) && !user.isSuperAdmin && (
+            <button
+              onClick={() => navigate('/settings?tab=subscription')}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 text-xs font-semibold border border-amber-200/80 shadow-xs transition-all"
+              title="Click to view subscription plans & upgrade"
+            >
+              <Clock size={13} className="text-amber-600 animate-pulse" />
+              <span>
+                {user.subscriptionExpiresAt ? (
+                  <>Trial: {Math.max(0, Math.ceil((new Date(user.subscriptionExpiresAt) - new Date()) / (1000 * 60 * 60 * 24)))} days left</>
+                ) : (
+                  <>14-Day Trial</>
+                )}
+              </span>
+              <span className="text-[10px] text-amber-900 bg-amber-200/80 px-1.5 py-0.5 rounded-full font-bold">
+                Upgrade
+              </span>
+            </button>
+          )}
+
           {user?.isSuperAdmin && (
             <button
               onClick={() => navigate('/platform')}
@@ -235,6 +257,9 @@ export default function Layout() {
                   )}
                   <button onClick={() => { setShowProfileMenu(false); navigate('/settings'); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                     <User size={15} /> My Profile
+                  </button>
+                  <button onClick={() => { setShowProfileMenu(false); navigate('/settings?tab=subscription'); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-brand-700 bg-brand-50/50 hover:bg-brand-50 font-medium transition-colors">
+                    <CreditCard size={15} /> Billing & Plans
                   </button>
                   <button onClick={() => { setShowProfileMenu(false); navigate('/settings'); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                     <KeyRound size={15} /> Change Password

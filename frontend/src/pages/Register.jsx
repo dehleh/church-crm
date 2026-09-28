@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Loader2, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Loader2, ChevronRight, ChevronLeft, Building2, GitBranch, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../api/services';
 import toast from 'react-hot-toast';
@@ -11,11 +11,15 @@ const STEPS = ['Church Info', 'Admin Account', 'Review'];
 export default function Register() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const initialPlan = params.get('plan') || 'starter';
+
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [form, setForm] = useState({
     churchName: '', churchSlug: '', denomination: '',
+    branchMode: initialPlan === 'growth' ? 'multi' : 'single',
     adminFirstName: '', adminLastName: '', adminEmail: '',
     adminPassword: '', adminPhone: '',
   });
@@ -59,13 +63,18 @@ export default function Register() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const res = await authAPI.register(form);
-      const payload = res?.data?.data || res?.data;
-      const user = payload?.user;
+      const payload = {
+        ...form,
+        multiBranch: form.branchMode === 'multi',
+        plan: form.branchMode === 'multi' ? 'growth' : 'starter',
+      };
+      const res = await authAPI.register(payload);
+      const resData = res?.data?.data || res?.data;
+      const user = resData?.user;
       if (!user) {
         throw new Error('Registration failed: Invalid response received from server.');
       }
-      login(user, payload);
+      login(user, resData);
       toast.success('Church registered! Welcome to The Mobile Missionaries 🎉');
       navigate('/dashboard');
     } catch (err) {
@@ -97,6 +106,20 @@ export default function Register() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
+          {/* Trial highlight badge */}
+          <div className="mb-6 p-3.5 rounded-xl bg-gradient-to-r from-brand-50 via-indigo-50 to-purple-50 border border-brand-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-2.5 w-2.5 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span className="text-xs font-semibold text-brand-950">14-Day Full Access Free Trial</span>
+            </div>
+            <span className="text-[11px] font-semibold text-brand-700 bg-white/90 px-2.5 py-0.5 rounded-full border border-brand-200/80 shadow-xs">
+              No Card Required
+            </span>
+          </div>
+
           {/* Steps */}
           <div className="flex items-center gap-2 mb-8">
             {STEPS.map((s, i) => (
@@ -114,6 +137,50 @@ export default function Register() {
           {step === 0 && (
             <div className="space-y-4">
               <h2 className="font-display text-xl font-bold text-gray-900 mb-4">Church Information</h2>
+
+              <div>
+                <label className="label">Church Structure *</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, branchMode: 'single' }))}
+                    className={`p-3.5 rounded-xl border-2 text-left transition-all ${
+                      form.branchMode === 'single'
+                        ? 'border-brand-600 bg-brand-50/70 shadow-xs'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5 font-semibold text-sm text-gray-900">
+                        <Building2 size={16} className="text-brand-600" />
+                        <span>Single Branch</span>
+                      </div>
+                      {form.branchMode === 'single' && <span className="w-2.5 h-2.5 rounded-full bg-brand-600"></span>}
+                    </div>
+                    <p className="text-xs text-gray-500">One location / campus. Perfect for single churches.</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, branchMode: 'multi' }))}
+                    className={`p-3.5 rounded-xl border-2 text-left transition-all ${
+                      form.branchMode === 'multi'
+                        ? 'border-brand-600 bg-brand-50/70 shadow-xs'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1.5 font-semibold text-sm text-gray-900">
+                        <GitBranch size={16} className="text-brand-600" />
+                        <span>Multi-Branch</span>
+                      </div>
+                      {form.branchMode === 'multi' && <span className="w-2.5 h-2.5 rounded-full bg-brand-600"></span>}
+                    </div>
+                    <p className="text-xs text-gray-500">Multiple campuses, branch pastors & network metrics.</p>
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="label">Church Name *</label>
                 <input className="input" placeholder="The Baptizing Church" value={form.churchName} onChange={set('churchName')} required />
@@ -176,10 +243,12 @@ export default function Register() {
               <div className="space-y-3">
                 {[
                   { label: 'Church Name', value: form.churchName },
+                  { label: 'Church Structure', value: form.branchMode === 'multi' ? 'Multi-Branch Network (Growth Plan)' : 'Single Campus (Starter Plan)' },
                   { label: 'Church Slug', value: `themobilemissionary.org/${form.churchSlug}` },
                   { label: 'Denomination', value: form.denomination || 'Not specified' },
                   { label: 'Admin Name', value: `${form.adminFirstName} ${form.adminLastName}` },
                   { label: 'Admin Email', value: form.adminEmail },
+                  { label: 'Trial Period', value: '14 Days Free · No Card Required' },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between py-2.5 border-b border-gray-50">
                     <span className="text-sm text-gray-500">{label}</span>
@@ -187,7 +256,7 @@ export default function Register() {
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-gray-400 mt-4">By registering, you agree to our Terms of Service and Privacy Policy.</p>
+              <p className="text-xs text-gray-400 mt-4">By starting your trial, you agree to our Terms of Service and Privacy Policy.</p>
             </div>
           )}
 
@@ -207,7 +276,7 @@ export default function Register() {
               </button>
             ) : (
               <button onClick={handleSubmit} disabled={loading} className="btn-primary flex-1 justify-center">
-                {loading ? <Loader2 size={16} className="animate-spin" /> : '🎉 Register Church'}
+                {loading ? <Loader2 size={16} className="animate-spin" /> : '🚀 Start 14-Day Free Trial'}
               </button>
             )}
           </div>
