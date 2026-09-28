@@ -180,18 +180,70 @@ const sequenceService = require('../services/firstTimerSequenceService');
 const getSequenceSettings = async (req, res) => {
   try {
     const data = await sequenceService.getOrCreateChurchSequence(req.churchId);
-    return res.json({ success: true, data });
+    const steps = Array.isArray(data.steps) ? data.steps : [];
+    const formatted = {
+      ...data,
+      is_active: data.is_active ?? true,
+      channel: steps[0]?.channel || 'whatsapp',
+      step1_template: steps[0]?.template || '',
+      step2_template: steps[1]?.template || '',
+      step3_template: steps[2]?.template || '',
+    };
+    return res.json({ success: true, data: formatted });
   } catch (err) {
+    logger.error('getSequenceSettings error', { error: err.message });
     return res.status(500).json({ success: false, message: 'Server error fetching sequence settings' });
   }
 };
 
 const updateSequenceSettings = async (req, res) => {
   try {
-    const { title, isActive, steps } = req.body;
-    const data = await sequenceService.updateChurchSequence(req.churchId, { title, isActive, steps });
-    return res.json({ success: true, data, message: 'Follow-up sequence settings updated' });
+    const body = req.body || {};
+    const isActive = body.isActive !== undefined ? body.isActive : body.is_active;
+    const channel = body.channel || 'whatsapp';
+
+    let steps = body.steps;
+    if (!steps || !Array.isArray(steps)) {
+      steps = [
+        {
+          step: 1,
+          delayHours: 2,
+          channel: channel === 'both' ? 'whatsapp' : channel,
+          template: body.step1_template || 'Dear {{firstName}}, thank you for worshiping with us at {{churchName}} today! We were truly blessed to have you in service. Pastor {{pastorName}} and the entire church family welcome you warmly. We pray that God meets you at your point of need. Have a glorious week!'
+        },
+        {
+          step: 2,
+          delayHours: 72,
+          channel: channel === 'both' ? 'sms' : channel,
+          template: body.step2_template || 'Hello {{firstName}}! Pastor {{pastorName}} and your {{churchName}} family are praying for you this week. If you have any prayer requests or need counseling, feel free to reply or visit us again this Sunday!'
+        },
+        {
+          step: 3,
+          delayHours: 144,
+          channel: channel === 'both' ? 'whatsapp' : channel,
+          template: body.step3_template || 'Happy weekend {{firstName}}! We are looking forward to having you with us again this Sunday at {{churchName}}. Join us for an inspiring time in God\'s presence. Service starts at 9:00 AM. See you there!'
+        }
+      ];
+    }
+
+    const data = await sequenceService.updateChurchSequence(req.churchId, {
+      title: body.title || 'Standard 3-Step Visitor Follow-Up',
+      isActive: isActive !== false,
+      steps,
+    });
+
+    const formatted = {
+      ...data,
+      is_active: data.is_active,
+      channel: steps[0]?.channel || channel,
+      step1_template: steps[0]?.template || '',
+      step2_template: steps[1]?.template || '',
+      step3_template: steps[2]?.template || '',
+    };
+
+    return res.json({ success: true, data: formatted, message: 'Follow-up sequence settings updated' });
   } catch (err) {
+    logger.error('updateSequenceSettings error', { error: err.message });
     return res.status(500).json({ success: false, message: 'Server error updating sequence settings' });
   }
 };
