@@ -4,11 +4,12 @@ import {
   TrendingUp, Users, Copy, Check, ExternalLink, Edit3, Trash2,
   Clock, Share2, Sparkles, Building, Filter, CheckCircle2,
   AlertCircle, ChevronRight, X, Loader2, ArrowUpRight, ShieldCheck,
-  Landmark, CreditCard
+  Landmark, CreditCard, QrCode
 } from 'lucide-react';
 import { campaignsAPI, eventsAPI, financeAPI } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
+import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
@@ -44,6 +45,7 @@ export default function GivingCampaigns() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [shareCampaign, setShareCampaign] = useState(null);
 
   // Manual donation modal
   const [donationModal, setDonationModal] = useState(null); // campaign object
@@ -465,13 +467,22 @@ export default function GivingCampaigns() {
 
                 {/* Footer Actions */}
                 <div className="p-4 bg-gray-50/70 border-t border-gray-100 flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => handleCopyLink(c)}
-                    className="p-2 rounded-xl text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 transition border border-gray-200/60 bg-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs"
-                    title="Copy direct shareable giving link"
-                  >
-                    <Share2 size={14} /> <span>Share</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleCopyLink(c)}
+                      className="p-2 rounded-xl text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 transition border border-gray-200/60 bg-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs"
+                      title="Copy direct shareable giving link"
+                    >
+                      <Share2 size={14} /> <span>Share</span>
+                    </button>
+                    <button
+                      onClick={() => setShareCampaign(c)}
+                      className="p-2 rounded-xl text-amber-700 hover:text-amber-800 hover:bg-amber-100 transition border border-amber-200 bg-amber-50 text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs"
+                      title="Print campaign QR code poster or pew cards"
+                    >
+                      <QrCode size={14} /> <span>Print QR</span>
+                    </button>
+                  </div>
 
                   <div className="flex items-center gap-1.5">
                     <button
@@ -858,6 +869,18 @@ export default function GivingCampaigns() {
           )}
         </div>
       </Modal>
+
+      {/* Printable Campaign QR Poster Modal */}
+      {shareCampaign && (
+        <PublicIntakeShareModal
+          open={!!shareCampaign}
+          onClose={() => setShareCampaign(null)}
+          title={`Giving Campaign: ${shareCampaign.title}`}
+          description={`Printable QR code poster for ${shareCampaign.title}. Print as an A4 flyer or pew cards to place on seats and offering stands.`}
+          url={`${window.location.origin}/give/${user?.churchSlug || 'my-church'}?campaign=${shareCampaign.slug || shareCampaign.id}`}
+          churchName={user?.churchName}
+        />
+      )}
     </div>
   );
 }

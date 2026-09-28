@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { twoFactorAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
+import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
 import SubscriptionBillingView from '../components/subscription/SubscriptionBillingView';
 import toast from 'react-hot-toast';
 import api from '../api/client';
@@ -151,6 +152,7 @@ export default function Settings() {
     bankDetails: { bankName: '', accountName: '', accountNumber: '' },
   });
   const [copiedLink, setCopiedLink] = useState(false);
+  const [showGivingQrModal, setShowGivingQrModal] = useState(false);
 
   // Security & 2FA State
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
@@ -1638,7 +1640,15 @@ export default function Settings() {
                       Share this dedicated URL with your church congregation, live stream viewers, and international donors.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowGivingQrModal(true)}
+                      className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 text-xs font-bold flex items-center gap-1.5 transition-all shadow"
+                    >
+                      <QrCode size={14} />
+                      <span>Print QR / Pew Cards</span>
+                    </button>
                     <button
                       type="button"
                       onClick={handleCopyGivingLink}
@@ -2048,6 +2058,16 @@ export default function Settings() {
           </div>
         </form>
       </Modal>
+
+      {/* Printable Giving QR Modal */}
+      <PublicIntakeShareModal
+        open={showGivingQrModal}
+        onClose={() => setShowGivingQrModal(false)}
+        title="Tithes & Offerings Giving QR"
+        description="Printable QR code for kingdom giving, tithes, and offerings. Print as full posters or pew cards to place on seats and offering baskets."
+        url={`${window.location.origin}/give/${church.slug || ''}`}
+        churchName={church.name}
+      />
     </div>
   );
 }
