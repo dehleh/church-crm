@@ -68,6 +68,8 @@ const { autoAssignFellowshipCell } = require('./fellowshipAssignmentService');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
+const logger = require('../config/logger');
+
 const createMemberRecord = async ({ churchId, data, user }) => {
   const {
     firstName, lastName, middleName, email, phone, phoneAlt,
@@ -77,6 +79,10 @@ const createMemberRecord = async ({ churchId, data, user }) => {
     waterBaptized, holyGhostBaptized, salvationDate, branchId,
     nextOfKinName, nextOfKinPhone, nextOfKinRelationship, notes, membershipStatus,
     hasChildren, childrenCount, teenagersCount, childrenDetails,
+    spouseName, spouse_name, spousePhone, spouse_phone,
+    spouseAlreadyRegisteredChildren, spouse_already_registered_children,
+    familyId, family_id, spouseId, spouse_id, familyRole, family_role,
+    isPrimaryFamilyContact, is_primary_family_contact,
     isWorker, workerUnit, workerRole, fellowshipCellId, latitude, longitude,
     designation, leadershipTitle, leadership_title, assignedPastorId, assigned_pastor_id,
     password
@@ -109,6 +115,96 @@ const createMemberRecord = async ({ churchId, data, user }) => {
     ? (weddingAnniversaryDate || wedding_anniversary_date || null)
     : null;
 
+  const finalSpouseName = spouseName || spouse_name || null;
+  const finalSpousePhone = spousePhone || spouse_phone || null;
+  const spouseHasChildrenRegistered = !!(spouseAlreadyRegisteredChildren || spouse_already_registered_children);
+
+  let assignedFamilyId = familyId || family_id || null;
+  let linkedSpouseId = spouseId || spouse_id || null;
+  let isPrimaryContact = isPrimaryFamilyContact !== undefined
+    ? Boolean(isPrimaryFamilyContact)
+    : (is_primary_family_contact !== undefined ? Boolean(is_primary_family_contact) : true);
+  let finalChildrenCount = cCount;
+  let finalTeenagersCount = tCount;
+  let finalChildrenDetails = childrenDetails || null;
+  let finalUserHasChildren = userHasChildren;
+  let finalFamilyRole = familyRole || family_role || (maritalStatus === 'married' ? 'head' : 'member');
+
+  // Smart Household / Spouse Matching for married members
+  if (maritalStatus === 'married' && !linkedSpouseId) {
+    try {
+      let spouseQuery = null;
+      let spouseParams = [];
+
+      if (finalSpousePhone && phone) {
+        spouseQuery = `SELECT * FROM members WHERE church_id = $1 AND marital_status = 'married' AND (
+          phone = $2 OR phone_alt = $2 OR spouse_phone = $3
+        ) LIMIT 1`;
+        spouseParams = [churchId, finalSpousePhone.trim(), phone.trim()];
+      } else if (finalSpousePhone) {
+        spouseQuery = `SELECT * FROM members WHERE church_id = $1 AND marital_status = 'married' AND (
+          phone = $2 OR phone_alt = $2
+        ) LIMIT 1`;
+        spouseParams = [churchId, finalSpousePhone.trim()];
+      } else if (phone) {
+        spouseQuery = `SELECT * FROM members WHERE church_id = $1 AND marital_status = 'married' AND spouse_phone = $2 LIMIT 1`;
+        spouseParams = [churchId, phone.trim()];
+      } else if (finalAnniversaryDate && address) {
+        spouseQuery = `SELECT * FROM members WHERE church_id = $1 AND marital_status = 'married'
+          AND wedding_anniversary_date = $2
+          AND LOWER(TRIM(address)) = LOWER(TRIM($3))
+          LIMIT 1`;
+        spouseParams = [churchId, finalAnniversaryDate, address.trim()];
+      }
+
+      if (spouseQuery) {
+        const { rows: matchedSpouses } = await query(spouseQuery, spouseParams);
+        if (matchedSpouses.length > 0) {
+          const existingSpouse = matchedSpouses[0];
+          linkedSpouseId = existingSpouse.id;
+          assignedFamilyId = existingSpouse.family_id || existingSpouse.id;
+          finalFamilyRole = 'spouse';
+
+          if (!existingSpouse.family_id) {
+            await query('UPDATE members SET family_id = $1 WHERE id = $2', [assignedFamilyId, existingSpouse.id]);
+          }
+
+          // CHILDREN DEDUPLICATION:
+          const spouseHadChildren = existingSpouse.has_children && (existingSpouse.children_count > 0 || existingSpouse.teenagers_count > 0);
+
+          if (spouseHasChildrenRegistered || spouseHadChildren) {
+            // Second spouse registering in same household: secondary demographic contact to avoid double counting
+            isPrimaryContact = false;
+            finalUserHasChildren = true;
+
+            if (finalChildrenCount === 0 && finalTeenagersCount === 0) {
+              finalChildrenCount = existingSpouse.children_count || 0;
+              finalTeenagersCount = existingSpouse.teenagers_count || 0;
+              finalChildrenDetails = existingSpouse.children_details || null;
+            } else if (finalChildrenDetails && !existingSpouse.children_details) {
+              await query(
+                `UPDATE members SET children_details = $1, children_count = $2, teenagers_count = $3 WHERE id = $4`,
+                [finalChildrenDetails, finalChildrenCount, finalTeenagersCount, existingSpouse.id]
+              );
+            }
+          } else if (userHasChildren) {
+            isPrimaryContact = true;
+            await query(
+              `UPDATE members SET has_children = true, children_count = $1, teenagers_count = $2, children_details = $3, is_primary_family_contact = false WHERE id = $4`,
+              [finalChildrenCount, finalTeenagersCount, finalChildrenDetails, existingSpouse.id]
+            );
+          }
+        }
+      }
+    } catch (matchErr) {
+      logger.warn('Household auto-linking error in createMemberRecord', { error: matchErr.message });
+    }
+  }
+
+  if (!assignedFamilyId) {
+    assignedFamilyId = uuidv4();
+  }
+
   // Password setup & onboarding tokens
   let passwordHash = null;
   let portalInvitedAt = null;
@@ -132,10 +228,11 @@ const createMemberRecord = async ({ churchId, data, user }) => {
       has_children, children_count, teenagers_count, children_details,
       is_worker, worker_unit, worker_role, fellowship_cell_id,
       designation, leadership_title, assigned_pastor_id,
-      wedding_anniversary_date, password_hash, portal_invited_at, set_password_token, set_password_expires_at
+      wedding_anniversary_date, password_hash, portal_invited_at, set_password_token, set_password_expires_at,
+      family_id, spouse_id, spouse_name, spouse_phone, is_primary_family_contact, family_role
     ) VALUES (
       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,
-      $42,$43,$44,$45,$46
+      $42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52
     )
     RETURNING *`,
     [
@@ -145,14 +242,32 @@ const createMemberRecord = async ({ churchId, data, user }) => {
       membershipStatus || 'active', occupation || null, employer || null, membershipClass || 'full', joinDate || null, baptismDate || null,
       waterBaptized || false, holyGhostBaptized || false, salvationDate || null,
       nextOfKinName || null, nextOfKinPhone || null, nextOfKinRelationship || null, notes || null,
-      userHasChildren, cCount, tCount, childrenDetails || null,
+      finalUserHasChildren, finalChildrenCount, finalTeenagersCount, finalChildrenDetails,
       userIsWorker, workerUnit || null, workerRole || 'worker', fellowshipCellId || null,
       userDesignation, finalLeadershipTitle, finalAssignedPastor,
-      finalAnniversaryDate, passwordHash, portalInvitedAt, setPasswordToken, setPasswordExpiresAt
+      finalAnniversaryDate, passwordHash, portalInvitedAt, setPasswordToken, setPasswordExpiresAt,
+      assignedFamilyId, linkedSpouseId, finalSpouseName, finalSpousePhone, isPrimaryContact, finalFamilyRole
     ]
   );
 
   const member = rows[0];
+
+  // Establish reciprocal bidirectional spouse link on the existing spouse
+  if (linkedSpouseId) {
+    try {
+      await query(
+        `UPDATE members
+         SET spouse_id = $1,
+             family_id = $2,
+             spouse_name = COALESCE(spouse_name, $3),
+             spouse_phone = COALESCE(spouse_phone, $4)
+         WHERE id = $5`,
+        [id, assignedFamilyId, `${firstName} ${lastName}`.trim(), phone || null, linkedSpouseId]
+      );
+    } catch (linkErr) {
+      logger.warn('Could not establish reciprocal spouse link:', { error: linkErr.message });
+    }
+  }
 
   // If worker is in a department, link into member_departments
   if (userIsWorker && workerUnit) {

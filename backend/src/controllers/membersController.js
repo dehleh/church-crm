@@ -56,15 +56,18 @@ const getMembers = async (req, res) => {
       `SELECT m.*, b.name as branch_name,
               fc.name as fellowship_cell_name, fc.meeting_day as fellowship_meeting_day, fc.meeting_time as fellowship_meeting_time,
               ap.first_name || ' ' || ap.last_name as assigned_pastor_name,
+              sp.first_name || ' ' || sp.last_name as linked_spouse_name,
+              sp.member_number as linked_spouse_member_number,
               COALESCE(json_agg(DISTINCT jsonb_build_object('id', d.id, 'name', d.name)) FILTER (WHERE d.id IS NOT NULL), '[]') as departments
        FROM members m
        LEFT JOIN branches b ON b.id = m.branch_id
        LEFT JOIN fellowship_centers fc ON fc.id = m.fellowship_cell_id
        LEFT JOIN members ap ON ap.id = m.assigned_pastor_id
+       LEFT JOIN members sp ON sp.id = m.spouse_id
        LEFT JOIN member_departments md ON md.member_id = m.id AND md.is_active = true
        LEFT JOIN departments d ON d.id = md.department_id
        WHERE ${where}
-       GROUP BY m.id, b.name, fc.name, fc.meeting_day, fc.meeting_time, ap.first_name, ap.last_name
+       GROUP BY m.id, b.name, fc.name, fc.meeting_day, fc.meeting_time, ap.first_name, ap.last_name, sp.id, sp.first_name, sp.last_name, sp.member_number
        ORDER BY m.created_at DESC
        LIMIT $${idx} OFFSET $${idx + 1}`,
       params
@@ -89,19 +92,37 @@ const getMember = async (req, res) => {
       `SELECT m.*, b.name as branch_name,
               fc.name as fellowship_cell_name, fc.meeting_day as fellowship_meeting_day, fc.meeting_time as fellowship_meeting_time, fc.host_address as fellowship_cell_address,
               ap.first_name || ' ' || ap.last_name as assigned_pastor_name,
+              sp.id as linked_spouse_id, sp.first_name as linked_spouse_first_name, sp.last_name as linked_spouse_last_name,
+              sp.phone as linked_spouse_phone, sp.member_number as linked_spouse_member_number,
               COALESCE(json_agg(DISTINCT jsonb_build_object('id', d.id, 'name', d.name, 'role', md.role)) FILTER (WHERE d.id IS NOT NULL), '[]') as departments
        FROM members m
        LEFT JOIN branches b ON b.id = m.branch_id
        LEFT JOIN fellowship_centers fc ON fc.id = m.fellowship_cell_id
        LEFT JOIN members ap ON ap.id = m.assigned_pastor_id
+       LEFT JOIN members sp ON sp.id = m.spouse_id
        LEFT JOIN member_departments md ON md.member_id = m.id AND md.is_active = true
        LEFT JOIN departments d ON d.id = md.department_id
        WHERE m.id = $1 AND m.church_id = $2
-       GROUP BY m.id, b.name, fc.name, fc.meeting_day, fc.meeting_time, fc.host_address, ap.first_name, ap.last_name`,
+       GROUP BY m.id, b.name, fc.name, fc.meeting_day, fc.meeting_time, fc.host_address, ap.first_name, ap.last_name, sp.id, sp.first_name, sp.last_name, sp.phone, sp.member_number`,
       [id, req.churchId]
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Member not found' });
-    return res.json({ success: true, data: rows[0] });
+    const member = rows[0];
+
+    let householdMembers = [];
+    if (member.family_id) {
+      const famRes = await query(
+        `SELECT id, first_name, last_name, member_number, phone, email, date_of_birth, marital_status,
+                wedding_anniversary_date, profile_photo_url, is_primary_family_contact, family_role
+         FROM members
+         WHERE church_id = $1 AND family_id = $2 AND id != $3
+         ORDER BY created_at ASC`,
+        [req.churchId, member.family_id, member.id]
+      );
+      householdMembers = famRes.rows;
+    }
+
+    return res.json({ success: true, data: { ...member, household_members: householdMembers } });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Server error' });
   }
@@ -126,7 +147,8 @@ const ALLOWED_MEMBER_FIELDS = [
   'emergency_contact_name', 'emergency_contact_phone', 'notes',
   'has_children', 'children_count', 'teenagers_count', 'children_details',
   'is_worker', 'worker_unit', 'worker_role', 'fellowship_cell_id',
-  'designation', 'leadership_title', 'assigned_pastor_id'
+  'designation', 'leadership_title', 'assigned_pastor_id',
+  'family_id', 'spouse_id', 'spouse_name', 'spouse_phone', 'is_primary_family_contact', 'family_role'
 ];
 
 // PUT /api/members/:id
@@ -155,6 +177,23 @@ const updateMember = async (req, res) => {
       [id, req.churchId, ...values]
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Member not found' });
+
+    // Establish reciprocal link on spouse if updated
+    if (validUpdates.spouse_id) {
+      const targetFamilyId = rows[0].family_id || id;
+      await query(
+        `UPDATE members
+         SET spouse_id = $1, family_id = $2, marital_status = 'married',
+             spouse_name = $3, spouse_phone = $4, is_primary_family_contact = false
+         WHERE id = $5 AND church_id = $6`,
+        [id, targetFamilyId, `${rows[0].first_name} ${rows[0].last_name}`.trim(), rows[0].phone, validUpdates.spouse_id, req.churchId]
+      );
+    } else if (validUpdates.spouse_id === null) {
+      await query(
+        `UPDATE members SET spouse_id = NULL WHERE spouse_id = $1 AND church_id = $2`,
+        [id, req.churchId]
+      );
+    }
 
     // Sync fellowship cell membership if cell changed
     if (validUpdates.fellowship_cell_id) {
@@ -189,6 +228,108 @@ const updateMember = async (req, res) => {
   }
 };
 
+// POST /api/members/:id/link-spouse
+const linkSpouse = async (req, res) => {
+  const { id } = req.params;
+  const { spouseMemberId } = req.body;
+  const churchId = req.churchId;
+
+  try {
+    const { rows: memberRows } = await query(
+      'SELECT id, first_name, last_name, phone, family_id, spouse_id FROM members WHERE id = $1 AND church_id = $2',
+      [id, churchId]
+    );
+    if (!memberRows[0]) return res.status(404).json({ success: false, message: 'Member not found' });
+    const currentMember = memberRows[0];
+
+    if (!spouseMemberId) {
+      if (currentMember.spouse_id) {
+        await query('UPDATE members SET spouse_id = NULL WHERE id = $1 AND church_id = $2', [currentMember.spouse_id, churchId]);
+      }
+      await query('UPDATE members SET spouse_id = NULL, spouse_name = NULL, spouse_phone = NULL WHERE id = $1 AND church_id = $2', [id, churchId]);
+      return res.json({ success: true, message: 'Spouse unlinked successfully' });
+    }
+
+    if (spouseMemberId === id) {
+      return res.status(400).json({ success: false, message: 'Cannot link member to themselves' });
+    }
+
+    const { rows: spouseRows } = await query(
+      'SELECT id, first_name, last_name, phone, family_id, children_count, teenagers_count, children_details, has_children FROM members WHERE id = $1 AND church_id = $2',
+      [spouseMemberId, churchId]
+    );
+    if (!spouseRows[0]) return res.status(404).json({ success: false, message: 'Target spouse member not found' });
+    const targetSpouse = spouseRows[0];
+
+    const targetFamilyId = currentMember.family_id || targetSpouse.family_id || currentMember.id;
+
+    // Link current member
+    await query(
+      `UPDATE members
+       SET spouse_id = $1, spouse_name = $2, spouse_phone = $3, family_id = $4, marital_status = 'married'
+       WHERE id = $5 AND church_id = $6`,
+      [targetSpouse.id, `${targetSpouse.first_name} ${targetSpouse.last_name}`.trim(), targetSpouse.phone, targetFamilyId, id, churchId]
+    );
+
+    // Link target spouse (reciprocal)
+    await query(
+      `UPDATE members
+       SET spouse_id = $1, spouse_name = $2, spouse_phone = $3, family_id = $4, marital_status = 'married', is_primary_family_contact = false
+       WHERE id = $5 AND church_id = $6`,
+      [currentMember.id, `${currentMember.first_name} ${currentMember.last_name}`.trim(), currentMember.phone, targetFamilyId, targetSpouse.id, churchId]
+    );
+
+    return res.json({
+      success: true,
+      message: `Successfully linked ${currentMember.first_name} with ${targetSpouse.first_name} in household unit`
+    });
+  } catch (err) {
+    logger.error('linkSpouse error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// GET /api/members/:id/family
+const getFamily = async (req, res) => {
+  const { id } = req.params;
+  const churchId = req.churchId;
+
+  try {
+    const { rows: memberRows } = await query(
+      'SELECT id, first_name, last_name, family_id, spouse_id, spouse_name, spouse_phone, has_children, children_count, teenagers_count, children_details, wedding_anniversary_date FROM members WHERE id = $1 AND church_id = $2',
+      [id, churchId]
+    );
+    if (!memberRows[0]) return res.status(404).json({ success: false, message: 'Member not found' });
+    const member = memberRows[0];
+
+    const familyId = member.family_id || member.id;
+    const { rows: householdMembers } = await query(
+      `SELECT id, first_name, last_name, member_number, phone, email, date_of_birth, marital_status,
+              wedding_anniversary_date, profile_photo_url, is_primary_family_contact, family_role
+       FROM members
+       WHERE church_id = $1 AND (family_id = $2 OR id = $3 OR spouse_id = $3)
+       ORDER BY (id = $3) DESC, created_at ASC`,
+      [churchId, familyId, id]
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        familyId,
+        member,
+        householdMembers,
+        childrenCount: member.children_count || 0,
+        teenagersCount: member.teenagers_count || 0,
+        childrenDetails: member.children_details || null,
+        hasChildren: member.has_children || false,
+      }
+    });
+  } catch (err) {
+    logger.error('getFamily error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 // DELETE /api/members/:id (soft delete)
 const deleteMember = async (req, res) => {
   const { id } = req.params;
@@ -214,9 +355,10 @@ const getMemberStats = async (req, res) => {
         COUNT(*) FILTER (WHERE membership_status = 'inactive') as inactive,
         COUNT(*) FILTER (WHERE membership_class = 'child') as children,
         COUNT(*) FILTER (WHERE membership_class = 'youth') as youth,
-        COALESCE(SUM(children_count), 0)::int as total_children,
-        COALESCE(SUM(teenagers_count), 0)::int as total_teenagers,
-        COUNT(*) FILTER (WHERE has_children = true OR COALESCE(children_count, 0) > 0 OR COALESCE(teenagers_count, 0) > 0) as families_with_children,
+        COALESCE(SUM(children_count) FILTER (WHERE is_primary_family_contact = true OR is_primary_family_contact IS NULL), 0)::int as total_children,
+        COALESCE(SUM(teenagers_count) FILTER (WHERE is_primary_family_contact = true OR is_primary_family_contact IS NULL), 0)::int as total_teenagers,
+        COUNT(DISTINCT COALESCE(family_id, id)) FILTER (WHERE has_children = true OR COALESCE(children_count, 0) > 0 OR COALESCE(teenagers_count, 0) > 0) as families_with_children,
+        COUNT(DISTINCT family_id) FILTER (WHERE spouse_id IS NOT NULL) as married_households_count,
         COUNT(*) FILTER (WHERE is_worker = true) as workers_count,
         COUNT(*) FILTER (WHERE designation = 'pastor') as pastors_count,
         COUNT(*) FILTER (WHERE designation = 'director') as directors_count,
@@ -534,6 +676,8 @@ module.exports = {
   sendBirthdayWish,
   getUpcomingAnniversaries,
   sendAnniversaryWish,
+  linkSpouse,
+  getFamily,
   getMemberVirtualAccount,
   assignMemberVirtualAccount
 };

@@ -30,6 +30,8 @@ export const membersAPI = {
   sendBirthdayWish: (id, data = {}) => api.post(`/members/${id}/birthday-wish`, data),
   anniversaries: (params) => api.get('/members/anniversaries', { params }),
   sendAnniversaryWish: (id, data = {}) => api.post(`/members/${id}/anniversary-wish`, data),
+  linkSpouse: (id, data) => api.post(`/members/${id}/link-spouse`, data),
+  getFamily: (id) => api.get(`/members/${id}/family`),
   getVirtualAccount: (id) => api.get(`/members/${id}/virtual-account`),
   generateVirtualAccount: (id) => api.post(`/members/${id}/virtual-account`),
 };

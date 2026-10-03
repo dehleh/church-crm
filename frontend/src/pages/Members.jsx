@@ -110,18 +110,42 @@ function MemberForm({ form, setForm, branches = [], departments = [], fellowship
       </div>
 
       {form.maritalStatus === 'married' && (
-        <div className="p-3 bg-rose-50/50 rounded-xl border border-rose-100">
-          <label className="label text-xs font-semibold text-rose-900 flex items-center gap-1.5">
-            <Heart size={14} className="text-rose-600 fill-rose-500" /> Wedding Anniversary Date (For Pastoral Greetings)
-          </label>
-          <input
-            type="date"
-            className="input bg-white text-sm"
-            value={form.weddingAnniversaryDate || ''}
-            onChange={set('weddingAnniversaryDate')}
-          />
-          <p className="text-[11px] text-rose-700/80 mt-1">
-            Used to automate warm pastoral anniversary greetings and celebrate couples during ministry milestones.
+        <div className="p-3 bg-rose-50/50 rounded-xl border border-rose-100 space-y-3">
+          <div>
+            <label className="label text-xs font-semibold text-rose-900 flex items-center gap-1.5">
+              <Heart size={14} className="text-rose-600 fill-rose-500" /> Wedding Anniversary Date
+            </label>
+            <input
+              type="date"
+              className="input bg-white text-sm"
+              value={form.weddingAnniversaryDate || ''}
+              onChange={set('weddingAnniversaryDate')}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-rose-200/50">
+            <div>
+              <label className="label text-xs font-semibold text-rose-900">Spouse's Full Name</label>
+              <input
+                type="text"
+                className="input bg-white text-sm"
+                placeholder="e.g. Mary Doe"
+                value={form.spouseName || ''}
+                onChange={set('spouseName')}
+              />
+            </div>
+            <div>
+              <label className="label text-xs font-semibold text-rose-900">Spouse's Phone Number</label>
+              <input
+                type="tel"
+                className="input bg-white text-sm"
+                placeholder="e.g. 08012345678"
+                value={form.spousePhone || ''}
+                onChange={set('spousePhone')}
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-rose-700/80">
+            Providing spouse details automatically unifies the family household and deduplicates children counts in church statistics.
           </p>
         </div>
       )}
@@ -486,6 +510,8 @@ export default function Members() {
     setForm({
       membershipClass: 'full',
       weddingAnniversaryDate: '',
+      spouseName: '',
+      spousePhone: '',
       hasChildren: false,
       childrenCount: 0,
       teenagersCount: 0,
@@ -506,6 +532,9 @@ export default function Members() {
       lastName: m.last_name,
       dateOfBirth: m.date_of_birth ? String(m.date_of_birth).slice(0, 10) : '',
       weddingAnniversaryDate: m.wedding_anniversary_date ? String(m.wedding_anniversary_date).slice(0, 10) : '',
+      spouseName: m.spouse_name || '',
+      spousePhone: m.spouse_phone || '',
+      spouseId: m.spouse_id || '',
       maritalStatus: m.marital_status,
       membershipClass: m.membership_class,
       joinDate: m.join_date ? String(m.join_date).slice(0, 10) : '',
@@ -858,8 +887,20 @@ export default function Members() {
                             </span>
                           )}
                         </div>
+                        {(m.linked_spouse_name || m.spouse_name) && (
+                          <span className="text-[10px] text-gray-500 truncate max-w-[140px]" title={`Spouse: ${m.linked_spouse_name || m.spouse_name}`}>
+                            💍 {m.linked_spouse_name || m.spouse_name}
+                          </span>
+                        )}
                         {hasFamily ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
+                          <span
+                            className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded ${
+                              m.is_primary_family_contact === false
+                                ? 'text-sky-600 bg-sky-50/60 border border-sky-100'
+                                : 'text-sky-700 bg-sky-50 border border-sky-200'
+                            }`}
+                            title={m.is_primary_family_contact === false ? 'Shared household (secondary contact)' : 'Household children'}
+                          >
                             <Baby size={11} />
                             {[
                               m.children_count > 0 ? `${m.children_count} kids` : null,

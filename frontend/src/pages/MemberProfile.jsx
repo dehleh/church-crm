@@ -4,7 +4,7 @@ import {
   ArrowLeft, User, Phone, Mail, MapPin, Briefcase, Users,
   Calendar, Heart, Edit2, CheckCircle, XCircle, Loader2,
   Cake, Baby, Home, MessageCircle, Send, Award, Shield, UserCheck, Sparkles,
-  Landmark, Copy, Check, RefreshCw
+  Landmark, Copy, Check, RefreshCw, ExternalLink, Link2
 } from 'lucide-react';
 import { membersAPI, departmentsAPI, fellowshipAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
@@ -42,6 +42,10 @@ export default function MemberProfile() {
   const [deptForm, setDeptForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [sendingWish, setSendingWish] = useState(false);
+  const [linkSpouseModal, setLinkSpouseModal] = useState(false);
+  const [candidateSpouses, setCandidateSpouses] = useState([]);
+  const [selectedSpouseId, setSelectedSpouseId] = useState('');
+  const [savingLinkSpouse, setSavingLinkSpouse] = useState(false);
 
   // Dedicated Virtual Bank Account State
   const [virtualAccount, setVirtualAccount] = useState(null);
@@ -171,6 +175,51 @@ export default function MemberProfile() {
     }
   };
 
+  const openLinkSpouse = async () => {
+    setSelectedSpouseId(member.spouse_id || '');
+    setLinkSpouseModal(true);
+    try {
+      const res = await membersAPI.list({ limit: 200 });
+      const candidates = (res.data?.data || []).filter(m => m.id !== id);
+      setCandidateSpouses(candidates);
+    } catch {
+      // fallback
+    }
+  };
+
+  const handleLinkSpouseSubmit = async () => {
+    setSavingLinkSpouse(true);
+    try {
+      await membersAPI.linkSpouse(id, {
+        spouseId: selectedSpouseId || null,
+        spouseName: selectedSpouseId ? undefined : member.spouse_name,
+        spousePhone: selectedSpouseId ? undefined : member.spouse_phone,
+      });
+      toast.success(selectedSpouseId ? 'Spouse linked to household!' : 'Spouse unlinked');
+      setLinkSpouseModal(false);
+      fetchMember();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to update spouse link');
+    } finally {
+      setSavingLinkSpouse(false);
+    }
+  };
+
+  const handleUnlinkSpouse = async () => {
+    if (!confirm('Are you sure you want to unlink this spouse? They will be separated into an independent household.')) return;
+    setSavingLinkSpouse(true);
+    try {
+      await membersAPI.linkSpouse(id, { spouseId: null });
+      toast.success('Spouse unlinked');
+      setLinkSpouseModal(false);
+      fetchMember();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to unlink');
+    } finally {
+      setSavingLinkSpouse(false);
+    }
+  };
+
   if (loading) return <div className="flex items-center justify-center min-h-96"><Loader2 size={28} className="animate-spin text-brand-500" /></div>;
   if (!member) return null;
 
@@ -272,6 +321,9 @@ export default function MemberProfile() {
                       dateOfBirth: member.date_of_birth ? String(member.date_of_birth).slice(0, 10) : '',
                       maritalStatus: member.marital_status,
                       weddingAnniversaryDate: member.wedding_anniversary_date ? String(member.wedding_anniversary_date).slice(0, 10) : '',
+                      spouseName: member.spouse_name || '',
+                      spousePhone: member.spouse_phone || '',
+                      spouseId: member.spouse_id || '',
                       designation: member.designation || 'member',
                       leadershipTitle: member.leadership_title || '',
                       assignedPastorId: member.assigned_pastor_id || '',
@@ -401,6 +453,54 @@ export default function MemberProfile() {
                 value={format(new Date(member.wedding_anniversary_date), 'MMMM d, yyyy')}
               />
             )}
+
+            {/* Spouse / Household Information Row */}
+            {(member.marital_status === 'married' || member.spouse_id || member.spouse_name) && (
+              <div className="py-2.5 border-b border-gray-50 flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <Heart size={15} className="text-rose-500 fill-rose-50 mt-0.5 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Spouse & Household</p>
+                    {member.spouse_id && member.linked_spouse_name ? (
+                      <div className="mt-0.5">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/members/${member.spouse_id}`)}
+                            className="text-sm font-semibold text-brand-600 hover:text-brand-700 hover:underline flex items-center gap-1 truncate text-left"
+                          >
+                            {member.linked_spouse_name} <ExternalLink size={12} />
+                          </button>
+                          <span className="badge badge-green text-[10px] px-1.5 py-0.5">Linked</span>
+                        </div>
+                        {member.linked_spouse_phone && (
+                          <p className="text-xs text-gray-400 font-mono mt-0.5">{member.linked_spouse_phone}</p>
+                        )}
+                      </div>
+                    ) : member.spouse_name ? (
+                      <div className="mt-0.5">
+                        <p className="text-sm text-gray-800 font-medium">{member.spouse_name}</p>
+                        {member.spouse_phone && (
+                          <p className="text-xs text-gray-500 font-mono">{member.spouse_phone}</p>
+                        )}
+                        <span className="badge badge-yellow text-[10px] px-1.5 py-0.5 mt-1">Not linked to member</span>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400 italic mt-0.5">Spouse not linked</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={openLinkSpouse}
+                  className="btn-secondary btn-xs flex items-center gap-1 text-brand-700 bg-brand-50 border-brand-200 hover:bg-brand-100 flex-shrink-0 mt-1"
+                >
+                  <Link2 size={12} />
+                  <span>{member.spouse_id ? 'Manage' : 'Link Spouse'}</span>
+                </button>
+              </div>
+            )}
+
             <InfoRow icon={Briefcase} label="Occupation" value={member.occupation} />
             <InfoRow icon={Briefcase} label="Employer" value={member.employer} />
             <InfoRow icon={MapPin} label="Address" value={[member.address, member.city, member.state].filter(Boolean).join(', ')} />
@@ -408,9 +508,26 @@ export default function MemberProfile() {
 
           {/* Children & Demographics Card */}
           <div className="card">
-            <h3 className="section-title mb-3 flex items-center gap-2">
-              <Baby size={18} className="text-sky-600" /> Children & Teenagers Accounting
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="section-title flex items-center gap-2">
+                <Baby size={18} className="text-sky-600" /> Children & Teenagers Accounting
+              </h3>
+              {member.spouse_id && (
+                <span className="badge badge-blue text-[10px] font-semibold flex items-center gap-1" title="Household children records are unified and deduplicated">
+                  <Users size={11} /> Unified Household
+                </span>
+              )}
+            </div>
+
+            {member.is_primary_family_contact === false && (
+              <div className="mb-3 p-2.5 rounded-lg bg-sky-50 border border-sky-100 text-xs text-sky-800 flex items-start gap-2">
+                <Shield size={14} className="text-sky-600 mt-0.5 flex-shrink-0" />
+                <span>
+                  <strong>Household Secondary Contact:</strong> Children counts are attributed to primary contact ({member.linked_spouse_name || 'Spouse'}) to prevent duplicate headcounts in church metrics.
+                </span>
+              </div>
+            )}
+
             <InfoRow
               icon={Baby}
               label="Children (0–12 years)"
@@ -734,18 +851,42 @@ export default function MemberProfile() {
           </div>
 
           {form.maritalStatus === 'married' && (
-            <div className="p-3 bg-rose-50/50 rounded-xl border border-rose-100">
-              <label className="label text-xs font-semibold text-rose-900 flex items-center gap-1.5">
-                <Heart size={14} className="text-rose-600 fill-rose-500" /> Wedding Anniversary Date
-              </label>
-              <input
-                type="date"
-                className="input bg-white text-sm"
-                value={form.weddingAnniversaryDate || ''}
-                onChange={e => setForm(f => ({ ...f, weddingAnniversaryDate: e.target.value }))}
-              />
-              <p className="text-[11px] text-rose-700/80 mt-1">
-                Used to dispatch automated warm pastoral anniversary blessings and honor ministry milestones.
+            <div className="p-3 bg-rose-50/50 rounded-xl border border-rose-100 space-y-3">
+              <div>
+                <label className="label text-xs font-semibold text-rose-900 flex items-center gap-1.5">
+                  <Heart size={14} className="text-rose-600 fill-rose-500" /> Wedding Anniversary Date
+                </label>
+                <input
+                  type="date"
+                  className="input bg-white text-sm"
+                  value={form.weddingAnniversaryDate || ''}
+                  onChange={e => setForm(f => ({ ...f, weddingAnniversaryDate: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-rose-200/50">
+                <div>
+                  <label className="label text-xs font-semibold text-rose-900">Spouse's Full Name</label>
+                  <input
+                    type="text"
+                    className="input bg-white text-sm"
+                    placeholder="e.g. Mary Doe"
+                    value={form.spouseName || ''}
+                    onChange={e => setForm(f => ({ ...f, spouseName: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label text-xs font-semibold text-rose-900">Spouse's Phone Number</label>
+                  <input
+                    type="tel"
+                    className="input bg-white text-sm"
+                    placeholder="e.g. 08012345678"
+                    value={form.spousePhone || ''}
+                    onChange={e => setForm(f => ({ ...f, spousePhone: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-rose-700/80">
+                Spouse phone number enables automatic household unification and prevents duplicate children counts across registrations.
               </p>
             </div>
           )}
@@ -926,6 +1067,60 @@ export default function MemberProfile() {
               <option value="leader">Leader</option>
               <option value="coordinator">Coordinator</option>
             </select>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Link / Manage Spouse Modal */}
+      <Modal
+        open={linkSpouseModal}
+        onClose={() => setLinkSpouseModal(false)}
+        title="Manage Household & Spouse Link"
+        footer={<>
+          {member.spouse_id && (
+            <button
+              type="button"
+              onClick={handleUnlinkSpouse}
+              disabled={savingLinkSpouse}
+              className="btn-secondary text-red-600 border-red-200 hover:bg-red-50 mr-auto"
+            >
+              Unlink Spouse
+            </button>
+          )}
+          <button type="button" onClick={() => setLinkSpouseModal(false)} className="btn-secondary">Cancel</button>
+          <button type="button" onClick={handleLinkSpouseSubmit} disabled={savingLinkSpouse} className="btn-primary">
+            {savingLinkSpouse ? <Loader2 size={14} className="animate-spin" /> : 'Save Link'}
+          </button>
+        </>}
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-brand-50 border border-brand-100 rounded-xl text-xs text-brand-900 leading-relaxed flex items-start gap-2.5">
+            <Heart size={16} className="text-brand-600 fill-brand-200 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-brand-950">Family Household Unification</p>
+              <p className="mt-0.5 text-brand-800">
+                Linking a spouse brings both partners into one shared household. Children and teenagers records will be seamlessly united across both profiles, and duplicate headcounts are automatically suppressed in church statistics.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="label text-xs font-semibold">Select Spouse from Church Directory</label>
+            <select
+              className="input text-sm"
+              value={selectedSpouseId}
+              onChange={e => setSelectedSpouseId(e.target.value)}
+            >
+              <option value="">-- No linked church member profile (unlinked) --</option>
+              {candidateSpouses.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.first_name} {c.last_name} {c.phone ? `(${c.phone})` : ''} — {c.gender ? c.gender.toUpperCase() : 'Member'}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-gray-500 mt-1.5">
+              Selecting their spouse links their profiles bidirectionally. Both profiles will display the mutual connection.
+            </p>
           </div>
         </div>
       </Modal>

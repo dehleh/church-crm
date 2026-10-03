@@ -25,6 +25,9 @@ export default function PublicMemberForm() {
     dateOfBirth: '',
     maritalStatus: '',
     weddingAnniversaryDate: '',
+    spouseName: '',
+    spousePhone: '',
+    spouseAlreadyRegisteredChildren: false,
     address: '',
     branchId: '',
     membershipClass: 'full',
@@ -200,6 +203,19 @@ export default function PublicMemberForm() {
                 </div>
               )}
 
+              {/* Linked Household Badge */}
+              {(submissionData?.spouseName || submissionData?.member?.spouse_name) && (
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50/60 border border-amber-200 rounded-2xl p-4 text-left max-w-lg mx-auto shadow-xs">
+                  <div className="flex items-center gap-2 text-amber-900 font-semibold text-sm mb-1">
+                    <Heart size={16} className="text-amber-600 fill-amber-500/30" />
+                    <span>Family Household Connected</span>
+                  </div>
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    Linked with <strong>{submissionData?.spouseName || submissionData?.member?.spouse_name}</strong>. Your children and family records are unified under your shared household.
+                  </p>
+                </div>
+              )}
+
               {/* Assigned Fellowship Cell */}
               {assignedCell && (
                 <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-5 text-left max-w-lg mx-auto shadow-sm">
@@ -361,11 +377,12 @@ export default function PublicMemberForm() {
                 </div>
 
                 {form.maritalStatus === 'married' && (
-                  <div className="mt-3 bg-gradient-to-r from-amber-50 to-orange-50/60 border border-amber-200/80 rounded-2xl p-4 shadow-2xs">
-                    <div className="flex items-center gap-2 mb-2 text-amber-900 font-semibold text-xs uppercase tracking-wide">
+                  <div className="mt-3 bg-gradient-to-r from-amber-50 to-orange-50/60 border border-amber-200/80 rounded-2xl p-4 shadow-2xs space-y-3">
+                    <div className="flex items-center gap-2 mb-1 text-amber-900 font-semibold text-xs uppercase tracking-wide">
                       <Heart size={15} className="text-amber-600 fill-amber-500/20" />
-                      <span>Pastoral Marriage & Wedding Anniversary Registry</span>
+                      <span>Pastoral Marriage & Household Registry</span>
                     </div>
+
                     <div>
                       <label className="label text-amber-950 font-medium">
                         Wedding Anniversary Date * <span className="text-xs text-amber-700 font-normal">💍 For pastoral wedding blessings & prayers</span>
@@ -381,6 +398,33 @@ export default function PublicMemberForm() {
                         Our pastoral leadership celebrates every couple! You will receive customized pastoral wedding anniversary wishes and prayers on your special day.
                       </p>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-amber-200/60">
+                      <div>
+                        <label className="label text-amber-950 font-medium">Spouse&apos;s Full Name</label>
+                        <input
+                          className="input bg-white border-amber-300 focus:border-amber-500"
+                          placeholder="e.g. Bukola Adebayo"
+                          value={form.spouseName}
+                          onChange={set('spouseName')}
+                        />
+                      </div>
+                      <div>
+                        <label className="label text-amber-950 font-medium">
+                          Spouse&apos;s Phone Number <span className="text-xs text-amber-700 font-normal">(If also in church)</span>
+                        </label>
+                        <input
+                          type="tel"
+                          className="input bg-white border-amber-300 focus:border-amber-500"
+                          placeholder="+234..."
+                          value={form.spousePhone}
+                          onChange={set('spousePhone')}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-amber-800/80">
+                      💡 Entering your spouse&apos;s details allows ChurchOS to automatically connect your household and ensure family records are unified without duplication.
+                    </p>
                   </div>
                 )}
               </div>
@@ -425,39 +469,60 @@ export default function PublicMemberForm() {
 
                 {form.hasChildren && (
                   <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="label text-emerald-950 font-medium">Children Count (Ages 0 - 12)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="20"
-                          className="input bg-white"
-                          value={form.childrenCount}
-                          onChange={set('childrenCount')}
-                        />
+                    {form.maritalStatus === 'married' && (
+                      <div className="bg-white/80 border border-emerald-200/80 rounded-xl p-3">
+                        <label className="text-xs font-semibold text-emerald-950 flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="rounded border-emerald-300 text-brand-600 focus:ring-brand-500 h-4 w-4"
+                            checked={form.spouseAlreadyRegisteredChildren}
+                            onChange={setBool('spouseAlreadyRegisteredChildren')}
+                          />
+                          <span>My spouse has already registered our children/teenagers on ChurchOS</span>
+                        </label>
+                        <p className="text-[11px] text-emerald-700/90 mt-1 pl-6">
+                          If checked, ChurchOS automatically links your profile to your spouse&apos;s household so your children are recorded once and shared under your family.
+                        </p>
                       </div>
-                      <div>
-                        <label className="label text-emerald-950 font-medium">Teenagers Count (Ages 13 - 19)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="20"
-                          className="input bg-white"
-                          value={form.teenagersCount}
-                          onChange={set('teenagersCount')}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="label text-emerald-950 font-medium">Children / Teenagers Names & Ages</label>
-                      <input
-                        className="input bg-white"
-                        placeholder="e.g. David (5), Grace (11), Joshua (15)"
-                        value={form.childrenDetails}
-                        onChange={set('childrenDetails')}
-                      />
-                    </div>
+                    )}
+
+                    {!form.spouseAlreadyRegisteredChildren && (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="label text-emerald-950 font-medium">Children Count (Ages 0 - 12)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="20"
+                              className="input bg-white"
+                              value={form.childrenCount}
+                              onChange={set('childrenCount')}
+                            />
+                          </div>
+                          <div>
+                            <label className="label text-emerald-950 font-medium">Teenagers Count (Ages 13 - 19)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="20"
+                              className="input bg-white"
+                              value={form.teenagersCount}
+                              onChange={set('teenagersCount')}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="label text-emerald-950 font-medium">Children / Teenagers Names & Ages</label>
+                          <input
+                            className="input bg-white"
+                            placeholder="e.g. David (5), Grace (11), Joshua (15)"
+                            value={form.childrenDetails}
+                            onChange={set('childrenDetails')}
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

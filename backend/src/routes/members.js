@@ -21,6 +21,8 @@ router.get('/birthdays', authorize('admin', 'pastor', 'director', 'hod'), c.getU
 router.post('/:id/birthday-wish', authorize('admin', 'pastor', 'director', 'hod'), c.sendBirthdayWish);
 router.get('/anniversaries', authorize('admin', 'pastor', 'director', 'hod'), c.getUpcomingAnniversaries);
 router.post('/:id/anniversary-wish', authorize('admin', 'pastor', 'director', 'hod'), c.sendAnniversaryWish);
+router.post('/:id/link-spouse', authorize('admin', 'pastor', 'director', 'hod'), c.linkSpouse);
+router.get('/:id/family', authorize('admin', 'pastor', 'director', 'hod'), c.getFamily);
 
 /**
  * @swagger
