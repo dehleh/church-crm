@@ -286,8 +286,8 @@ export default function MemberHome() {
             </div>
           )}
 
-          {/* Birthday Celebrants Spotlight */}
-          {enabledModules.birthdays !== false && data?.upcomingBirthdays?.length > 0 && (
+          {/* Birthday & Wedding Anniversary Celebrants Spotlight */}
+          {enabledModules.birthdays !== false && ((data?.upcomingBirthdays?.length > 0) || (data?.upcomingAnniversaries?.length > 0)) && (
             <div className="bg-gradient-to-r from-amber-500/10 via-pink-500/10 to-rose-500/10 border border-pink-200/80 rounded-2xl p-4 sm:p-5 shadow-xs">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
@@ -296,9 +296,9 @@ export default function MemberHome() {
                   </div>
                   <div>
                     <h3 className="font-bold text-gray-900 text-sm sm:text-base flex items-center gap-2">
-                      Upcoming Birthday Celebrations <PartyPopper size={16} className="text-amber-500" />
+                      Upcoming Celebrations <PartyPopper size={16} className="text-amber-500" />
                     </h3>
-                    <p className="text-xs text-gray-500">Celebrate and speak blessings over our church family members</p>
+                    <p className="text-xs text-gray-500">Celebrate birthdays and wedding anniversaries across our church family</p>
                   </div>
                 </div>
                 <Link
@@ -309,26 +309,65 @@ export default function MemberHome() {
                 </Link>
               </div>
 
-              <div className="flex flex-wrap gap-2.5 pt-1">
-                {data.upcomingBirthdays.slice(0, 6).map((b) => (
-                  <div
-                    key={b.id}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-pink-100 shadow-xs"
-                  >
-                    {b.profile_photo_url ? (
-                      <img src={b.profile_photo_url} alt="" className="w-7 h-7 rounded-full object-cover border border-pink-200" />
-                    ) : (
-                      <div className="w-7 h-7 rounded-full bg-pink-100 text-pink-700 font-bold text-xs flex items-center justify-center">
-                        {(b.first_name?.[0] || '') + (b.last_name?.[0] || '')}
-                      </div>
-                    )}
-                    <div>
-                      <div className="text-xs font-bold text-gray-800">{b.first_name} {b.last_name}</div>
-                      <div className="text-[10px] text-pink-600 font-semibold">{b.bday_formatted}</div>
-                    </div>
+              {/* Birthdays */}
+              {data?.upcomingBirthdays?.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-pink-700/80 mb-1.5 flex items-center gap-1">
+                    <Cake size={12} /> Upcoming Birthdays
                   </div>
-                ))}
-              </div>
+                  <div className="flex flex-wrap gap-2.5">
+                    {data.upcomingBirthdays.slice(0, 5).map((b) => (
+                      <div
+                        key={`bday-${b.id}`}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-pink-100 shadow-xs"
+                      >
+                        {b.profile_photo_url ? (
+                          <img src={b.profile_photo_url} alt="" className="w-7 h-7 rounded-full object-cover border border-pink-200" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-pink-100 text-pink-700 font-bold text-xs flex items-center justify-center">
+                            {(b.first_name?.[0] || '') + (b.last_name?.[0] || '')}
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-xs font-bold text-gray-800">{b.first_name} {b.last_name}</div>
+                          <div className="text-[10px] text-pink-600 font-semibold">{b.bday_formatted}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Wedding Anniversaries */}
+              {data?.upcomingAnniversaries?.length > 0 && (
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-rose-700/80 mb-1.5 flex items-center gap-1">
+                    <Heart size={12} className="fill-rose-500 text-rose-500" /> Upcoming Wedding Anniversaries
+                  </div>
+                  <div className="flex flex-wrap gap-2.5">
+                    {data.upcomingAnniversaries.slice(0, 5).map((a) => (
+                      <div
+                        key={`anniv-${a.id}`}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-rose-100 shadow-xs"
+                      >
+                        {a.profile_photo_url ? (
+                          <img src={a.profile_photo_url} alt="" className="w-7 h-7 rounded-full object-cover border border-rose-200" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-rose-100 text-rose-700 font-bold text-xs flex items-center justify-center">
+                            {(a.first_name?.[0] || '') + (a.last_name?.[0] || '')}
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-xs font-bold text-gray-800">{a.first_name} {a.last_name}</div>
+                          <div className="text-[10px] text-rose-600 font-semibold">
+                            {a.anniversary_formatted}{a.years_married ? ` (${a.years_married} yrs)` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

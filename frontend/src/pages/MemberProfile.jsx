@@ -121,6 +121,7 @@ export default function MemberProfile() {
     }
   };
 
+  const [sendingAnnivWish, setSendingAnnivWish] = useState(false);
   const handleSendWish = async () => {
     setSendingWish(true);
     try {
@@ -130,6 +131,18 @@ export default function MemberProfile() {
       toast.error(e?.response?.data?.message || 'Failed to dispatch birthday wish');
     } finally {
       setSendingWish(false);
+    }
+  };
+
+  const handleSendAnniversaryWish = async () => {
+    setSendingAnnivWish(true);
+    try {
+      await membersAPI.sendAnniversaryWish(id, { channel: 'whatsapp' });
+      toast.success(`Wedding anniversary blessing dispatched to ${member.first_name}! 💍`);
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to dispatch wedding anniversary wish');
+    } finally {
+      setSendingAnnivWish(false);
     }
   };
 
@@ -166,6 +179,10 @@ export default function MemberProfile() {
     new Date(member.date_of_birth).getMonth() === new Date().getMonth() &&
     new Date(member.date_of_birth).getDate() === new Date().getDate()
   );
+  const isAnnivToday = member.wedding_anniversary_date && (
+    new Date(member.wedding_anniversary_date).getMonth() === new Date().getMonth() &&
+    new Date(member.wedding_anniversary_date).getDate() === new Date().getDate()
+  );
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -182,6 +199,9 @@ export default function MemberProfile() {
             {isBdayToday && (
               <span className="absolute -top-1 -right-1 text-lg" title="Birthday Today!">🎂</span>
             )}
+            {isAnnivToday && !isBdayToday && (
+              <span className="absolute -top-1 -right-1 text-lg" title="Wedding Anniversary Today!">💍</span>
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between flex-wrap gap-3">
@@ -191,6 +211,11 @@ export default function MemberProfile() {
                   {isBdayToday && (
                     <span className="badge badge-pink font-bold text-xs py-0.5 px-2 animate-bounce">
                       Birthday Today! 🎂
+                    </span>
+                  )}
+                  {isAnnivToday && (
+                    <span className="badge badge-rose font-bold text-xs py-0.5 px-2 animate-bounce flex items-center gap-1">
+                      <Heart size={12} className="fill-rose-500" /> Wedding Anniversary Today! 💍
                     </span>
                   )}
                 </h1>
@@ -207,6 +232,18 @@ export default function MemberProfile() {
                   {sendingWish ? <Loader2 size={13} className="animate-spin" /> : <Cake size={13} className="text-pink-600" />}
                   <span>Birthday Wish</span>
                 </button>
+
+                {(member.marital_status === 'married' || member.wedding_anniversary_date) && (
+                  <button
+                    onClick={handleSendAnniversaryWish}
+                    disabled={sendingAnnivWish}
+                    className="btn-secondary btn-sm flex items-center gap-1.5 text-rose-700 bg-rose-50 border-rose-200 hover:bg-rose-100"
+                    title="Send pastoral wedding anniversary blessing"
+                  >
+                    {sendingAnnivWish ? <Loader2 size={13} className="animate-spin" /> : <Heart size={13} className="text-rose-600 fill-rose-500" />}
+                    <span>Anniversary Blessing</span>
+                  </button>
+                )}
 
                 {member.phone && (
                   <a
@@ -356,7 +393,14 @@ export default function MemberProfile() {
             <h3 className="section-title mb-3">Personal & Family Information</h3>
             <InfoRow icon={User} label="Gender" value={member.gender ? member.gender.charAt(0).toUpperCase() + member.gender.slice(1) : null} />
             <InfoRow icon={Calendar} label="Date of Birth" value={member.date_of_birth ? format(new Date(member.date_of_birth), 'MMMM d, yyyy') : null} />
-            <InfoRow icon={Heart} label="Marital Status" value={member.marital_status} />
+            <InfoRow icon={Heart} label="Marital Status" value={member.marital_status ? member.marital_status.charAt(0).toUpperCase() + member.marital_status.slice(1) : null} />
+            {member.wedding_anniversary_date && (
+              <InfoRow
+                icon={Heart}
+                label="Wedding Anniversary"
+                value={format(new Date(member.wedding_anniversary_date), 'MMMM d, yyyy')}
+              />
+            )}
             <InfoRow icon={Briefcase} label="Occupation" value={member.occupation} />
             <InfoRow icon={Briefcase} label="Employer" value={member.employer} />
             <InfoRow icon={MapPin} label="Address" value={[member.address, member.city, member.state].filter(Boolean).join(', ')} />
@@ -688,6 +732,23 @@ export default function MemberProfile() {
               </select>
             </div>
           </div>
+
+          {form.maritalStatus === 'married' && (
+            <div className="p-3 bg-rose-50/50 rounded-xl border border-rose-100">
+              <label className="label text-xs font-semibold text-rose-900 flex items-center gap-1.5">
+                <Heart size={14} className="text-rose-600 fill-rose-500" /> Wedding Anniversary Date
+              </label>
+              <input
+                type="date"
+                className="input bg-white text-sm"
+                value={form.weddingAnniversaryDate || ''}
+                onChange={e => setForm(f => ({ ...f, weddingAnniversaryDate: e.target.value }))}
+              />
+              <p className="text-[11px] text-rose-700/80 mt-1">
+                Used to dispatch automated warm pastoral anniversary blessings and honor ministry milestones.
+              </p>
+            </div>
+          )}
 
           {/* Designation & Leadership Role */}
           <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-3.5 space-y-3">

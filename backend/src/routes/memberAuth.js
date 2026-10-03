@@ -12,5 +12,6 @@ const limiter = rateLimit({
 
 router.post('/login', limiter, c.login);
 router.post('/set-password', limiter, c.setPassword);
+router.post('/forgot-password', limiter, c.forgotPassword);
 
 module.exports = router;

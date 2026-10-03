@@ -28,6 +28,8 @@ export const membersAPI = {
   importCsv: (data) => api.post('/members/import', data),
   birthdays: (params) => api.get('/members/birthdays', { params }),
   sendBirthdayWish: (id, data = {}) => api.post(`/members/${id}/birthday-wish`, data),
+  anniversaries: (params) => api.get('/members/anniversaries', { params }),
+  sendAnniversaryWish: (id, data = {}) => api.post(`/members/${id}/anniversary-wish`, data),
   getVirtualAccount: (id) => api.get(`/members/${id}/virtual-account`),
   generateVirtualAccount: (id) => api.post(`/members/${id}/virtual-account`),
 };

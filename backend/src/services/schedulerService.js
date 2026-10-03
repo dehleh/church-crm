@@ -278,6 +278,82 @@ async function processAutomatedBirthdayGreetings() {
   }
 }
 
+function getOrdinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+/**
+ * Automatically checks and sends wedding anniversary greetings for married members celebrating today.
+ */
+async function processAutomatedWeddingAnniversaryGreetings() {
+  try {
+    const { rows: celebrants } = await query(
+      `SELECT m.*, ch.name as church_name, ch.settings as church_settings
+       FROM members m
+       JOIN churches ch ON ch.id = m.church_id
+       WHERE m.membership_status = 'active'
+         AND m.marital_status = 'married'
+         AND m.wedding_anniversary_date IS NOT NULL
+         AND EXTRACT(MONTH FROM m.wedding_anniversary_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+         AND EXTRACT(DAY FROM m.wedding_anniversary_date) = EXTRACT(DAY FROM CURRENT_DATE)
+         AND (m.last_anniversary_wish_year IS NULL OR m.last_anniversary_wish_year < EXTRACT(YEAR FROM CURRENT_DATE)::int)
+         AND (ch.settings->'features'->>'auto_anniversary_wishes' IS NULL OR ch.settings->'features'->>'auto_anniversary_wishes' = 'true')
+       LIMIT 20`
+    );
+
+    for (const member of celebrants) {
+      try {
+        const churchSettings = member.church_settings?.messaging || {};
+
+        let yearsLabel = '';
+        if (member.wedding_anniversary_date) {
+          const annivYear = new Date(member.wedding_anniversary_date).getFullYear();
+          const currentYear = new Date().getFullYear();
+          if (annivYear > 1900 && currentYear > annivYear) {
+            const diff = currentYear - annivYear;
+            yearsLabel = `${getOrdinal(diff)} `;
+          }
+        }
+
+        const greeting = `Happy ${yearsLabel}Wedding Anniversary, ${member.first_name} & Family! 💍🥂💒\n\nThe pastoral leadership and entire family of ${member.church_name} celebrate God's amazing faithfulness and love in your marriage today! May the Lord continue to enrich your home with peace, divine health, supernatural joy, and prosperity in Jesus' name! Have a blessed celebration! ✨`;
+
+        let sent = false;
+        if (member.phone) {
+          const waRes = await sendWhatsApp({ to: member.phone, body: greeting }, churchSettings);
+          sent = waRes.success;
+        }
+        if (!sent && member.phone) {
+          const smsRes = await sendSMS({ to: member.phone, body: greeting }, churchSettings);
+          sent = smsRes.success;
+        }
+        if (member.email) {
+          await sendEmail({
+            to: member.email,
+            subject: `Happy ${yearsLabel}Wedding Anniversary from ${member.church_name}! 💍💒`,
+            html: `<div style="font-family: sans-serif; padding: 24px; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #fed7aa; border-radius: 14px; background: #fffaf5;">
+              <h2 style="color: #c2410c; margin-top: 0;">Happy ${yearsLabel}Wedding Anniversary! 💍🥂</h2>
+              <p>Dear <strong>${member.first_name}</strong> and Family,</p>
+              <p>${greeting.replace(/\n/g, '<br/>')}</p>
+              <p style="margin: 20px 0; font-style: italic; color: #9a3412;">"And above all these put on love, which binds everything together in perfect harmony." — Colossians 3:14</p>
+              <p style="margin-top: 25px; font-weight: bold; color: #431407;">With pastoral love and blessings,<br/>${member.church_name}</p>
+            </div>`,
+          }, churchSettings);
+          sent = true;
+        }
+
+        await query('UPDATE members SET last_anniversary_wish_year = EXTRACT(YEAR FROM CURRENT_DATE) WHERE id = $1', [member.id]);
+        logger.info('Automated wedding anniversary greeting dispatched', { memberId: member.id, name: `${member.first_name} ${member.last_name}` });
+      } catch (memErr) {
+        logger.error('Error sending automated anniversary greeting', { memberId: member.id, error: memErr.message });
+      }
+    }
+  } catch (err) {
+    logger.error('Error processing automated wedding anniversary greetings', { error: err.message });
+  }
+}
+
 /**
  * Checks and dispatches automated daily morning/night devotional reminders and Web Push to members.
  */
@@ -622,6 +698,7 @@ async function runSchedulerTick() {
     await processScheduledCommunications();
     await processAutomatedEventReminders();
     await processAutomatedBirthdayGreetings();
+    await processAutomatedWeddingAnniversaryGreetings();
     await processAutomatedDevotionalReminders();
     await processSubscriptionTrialReminders();
     try {
@@ -659,6 +736,7 @@ module.exports = {
   processScheduledCommunications,
   processAutomatedEventReminders,
   processAutomatedBirthdayGreetings,
+  processAutomatedWeddingAnniversaryGreetings,
   processAutomatedDevotionalReminders,
   processSubscriptionTrialReminders,
 };

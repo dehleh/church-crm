@@ -58,6 +58,8 @@
   .badge-blue   { @apply badge bg-blue-50 text-blue-700; }
   .badge-gray   { @apply badge bg-gray-100 text-gray-600; }
   .badge-purple { @apply badge bg-purple-50 text-purple-700; }
+  .badge-pink   { @apply badge bg-pink-50 text-pink-700; }
+  .badge-rose   { @apply badge bg-rose-50 text-rose-700; }
 
   .page-title {
     @apply text-2xl font-bold text-gray-900 font-display;

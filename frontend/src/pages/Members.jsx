@@ -4,7 +4,7 @@ import {
   Users, Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit2, Trash2,
   Loader2, ExternalLink, FileSpreadsheet, QrCode, CheckCircle2, Cake, Baby,
   Briefcase, Home, Send, MessageCircle, Sparkles, MapPin, Calendar, Check,
-  Award, Shield, UserCheck
+  Award, Shield, UserCheck, Heart
 } from 'lucide-react';
 import { membersAPI, branchesAPI, departmentsAPI, fellowshipAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
@@ -108,6 +108,23 @@ function MemberForm({ form, setForm, branches = [], departments = [], fellowship
           </select>
         </div>
       </div>
+
+      {form.maritalStatus === 'married' && (
+        <div className="p-3 bg-rose-50/50 rounded-xl border border-rose-100">
+          <label className="label text-xs font-semibold text-rose-900 flex items-center gap-1.5">
+            <Heart size={14} className="text-rose-600 fill-rose-500" /> Wedding Anniversary Date (For Pastoral Greetings)
+          </label>
+          <input
+            type="date"
+            className="input bg-white text-sm"
+            value={form.weddingAnniversaryDate || ''}
+            onChange={set('weddingAnniversaryDate')}
+          />
+          <p className="text-[11px] text-rose-700/80 mt-1">
+            Used to automate warm pastoral anniversary greetings and celebrate couples during ministry milestones.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -349,6 +366,11 @@ export default function Members() {
   const [loadingBirthdays, setLoadingBirthdays] = useState(false);
   const [sendingWishId, setSendingWishId] = useState(null);
 
+  const [showAnniversariesModal, setShowAnniversariesModal] = useState(false);
+  const [upcomingAnniversaries, setUpcomingAnniversaries] = useState([]);
+  const [loadingAnniversaries, setLoadingAnniversaries] = useState(false);
+  const [sendingAnniversaryWishId, setSendingAnniversaryWishId] = useState(null);
+
   const [selectedMember, setSelectedMember] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -421,6 +443,37 @@ export default function Members() {
     }
   };
 
+  const loadAnniversaries = async (month = null) => {
+    setLoadingAnniversaries(true);
+    try {
+      const params = { days: 30, ...(month && { month }) };
+      const res = await membersAPI.anniversaries(params);
+      setUpcomingAnniversaries(res.data.data || []);
+    } catch {
+      toast.error('Failed to load upcoming wedding anniversaries');
+    } finally {
+      setLoadingAnniversaries(false);
+    }
+  };
+
+  const openAnniversariesDialog = () => {
+    setShowAnniversariesModal(true);
+    loadAnniversaries();
+  };
+
+  const handleSendAnniversaryWish = async (member, channel = 'whatsapp') => {
+    setSendingAnniversaryWishId(member.id);
+    try {
+      await membersAPI.sendAnniversaryWish(member.id, { channel });
+      toast.success(`Anniversary blessing sent to ${member.first_name}! 💍`);
+      loadAnniversaries();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to dispatch wedding anniversary wish');
+    } finally {
+      setSendingAnniversaryWishId(null);
+    }
+  };
+
   const churchSlug = user?.church_slug || user?.churchSlug;
   const publicMemberFormUrl = useMemo(() => {
     if (!churchSlug || typeof window === 'undefined') return '';
@@ -432,6 +485,7 @@ export default function Members() {
   const openAdd = () => {
     setForm({
       membershipClass: 'full',
+      weddingAnniversaryDate: '',
       hasChildren: false,
       childrenCount: 0,
       teenagersCount: 0,
@@ -451,6 +505,7 @@ export default function Members() {
       firstName: m.first_name,
       lastName: m.last_name,
       dateOfBirth: m.date_of_birth ? String(m.date_of_birth).slice(0, 10) : '',
+      weddingAnniversaryDate: m.wedding_anniversary_date ? String(m.wedding_anniversary_date).slice(0, 10) : '',
       maritalStatus: m.marital_status,
       membershipClass: m.membership_class,
       joinDate: m.join_date ? String(m.join_date).slice(0, 10) : '',
@@ -566,7 +621,7 @@ export default function Members() {
             </span>
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">
-            Manage church membership, track family demographics, church workers, cell clusters, and celebrate birthdays.
+            Manage church membership, track family demographics, church workers, cell clusters, birthdays, and wedding anniversaries.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -576,6 +631,15 @@ export default function Members() {
             {(stats.birthdays_this_month || 0) > 0 && (
               <span className="bg-pink-600 text-white text-[11px] font-bold px-1.5 py-0.2 rounded-full">
                 {stats.birthdays_this_month}
+              </span>
+            )}
+          </button>
+          <button onClick={openAnniversariesDialog} className="btn-secondary flex items-center gap-1.5 text-rose-700 bg-rose-50 border-rose-200 hover:bg-rose-100">
+            <Heart size={16} className="text-rose-600 fill-rose-500" />
+            <span>Anniversaries</span>
+            {(stats.anniversaries_this_month || 0) > 0 && (
+              <span className="bg-rose-600 text-white text-[11px] font-bold px-1.5 py-0.2 rounded-full">
+                {stats.anniversaries_this_month}
               </span>
             )}
           </button>
@@ -599,7 +663,7 @@ export default function Members() {
           { label: 'Active Members', value: stats.active, icon: Users, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-100' },
           { label: 'Pastors & Leads', value: (stats.pastors_count || 0) + (stats.directors_count || 0) + (stats.hods_count || 0), icon: Award, color: 'text-purple-700', bg: 'bg-purple-50 border-purple-100' },
           { label: 'Church Workers', value: stats.workers_count, icon: Briefcase, color: 'text-amber-700', bg: 'bg-amber-50 border-amber-100' },
-          { label: 'Children (0–12)', value: stats.total_children, icon: Baby, color: 'text-sky-700', bg: 'bg-sky-50 border-sky-100' },
+          { label: 'Anniversaries Month', value: stats.anniversaries_this_month || 0, icon: Heart, color: 'text-rose-700', bg: 'bg-rose-50 border-rose-100', badge: stats.anniversaries_today ? `${stats.anniversaries_today} Today!` : null },
           { label: 'Birthdays Month', value: stats.birthdays_this_month, icon: Cake, color: 'text-pink-700', bg: 'bg-pink-50 border-pink-100', badge: stats.birthdays_today ? `${stats.birthdays_today} Today!` : null },
           { label: 'Pending Review', value: stats.pending_review, icon: CheckCircle2, color: 'text-orange-700', bg: 'bg-orange-50 border-orange-100' },
         ].map(({ label, value, icon: Icon, color, bg, badge }) => (
@@ -726,6 +790,10 @@ export default function Members() {
                   new Date(m.date_of_birth).getMonth() === new Date().getMonth() &&
                   new Date(m.date_of_birth).getDate() === new Date().getDate()
                 );
+                const isAnnivToday = m.wedding_anniversary_date && (
+                  new Date(m.wedding_anniversary_date).getMonth() === new Date().getMonth() &&
+                  new Date(m.wedding_anniversary_date).getDate() === new Date().getDate()
+                );
                 return (
                   <tr key={m.id}>
                     <td>
@@ -734,6 +802,9 @@ export default function Members() {
                           {getInitials(m.first_name, m.last_name)}
                           {isBdayToday && (
                             <span className="absolute -top-1 -right-1 text-sm" title="Birthday Today!">🎂</span>
+                          )}
+                          {isAnnivToday && !isBdayToday && (
+                            <span className="absolute -top-1 -right-1 text-sm" title="Wedding Anniversary Today!">💍</span>
                           )}
                         </div>
                         <div>
@@ -752,6 +823,11 @@ export default function Members() {
                             )}
                             {isBdayToday && (
                               <span className="badge badge-pink text-[10px] py-0 px-1 font-bold">Birthday!</span>
+                            )}
+                            {isAnnivToday && (
+                              <span className="badge badge-rose text-[10px] py-0 px-1 font-bold flex items-center gap-0.5">
+                                <Heart size={9} className="fill-rose-500" /> Anniversary!
+                              </span>
                             )}
                           </div>
                           <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
@@ -773,7 +849,15 @@ export default function Members() {
 
                     <td>
                       <div className="flex flex-col gap-1">
-                        <span className="capitalize text-xs font-medium text-gray-700">{m.membership_class || 'Full'}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="capitalize text-xs font-medium text-gray-700">{m.marital_status || m.membership_class || 'Full'}</span>
+                          {m.wedding_anniversary_date && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-1 py-0.2 rounded" title={`Wedding Anniversary: ${format(new Date(m.wedding_anniversary_date), 'MMMM d')}`}>
+                              <Heart size={9} className="fill-rose-500 text-rose-500" />
+                              {format(new Date(m.wedding_anniversary_date), 'MMM d')}
+                            </span>
+                          )}
+                        </div>
                         {hasFamily ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
                             <Baby size={11} />
@@ -1143,6 +1227,147 @@ export default function Members() {
                         title="Dispatch system greeting"
                       >
                         {sendingWishId === b.id ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Send size={13} />
+                        )}
+                        <span>Wish</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Upcoming Wedding Anniversaries Celebration Modal */}
+      <Modal
+        open={showAnniversariesModal}
+        onClose={() => setShowAnniversariesModal(false)}
+        title="💍 Married Couples & Wedding Anniversaries"
+        size="lg"
+        footer={<>
+          <button onClick={() => setShowAnniversariesModal(false)} className="btn-secondary">Close</button>
+        </>}
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 bg-rose-50/70 border border-rose-100 p-3.5 rounded-xl">
+            <div className="flex items-center gap-2.5">
+              <Heart className="text-rose-600 fill-rose-500 shrink-0" size={24} />
+              <div>
+                <p className="text-sm font-bold text-rose-950">Pastoral Wedding Anniversary Blessings</p>
+                <p className="text-xs text-rose-800">
+                  ChurchOS automatically schedules daily anniversary greetings via WhatsApp, SMS, and Email. You can also send personal pastoral blessings with one click below!
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => loadAnniversaries()}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-rose-100 text-rose-800 hover:bg-rose-200"
+            >
+              Upcoming (Next 30 Days)
+            </button>
+            <select
+              className="input text-xs py-1.5 h-8 w-auto pr-7"
+              onChange={e => loadAnniversaries(e.target.value)}
+              defaultValue=""
+            >
+              <option value="">Filter by specific month...</option>
+              {MONTHS.map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {loadingAnniversaries ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-rose-600" />
+            </div>
+          ) : upcomingAnniversaries.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-100">
+              <Heart size={36} className="mx-auto text-gray-300 mb-2" />
+              <p className="text-sm font-medium text-gray-600">No wedding anniversaries in this selected window</p>
+              <p className="text-xs text-gray-400">Ensure married members have their wedding anniversary date recorded</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 max-h-[50vh] overflow-y-auto pr-1">
+              {upcomingAnniversaries.map(a => {
+                const isToday = a.is_today || a.days_until === 0;
+                const formattedDate = a.wedding_anniversary_date ? format(new Date(a.wedding_anniversary_date), 'MMMM d') : '';
+                return (
+                  <div key={a.id} className="py-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                        isToday ? 'bg-rose-600 text-white shadow-md' : 'bg-rose-100 text-rose-700'
+                      }`}>
+                        {getInitials(a.first_name, a.last_name)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900 text-sm">
+                            {a.first_name} {a.last_name}
+                          </p>
+                          {a.years_married ? (
+                            <span className="badge badge-purple text-[10px] font-bold">
+                              {a.years_married} Year{a.years_married === 1 ? '' : 's'}
+                            </span>
+                          ) : null}
+                          {isToday ? (
+                            <span className="badge badge-rose font-bold text-[10px] animate-bounce">
+                              Today! 💍
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-500 font-medium">
+                              in {a.days_until} day{a.days_until === 1 ? '' : 's'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
+                          <span className="flex items-center gap-1 font-medium text-rose-700">
+                            <Calendar size={12} /> {formattedDate}
+                          </span>
+                          {a.phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone size={11} /> {a.phone}
+                            </span>
+                          )}
+                          {a.email && (
+                            <span className="hidden sm:flex items-center gap-1">
+                              <Mail size={11} /> {a.email}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {a.phone && (
+                        <a
+                          href={`https://wa.me/${a.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                            `Happy Wedding Anniversary, ${a.first_name}! 💍❤️\n\nThe pastoral leadership and entire church family celebrate the grace of God upon your marriage! May the Lord continuously bless your union with peace, enduring love, joy, and fruitfulness in Jesus' name! Happy Anniversary!`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-secondary text-xs py-1 px-2.5 flex items-center gap-1 text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100"
+                          title="Open WhatsApp Chat"
+                        >
+                          <MessageCircle size={13} />
+                          <span className="hidden sm:inline">WhatsApp</span>
+                        </a>
+                      )}
+
+                      <button
+                        onClick={() => handleSendAnniversaryWish(a, 'whatsapp')}
+                        disabled={sendingAnniversaryWishId === a.id}
+                        className="btn-primary text-xs py-1 px-3 flex items-center gap-1 bg-rose-600 hover:bg-rose-700 text-white"
+                        title="Dispatch automated pastoral blessing"
+                      >
+                        {sendingAnniversaryWishId === a.id ? (
                           <Loader2 size={13} className="animate-spin" />
                         ) : (
                           <Send size={13} />

@@ -199,7 +199,7 @@ const submitPrayerRequest = async (req, res) => {
 // GET /api/me/home — quick dashboard stats
 const getHome = async (req, res) => {
   try {
-    const [giveRes, evtRes, deptRes, grpRes, prayerRes, churchRes, devRes, discRes, annRes, bdayRes, mediaRes] = await Promise.all([
+    const [giveRes, evtRes, deptRes, grpRes, prayerRes, churchRes, devRes, discRes, annRes, bdayRes, annivRes, mediaRes] = await Promise.all([
       query(
         `SELECT COALESCE(SUM(amount), 0) as ytd, COUNT(*) as count
          FROM transactions
@@ -288,6 +288,32 @@ const getHome = async (req, res) => {
         [req.churchId]
       ),
       query(
+        `SELECT id, first_name, last_name, profile_photo_url, wedding_anniversary_date,
+                EXTRACT(DAY FROM wedding_anniversary_date)::int as anniv_day,
+                EXTRACT(MONTH FROM wedding_anniversary_date)::int as anniv_month,
+                EXTRACT(YEAR FROM wedding_anniversary_date)::int as anniv_year,
+                (
+                  MAKE_DATE(
+                    CASE 
+                      WHEN (EXTRACT(MONTH FROM wedding_anniversary_date) < EXTRACT(MONTH FROM CURRENT_DATE))
+                        OR (EXTRACT(MONTH FROM wedding_anniversary_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM wedding_anniversary_date) < EXTRACT(DAY FROM CURRENT_DATE))
+                      THEN EXTRACT(YEAR FROM CURRENT_DATE)::int + 1
+                      ELSE EXTRACT(YEAR FROM CURRENT_DATE)::int
+                    END,
+                    EXTRACT(MONTH FROM wedding_anniversary_date)::int,
+                    CASE 
+                      WHEN EXTRACT(MONTH FROM wedding_anniversary_date) = 2 AND EXTRACT(DAY FROM wedding_anniversary_date) = 29 THEN 28
+                      ELSE EXTRACT(DAY FROM wedding_anniversary_date)::int
+                    END
+                  ) - CURRENT_DATE
+                )::int as days_until,
+                (EXTRACT(MONTH FROM wedding_anniversary_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM wedding_anniversary_date) = EXTRACT(DAY FROM CURRENT_DATE)) as is_today
+         FROM members
+         WHERE church_id = $1 AND wedding_anniversary_date IS NOT NULL AND membership_status = 'active' AND marital_status = 'married'
+         ORDER BY days_until ASC LIMIT 6`,
+        [req.churchId]
+      ),
+      query(
         `SELECT id, title, media_type, file_url, thumbnail_url, duration_seconds, minister_name, series_name, created_at
          FROM media_items
          WHERE church_id = $1 AND is_published = true
@@ -308,6 +334,7 @@ const getHome = async (req, res) => {
         activeCourses: discRes.rows,
         announcements: annRes.rows,
         upcomingBirthdays: bdayRes.rows,
+        upcomingAnniversaries: annivRes.rows,
         recentMedia: mediaRes.rows,
       },
     });
@@ -1091,36 +1118,73 @@ const exportMemberData = async (req, res) => {
   }
 };
 
-// GET /api/me/birthdays — birthdays of church members
+// GET /api/me/birthdays — birthdays & wedding anniversaries of church members
 const getBirthdays = async (req, res) => {
   try {
-    const { rows } = await query(
-      `SELECT id, first_name, last_name, profile_photo_url, date_of_birth,
-              EXTRACT(DAY FROM date_of_birth)::int as birth_day,
-              EXTRACT(MONTH FROM date_of_birth)::int as birth_month,
-              (
-                MAKE_DATE(
-                  CASE 
-                    WHEN (EXTRACT(MONTH FROM date_of_birth) < EXTRACT(MONTH FROM CURRENT_DATE))
-                      OR (EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM date_of_birth) < EXTRACT(DAY FROM CURRENT_DATE))
-                    THEN EXTRACT(YEAR FROM CURRENT_DATE)::int + 1
-                    ELSE EXTRACT(YEAR FROM CURRENT_DATE)::int
-                  END,
-                  EXTRACT(MONTH FROM date_of_birth)::int,
-                  CASE 
-                    WHEN EXTRACT(MONTH FROM date_of_birth) = 2 AND EXTRACT(DAY FROM date_of_birth) = 29 THEN 28
-                    ELSE EXTRACT(DAY FROM date_of_birth)::int
-                  END
-                ) - CURRENT_DATE
-              )::int as days_until,
-              (EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM date_of_birth) = EXTRACT(DAY FROM CURRENT_DATE)) as is_today
-       FROM members
-       WHERE church_id = $1 AND date_of_birth IS NOT NULL AND membership_status = 'active'
-       ORDER BY days_until ASC
-       LIMIT 60`,
-      [req.churchId]
-    );
-    return res.json({ success: true, data: rows });
+    const [bdayRes, annivRes] = await Promise.all([
+      query(
+        `SELECT id, first_name, last_name, profile_photo_url, date_of_birth,
+                'birthday' as celebration_type,
+                EXTRACT(DAY FROM date_of_birth)::int as birth_day,
+                EXTRACT(MONTH FROM date_of_birth)::int as birth_month,
+                (
+                  MAKE_DATE(
+                    CASE 
+                      WHEN (EXTRACT(MONTH FROM date_of_birth) < EXTRACT(MONTH FROM CURRENT_DATE))
+                        OR (EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM date_of_birth) < EXTRACT(DAY FROM CURRENT_DATE))
+                      THEN EXTRACT(YEAR FROM CURRENT_DATE)::int + 1
+                      ELSE EXTRACT(YEAR FROM CURRENT_DATE)::int
+                    END,
+                    EXTRACT(MONTH FROM date_of_birth)::int,
+                    CASE 
+                      WHEN EXTRACT(MONTH FROM date_of_birth) = 2 AND EXTRACT(DAY FROM date_of_birth) = 29 THEN 28
+                      ELSE EXTRACT(DAY FROM date_of_birth)::int
+                    END
+                  ) - CURRENT_DATE
+                )::int as days_until,
+                (EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM date_of_birth) = EXTRACT(DAY FROM CURRENT_DATE)) as is_today
+         FROM members
+         WHERE church_id = $1 AND date_of_birth IS NOT NULL AND membership_status = 'active'
+         ORDER BY days_until ASC
+         LIMIT 60`,
+        [req.churchId]
+      ),
+      query(
+        `SELECT id, first_name, last_name, profile_photo_url, wedding_anniversary_date,
+                'anniversary' as celebration_type,
+                EXTRACT(DAY FROM wedding_anniversary_date)::int as anniv_day,
+                EXTRACT(MONTH FROM wedding_anniversary_date)::int as anniv_month,
+                EXTRACT(YEAR FROM wedding_anniversary_date)::int as anniv_year,
+                (
+                  MAKE_DATE(
+                    CASE 
+                      WHEN (EXTRACT(MONTH FROM wedding_anniversary_date) < EXTRACT(MONTH FROM CURRENT_DATE))
+                        OR (EXTRACT(MONTH FROM wedding_anniversary_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM wedding_anniversary_date) < EXTRACT(DAY FROM CURRENT_DATE))
+                      THEN EXTRACT(YEAR FROM CURRENT_DATE)::int + 1
+                      ELSE EXTRACT(YEAR FROM CURRENT_DATE)::int
+                    END,
+                    EXTRACT(MONTH FROM wedding_anniversary_date)::int,
+                    CASE 
+                      WHEN EXTRACT(MONTH FROM wedding_anniversary_date) = 2 AND EXTRACT(DAY FROM wedding_anniversary_date) = 29 THEN 28
+                      ELSE EXTRACT(DAY FROM wedding_anniversary_date)::int
+                    END
+                  ) - CURRENT_DATE
+                )::int as days_until,
+                (EXTRACT(MONTH FROM wedding_anniversary_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM wedding_anniversary_date) = EXTRACT(DAY FROM CURRENT_DATE)) as is_today
+         FROM members
+         WHERE church_id = $1 AND wedding_anniversary_date IS NOT NULL AND membership_status = 'active' AND marital_status = 'married'
+         ORDER BY days_until ASC
+         LIMIT 60`,
+        [req.churchId]
+      ),
+    ]);
+
+    return res.json({
+      success: true,
+      data: bdayRes.rows,
+      birthdays: bdayRes.rows,
+      anniversaries: annivRes.rows,
+    });
   } catch (err) {
     logger.error('member getBirthdays failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Server error' });

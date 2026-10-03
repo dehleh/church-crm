@@ -120,7 +120,7 @@ const createMember = async (req, res) => {
 
 const ALLOWED_MEMBER_FIELDS = [
   'branch_id', 'first_name', 'last_name', 'middle_name', 'email', 'phone', 'phone_alt',
-  'date_of_birth', 'gender', 'marital_status', 'address', 'city', 'state', 'country',
+  'date_of_birth', 'gender', 'marital_status', 'wedding_anniversary_date', 'address', 'city', 'state', 'country',
   'occupation', 'employer', 'profile_photo_url', 'membership_status', 'membership_class',
   'join_date', 'baptism_date', 'water_baptized', 'holy_spirit_baptized', 'tithe_number',
   'emergency_contact_name', 'emergency_contact_phone', 'notes',
@@ -225,6 +225,9 @@ const getMemberStats = async (req, res) => {
         COUNT(*) FILTER (WHERE fellowship_cell_id IS NOT NULL) as cell_members_count,
         COUNT(*) FILTER (WHERE date_of_birth IS NOT NULL AND EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE)) as birthdays_this_month,
         COUNT(*) FILTER (WHERE date_of_birth IS NOT NULL AND EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM date_of_birth) = EXTRACT(DAY FROM CURRENT_DATE)) as birthdays_today,
+        COUNT(*) FILTER (WHERE marital_status = 'married') as married_members_count,
+        COUNT(*) FILTER (WHERE wedding_anniversary_date IS NOT NULL AND EXTRACT(MONTH FROM wedding_anniversary_date) = EXTRACT(MONTH FROM CURRENT_DATE)) as anniversaries_this_month,
+        COUNT(*) FILTER (WHERE wedding_anniversary_date IS NOT NULL AND EXTRACT(MONTH FROM wedding_anniversary_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM wedding_anniversary_date) = EXTRACT(DAY FROM CURRENT_DATE)) as anniversaries_today,
         COUNT(*) FILTER (WHERE gender = 'male') as male,
         COUNT(*) FILTER (WHERE gender = 'female') as female,
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') as new_this_month
@@ -351,6 +354,121 @@ const sendBirthdayWish = async (req, res) => {
   }
 };
 
+// GET /api/members/anniversaries
+const getUpcomingAnniversaries = async (req, res) => {
+  try {
+    const { days = 30, month } = req.query;
+    let monthCondition = '';
+    const params = [req.churchId];
+
+    if (month) {
+      params.push(parseInt(month));
+      monthCondition = `AND EXTRACT(MONTH FROM m.wedding_anniversary_date) = $${params.length}`;
+    }
+
+    const { rows } = await query(
+      `SELECT 
+        m.id, m.first_name, m.last_name, m.email, m.phone, m.profile_photo_url,
+        m.marital_status, m.wedding_anniversary_date, m.member_number,
+        EXTRACT(DAY FROM m.wedding_anniversary_date)::int as anniv_day,
+        EXTRACT(MONTH FROM m.wedding_anniversary_date)::int as anniv_month,
+        EXTRACT(YEAR FROM m.wedding_anniversary_date)::int as anniv_year,
+        (
+          MAKE_DATE(
+            CASE 
+              WHEN (EXTRACT(MONTH FROM m.wedding_anniversary_date) < EXTRACT(MONTH FROM CURRENT_DATE))
+                OR (EXTRACT(MONTH FROM m.wedding_anniversary_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM m.wedding_anniversary_date) < EXTRACT(DAY FROM CURRENT_DATE))
+              THEN EXTRACT(YEAR FROM CURRENT_DATE)::int + 1
+              ELSE EXTRACT(YEAR FROM CURRENT_DATE)::int
+            END,
+            EXTRACT(MONTH FROM m.wedding_anniversary_date)::int,
+            CASE 
+              WHEN EXTRACT(MONTH FROM m.wedding_anniversary_date) = 2 AND EXTRACT(DAY FROM m.wedding_anniversary_date) = 29 THEN 28
+              ELSE EXTRACT(DAY FROM m.wedding_anniversary_date)::int
+            END
+          ) - CURRENT_DATE
+        )::int as days_until,
+        (EXTRACT(MONTH FROM m.wedding_anniversary_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM m.wedding_anniversary_date) = EXTRACT(DAY FROM CURRENT_DATE)) as is_today
+       FROM members m
+       WHERE m.church_id = $1 AND m.wedding_anniversary_date IS NOT NULL AND m.membership_status = 'active' AND m.marital_status = 'married' ${monthCondition}
+       ORDER BY days_until ASC
+       LIMIT 50`,
+      params
+    );
+
+    const filtered = month ? rows : rows.filter(r => r.days_until <= parseInt(days));
+
+    return res.json({ success: true, data: filtered });
+  } catch (err) {
+    logger.error('getUpcomingAnniversaries error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// POST /api/members/:id/anniversary-wish
+const sendAnniversaryWish = async (req, res) => {
+  const { id } = req.params;
+  const { channel = 'whatsapp', customMessage } = req.body;
+  const { sendWhatsApp, sendSMS } = require('../services/smsService');
+  const { sendEmail } = require('../services/emailService');
+
+  try {
+    const { rows } = await query(
+      `SELECT m.*, ch.name as church_name, ch.settings as church_settings
+       FROM members m
+       JOIN churches ch ON ch.id = m.church_id
+       WHERE m.id = $1 AND m.church_id = $2`,
+      [id, req.churchId]
+    );
+
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Member not found' });
+    const member = rows[0];
+    const churchSettings = member.church_settings?.messaging || {};
+
+    const greeting = customMessage || 
+      `Happy Wedding Anniversary, ${member.first_name} & Family! 💍🥂💒\n\nThe pastoral leadership and family of ${member.church_name} rejoice with you on your wedding anniversary today! We pray for continuous harmony, divine health, supernatural joy, and prosperity in your home in Jesus' name! Have a wonderful celebration! ✨`;
+
+    let delivered = false;
+    let channelUsed = channel;
+
+    if ((channel === 'whatsapp' || channel === 'all') && member.phone) {
+      const waResult = await sendWhatsApp({ to: member.phone, body: greeting }, churchSettings);
+      delivered = delivered || waResult.success;
+    }
+    if ((channel === 'sms' || channel === 'all') && member.phone && !delivered) {
+      const smsResult = await sendSMS({ to: member.phone, body: greeting }, churchSettings);
+      delivered = delivered || smsResult.success;
+    }
+    if ((channel === 'email' || channel === 'all') && member.email) {
+      await sendEmail({
+        to: member.email,
+        subject: `Happy Wedding Anniversary from ${member.church_name}! 💍💒`,
+        html: `<div style="font-family: sans-serif; padding: 20px; line-height: 1.6; color: #333;">
+          <h2 style="color: #92400e;">Happy Wedding Anniversary, ${member.first_name}! 💍🥂</h2>
+          <p>${greeting.replace(/\n/g, '<br/>')}</p>
+          <p style="margin-top: 30px; font-weight: bold;">With love and prayers,<br/>${member.church_name}</p>
+        </div>`,
+      }, churchSettings);
+      delivered = true;
+    }
+
+    await query(
+      `UPDATE members SET last_anniversary_wish_year = EXTRACT(YEAR FROM CURRENT_DATE) WHERE id = $1`,
+      [id]
+    );
+
+    return res.json({
+      success: true,
+      message: `Wedding anniversary greeting dispatched to ${member.first_name}!`,
+      channel: channelUsed,
+      delivered
+    });
+  } catch (err) {
+    logger.error('sendAnniversaryWish error', { error: err.message });
+    return res.status(500).json({ success: false, message: err.message || 'Failed to send wedding anniversary wish' });
+  }
+};
+
 // GET /api/members/:id/virtual-account
 const getMemberVirtualAccount = async (req, res) => {
   const { id } = req.params;
@@ -414,6 +532,8 @@ module.exports = {
   getMemberStats,
   getUpcomingBirthdays,
   sendBirthdayWish,
+  getUpcomingAnniversaries,
+  sendAnniversaryWish,
   getMemberVirtualAccount,
   assignMemberVirtualAccount
 };

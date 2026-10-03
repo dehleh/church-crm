@@ -65,16 +65,21 @@ const createFirstTimerRecord = async ({ churchId, data }) => {
 
 const { autoAssignFellowshipCell } = require('./fellowshipAssignmentService');
 
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+
 const createMemberRecord = async ({ churchId, data, user }) => {
   const {
     firstName, lastName, middleName, email, phone, phoneAlt,
-    dateOfBirth, gender, maritalStatus, address, city, state, country,
+    dateOfBirth, gender, maritalStatus, weddingAnniversaryDate, wedding_anniversary_date,
+    address, city, state, country,
     occupation, employer, membershipClass, joinDate, baptismDate,
     waterBaptized, holyGhostBaptized, salvationDate, branchId,
     nextOfKinName, nextOfKinPhone, nextOfKinRelationship, notes, membershipStatus,
     hasChildren, childrenCount, teenagersCount, childrenDetails,
     isWorker, workerUnit, workerRole, fellowshipCellId, latitude, longitude,
-    designation, leadershipTitle, leadership_title, assignedPastorId, assigned_pastor_id
+    designation, leadershipTitle, leadership_title, assignedPastorId, assigned_pastor_id,
+    password
   } = data;
 
   const safeBranchId = await ensureBranchBelongsToChurch(churchId, branchId || null);
@@ -100,6 +105,20 @@ const createMemberRecord = async ({ churchId, data, user }) => {
   const userIsWorker = !!(isWorker || ['pastor', 'director', 'hod', 'minister', 'elder', 'worker'].includes(userDesignation));
   const finalLeadershipTitle = leadershipTitle || leadership_title || null;
   const finalAssignedPastor = assignedPastorId || assigned_pastor_id || null;
+  const finalAnniversaryDate = (maritalStatus === 'married' || !maritalStatus)
+    ? (weddingAnniversaryDate || wedding_anniversary_date || null)
+    : null;
+
+  // Password setup & onboarding tokens
+  let passwordHash = null;
+  let portalInvitedAt = null;
+  if (password && typeof password === 'string' && password.trim().length >= 8) {
+    passwordHash = await bcrypt.hash(password.trim(), 12);
+    portalInvitedAt = new Date();
+  }
+
+  const setPasswordToken = crypto.randomBytes(32).toString('hex');
+  const setPasswordExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days validity
 
   const id = uuidv4();
   const { rows } = await query(
@@ -112,8 +131,12 @@ const createMemberRecord = async ({ churchId, data, user }) => {
       next_of_kin_name, next_of_kin_phone, next_of_kin_relationship, notes,
       has_children, children_count, teenagers_count, children_details,
       is_worker, worker_unit, worker_role, fellowship_cell_id,
-      designation, leadership_title, assigned_pastor_id
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41)
+      designation, leadership_title, assigned_pastor_id,
+      wedding_anniversary_date, password_hash, portal_invited_at, set_password_token, set_password_expires_at
+    ) VALUES (
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,
+      $42,$43,$44,$45,$46
+    )
     RETURNING *`,
     [
       id, churchId, safeBranchId, memberNumber, firstName, lastName, middleName || null,
@@ -124,7 +147,8 @@ const createMemberRecord = async ({ churchId, data, user }) => {
       nextOfKinName || null, nextOfKinPhone || null, nextOfKinRelationship || null, notes || null,
       userHasChildren, cCount, tCount, childrenDetails || null,
       userIsWorker, workerUnit || null, workerRole || 'worker', fellowshipCellId || null,
-      userDesignation, finalLeadershipTitle, finalAssignedPastor
+      userDesignation, finalLeadershipTitle, finalAssignedPastor,
+      finalAnniversaryDate, passwordHash, portalInvitedAt, setPasswordToken, setPasswordExpiresAt
     ]
   );
 

@@ -35,6 +35,7 @@ memberApi.interceptors.response.use(
 export const memberAuthAPI = {
   login: (data) => memberApi.post('/member-auth/login', data),
   setPassword: (data) => memberApi.post('/member-auth/set-password', data),
+  forgotPassword: (data) => memberApi.post('/member-auth/forgot-password', data),
 };
 
 export const memberPortalAPI = {

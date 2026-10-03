@@ -44,7 +44,12 @@ export default function MemberLogin() {
               value={form.email} onChange={set('email')} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Password</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-gray-600">Password</label>
+              <Link to={`/portal/${churchSlug}/set-password`} className="text-[11px] text-brand-600 hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             <input type="password" autoComplete="current-password" required className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none"
               value={form.password} onChange={set('password')} />
           </div>
