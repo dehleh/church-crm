@@ -3,10 +3,13 @@ import { useOutletContext, Link, useParams } from 'react-router-dom';
 import {
   Loader2, Calendar, DollarSign, ArrowRight, Users, HandHeart, MessageCircle,
   Heart, MapPin, Video, Sparkles, BookOpen, GraduationCap, CheckCircle2, Cake,
-  Megaphone, Film, Play, PartyPopper, Clock, Bell, ExternalLink
+  Megaphone, Film, Play, PartyPopper, Clock, Bell, ExternalLink,
+  Landmark, Copy, Check
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { memberPortalAPI } from '../../api/memberClient';
+import { getAssetUrl } from '../../api/client';
+import toast from 'react-hot-toast';
 import PushNotificationPrompt from '../../components/portal/PushNotificationPrompt';
 
 const fmtCurrency = (n) => '₦' + Number(n || 0).toLocaleString();
@@ -27,12 +30,26 @@ export default function MemberHome() {
   const { churchSlug } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedBankCurrency, setSelectedBankCurrency] = useState('ALL');
+  const [copiedAcc, setCopiedAcc] = useState('');
+
+  const handleCopyAcc = (accNo, cur) => {
+    navigator.clipboard.writeText(accNo);
+    setCopiedAcc(accNo);
+    toast.success(`Copied ${cur || ''} account number!`);
+    setTimeout(() => setCopiedAcc(''), 2500);
+  };
 
   useEffect(() => {
     memberPortalAPI.home().then(r => setData(r.data.data)).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const church = data?.church;
+  const bankAccounts = Array.isArray(church?.bankAccounts) ? church.bankAccounts : [];
+  const currencies = Array.from(new Set(bankAccounts.map(b => b.currency || 'NGN')));
+  const filteredAccounts = selectedBankCurrency === 'ALL'
+    ? bankAccounts
+    : bankAccounts.filter(b => (b.currency || 'NGN') === selectedBankCurrency);
   const pastors = Array.isArray(church?.pastors) ? church.pastors : [];
 
   const churchSettings = church?.settings || me?.churchSettings || {};
@@ -104,7 +121,7 @@ export default function MemberHome() {
       >
         {church?.banner_url && (
           <img
-            src={church.banner_url}
+            src={getAssetUrl(church.banner_url)}
             alt="Church Cover"
             className="absolute inset-0 w-full h-full object-cover opacity-25 filter blur-[0.5px]"
           />
@@ -112,7 +129,7 @@ export default function MemberHome() {
         <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             {me.profilePhotoUrl ? (
-              <img src={me.profilePhotoUrl} alt="" className="w-16 h-16 rounded-full object-cover border-2 border-white/50 shadow-md" />
+              <img src={getAssetUrl(me.profilePhotoUrl)} alt="" className="w-16 h-16 rounded-full object-cover border-2 border-white/50 shadow-md" />
             ) : (
               <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-xl border-2 border-white/40">
                 {(me.firstName?.[0] || '') + (me.lastName?.[0] || '')}
@@ -130,7 +147,7 @@ export default function MemberHome() {
             </div>
           </div>
           {church?.logo_url && (
-            <img src={church.logo_url} alt="" className="w-14 h-14 rounded-2xl bg-white/95 p-1 object-contain border border-white/40 shadow-sm hidden sm:block" />
+            <img src={getAssetUrl(church.logo_url)} alt="" className="w-14 h-14 rounded-2xl bg-white/95 p-1 object-contain border border-white/40 shadow-sm hidden sm:block" />
           )}
         </div>
 
@@ -434,6 +451,121 @@ export default function MemberHome() {
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Church Giving & Multi-Currency Bank Accounts Card */}
+          {enabledModules.giving !== false && (bankAccounts.length > 0 || church?.hasOnlineGiving) && (
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100 shadow-xs">
+                    <Landmark size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-base">Church Giving & Bank Accounts</h3>
+                    <p className="text-xs text-gray-400">
+                      Multi-currency accounts for local and diaspora giving, tithes, and building seeds
+                    </p>
+                  </div>
+                </div>
+
+                <Link
+                  to={`/portal/${churchSlug}/giving`}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs hover:shadow transition-all inline-flex items-center justify-center gap-1.5 self-start sm:self-auto"
+                >
+                  <DollarSign size={14} />
+                  <span>Give Online (Card / Instant)</span>
+                  <ArrowRight size={13} />
+                </Link>
+              </div>
+
+              {currencies.length > 1 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 scrollbar-none">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBankCurrency('ALL')}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold shrink-0 transition-colors ${
+                      selectedBankCurrency === 'ALL'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    All Accounts ({bankAccounts.length})
+                  </button>
+                  {currencies.map(cur => (
+                    <button
+                      key={cur}
+                      type="button"
+                      onClick={() => setSelectedBankCurrency(cur)}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold shrink-0 transition-colors ${
+                        selectedBankCurrency === cur
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {cur} Accounts
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {filteredAccounts.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredAccounts.map((b, idx) => (
+                    <div
+                      key={b.id || idx}
+                      className="p-3.5 rounded-xl border border-gray-100 bg-slate-50/70 hover:bg-slate-50 transition flex flex-col justify-between shadow-2xs"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-100/70 text-emerald-800 border border-emerald-200/50">
+                            {b.currency || 'NGN'}
+                          </span>
+                          {b.isDefault && (
+                            <span className="text-[9px] uppercase font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60">
+                              Primary
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-bold text-gray-900 text-sm truncate">{b.bankName}</div>
+                        <div className="text-xs text-gray-500 truncate mt-0.5">{b.accountName}</div>
+
+                        <div className="mt-2.5 flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-gray-200/80">
+                          <span className="font-mono font-bold text-gray-900 text-xs sm:text-sm tracking-wide">
+                            {b.accountNumber}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyAcc(b.accountNumber, b.currency)}
+                            className="p-1 text-gray-400 hover:text-emerald-700 rounded transition-colors"
+                            title="Copy Account Number"
+                          >
+                            {copiedAcc === b.accountNumber ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                          </button>
+                        </div>
+
+                        {(b.sortCode || b.swiftCode) && (
+                          <div className="mt-2 pt-2 border-t border-gray-200/50 text-[10px] text-gray-500 font-mono space-y-0.5">
+                            {b.sortCode && <div>Routing / Sort: <span className="text-gray-700 font-bold">{b.sortCode}</span></div>}
+                            {b.swiftCode && <div>SWIFT / BIC: <span className="text-gray-700 font-bold">{b.swiftCode}</span></div>}
+                          </div>
+                        )}
+
+                        {b.instructions && (
+                          <p className="mt-1.5 text-[10px] text-gray-400 italic line-clamp-1">
+                            {b.instructions}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-xs text-gray-400">
+                  Select a different currency or click "Give Online" to donate securely.
+                </div>
+              )}
             </div>
           )}
 

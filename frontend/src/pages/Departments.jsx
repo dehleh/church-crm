@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Building2, Plus, Users, ChevronRight, Loader2, ArrowLeft, UserPlus, X, Mail, Phone, Calendar, Search, UserMinus, Crown } from 'lucide-react';
+import { Building2, Plus, Users, ChevronRight, Loader2, ArrowLeft, UserPlus, X, Mail, Phone, Calendar, Search, UserMinus, Crown, Trash2, AlertTriangle } from 'lucide-react';
 import { departmentsAPI, membersAPI } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
@@ -17,9 +17,10 @@ const ROLE_BADGES = {
 };
 
 const canManage = (role) => ['head_pastor', 'pastor', 'director', 'hod'].includes(role);
+const canDelete = (role) => ['admin', 'head_pastor', 'pastor', 'director'].includes(role);
 
 // ── Department Detail View ──────────────────────────────────
-function DepartmentDetail({ dept, onBack, onMemberChange }) {
+function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
   const { user } = useAuth();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -110,11 +111,18 @@ function DepartmentDetail({ dept, onBack, onMemberChange }) {
               </p>
             )}
           </div>
-          {canManage(user?.role) && (
-            <button onClick={openAddModal} className="btn-primary shrink-0">
-              <UserPlus size={16} /> Add Member
-            </button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {canManage(user?.role) && (
+              <button onClick={openAddModal} className="btn-primary">
+                <UserPlus size={16} /> Add Member
+              </button>
+            )}
+            {canDelete(user?.role) && (
+              <button onClick={() => onDelete(dept)} className="btn-secondary text-red-600 hover:bg-red-50 hover:border-red-200">
+                <Trash2 size={16} /> Delete Unit
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -217,9 +225,12 @@ function DepartmentDetail({ dept, onBack, onMemberChange }) {
 
 // ── Main Departments Page ───────────────────────────────────
 export default function Departments() {
+  const { user } = useAuth();
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
+  const [deleteDept, setDeleteDept] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [selectedDept, setSelectedDept] = useState(null);
@@ -253,6 +264,22 @@ export default function Departments() {
     finally { setSaving(false); }
   };
 
+  const handleDelete = async () => {
+    if (!deleteDept) return;
+    setDeleting(true);
+    try {
+      await departmentsAPI.delete(deleteDept.id);
+      toast.success(`Unit "${deleteDept.name}" deleted`);
+      setDeleteDept(null);
+      if (selectedDept?.id === deleteDept.id) setSelectedDept(null);
+      fetchDepts();
+    } catch {
+      toast.error('Failed to delete department / unit');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // If a department is selected, show its detail view
   if (selectedDept) {
     return (
@@ -260,6 +287,7 @@ export default function Departments() {
         dept={selectedDept}
         onBack={() => { setSelectedDept(null); fetchDepts(); }}
         onMemberChange={fetchDepts}
+        onDelete={(dept) => setDeleteDept(dept)}
       />
     );
   }
@@ -323,6 +351,15 @@ export default function Departments() {
                       <Users size={14} />
                       <span>{dept.member_count || 0} members</span>
                     </div>
+                    {canDelete(user?.role) && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteDept(dept); }}
+                        className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+                        title="Delete Unit"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                   {dept.branch_name && <p className="text-xs text-gray-400 mt-1">{dept.branch_name}</p>}
                 </div>
@@ -352,6 +389,43 @@ export default function Departments() {
           </div>
           <div><label className="label">Meeting Schedule</label><input className="input" placeholder="Every Sunday, 8am" value={form.meetingSchedule || ''} onChange={set('meetingSchedule')} /></div>
           <div><label className="label">Description</label><textarea className="input min-h-[80px]" value={form.description || ''} onChange={set('description')} /></div>
+        </div>
+      </Modal>
+
+      {/* Delete Unit Confirmation Modal */}
+      <Modal
+        open={Boolean(deleteDept)}
+        onClose={() => setDeleteDept(null)}
+        title="Delete Unit / Department"
+        footer={
+          <>
+            <button onClick={() => setDeleteDept(null)} className="btn-secondary" disabled={deleting}>
+              Cancel
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl text-sm transition-colors flex items-center gap-2"
+            >
+              {deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+              Confirm Delete
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+            <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
+            <div className="text-sm text-red-900">
+              <p className="font-semibold">Are you sure you want to delete this unit?</p>
+              <p className="mt-1 text-red-700">
+                You are about to delete <strong>{deleteDept?.name}</strong>. Members assigned to this unit will be unassigned.
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">
+            This operation safely archives and deactivates the unit from the active roster.
+          </p>
         </div>
       </Modal>
     </div>

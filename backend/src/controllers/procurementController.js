@@ -1,5 +1,6 @@
 const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
+const logger = require('../config/logger');
 
 // ── REQUISITIONS ────────────────────────────────────────────
 
@@ -19,10 +20,16 @@ const getRequisitions = async (req, res) => {
       `SELECT r.*,
         u.first_name || ' ' || u.last_name as raised_by_name,
         a.first_name || ' ' || a.last_name as approved_by_name,
+        dsp.first_name || ' ' || dsp.last_name as disputed_by_name,
+        ret.first_name || ' ' || ret.last_name as returned_by_name,
+        disb.first_name || ' ' || disb.last_name as disbursed_by_name,
         d.name as department_name
        FROM requisitions r
        LEFT JOIN users u ON u.id = r.raised_by
        LEFT JOIN users a ON a.id = r.approved_by
+       LEFT JOIN users dsp ON dsp.id = r.disputed_by
+       LEFT JOIN users ret ON ret.id = r.returned_by
+       LEFT JOIN users disb ON disb.id = r.disbursed_by
        LEFT JOIN departments d ON d.id = r.department_id
        WHERE ${where}
        ORDER BY r.created_at DESC
@@ -32,7 +39,10 @@ const getRequisitions = async (req, res) => {
       success: true, data: rows,
       pagination: { total: parseInt(countRes.rows[0].count), page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(countRes.rows[0].count / limit) }
     });
-  } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) {
+    logger.error('getRequisitions error:', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
 };
 
 const createRequisition = async (req, res) => {
@@ -44,27 +54,48 @@ const createRequisition = async (req, res) => {
       [uuidv4(), req.churchId, branchId || null, title, description || null, requisitionMonth, departmentId || null, JSON.stringify(items || []), totalAmount || 0, req.user.id, notes || null]
     );
     return res.status(201).json({ success: true, data: rows[0] });
-  } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) {
+    logger.error('createRequisition error:', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
 };
 
 const updateRequisition = async (req, res) => {
   const { id } = req.params;
-  const { status, items, totalAmount, notes, title, description } = req.body;
+  const {
+    status, items, totalAmount, notes, title, description,
+    requisitionMonth, departmentId, disputeReason, correctionNotes, approvalNotes
+  } = req.body;
   try {
     const updates = [];
     const params = [id, req.churchId];
     let idx = 3;
+
     if (status) { updates.push(`status = $${idx++}`); params.push(status); }
     if (items) { updates.push(`items = $${idx++}`); params.push(JSON.stringify(items)); }
     if (totalAmount !== undefined) { updates.push(`total_amount = $${idx++}`); params.push(totalAmount); }
     if (notes !== undefined) { updates.push(`notes = $${idx++}`); params.push(notes); }
     if (title) { updates.push(`title = $${idx++}`); params.push(title); }
     if (description !== undefined) { updates.push(`description = $${idx++}`); params.push(description); }
+    if (requisitionMonth) { updates.push(`requisition_month = $${idx++}`); params.push(requisitionMonth); }
+    if (departmentId !== undefined) { updates.push(`department_id = $${idx++}`); params.push(departmentId || null); }
 
     if (status === 'approved') {
       updates.push(`approved_by = $${idx++}`); params.push(req.user.id);
       updates.push(`approved_at = NOW()`);
+      if (approvalNotes || notes) {
+        updates.push(`approval_notes = $${idx++}`); params.push(approvalNotes || notes);
+      }
+    } else if (status === 'disputed') {
+      updates.push(`disputed_by = $${idx++}`); params.push(req.user.id);
+      updates.push(`disputed_at = NOW()`);
+      updates.push(`dispute_reason = $${idx++}`); params.push(disputeReason || notes || 'Disputed during review');
+    } else if (status === 'correction') {
+      updates.push(`returned_by = $${idx++}`); params.push(req.user.id);
+      updates.push(`returned_at = NOW()`);
+      updates.push(`correction_notes = $${idx++}`); params.push(correctionNotes || notes || 'Returned for correction');
     }
+
     if (updates.length === 0) return res.status(400).json({ success: false, message: 'No fields to update' });
 
     const { rows } = await query(
@@ -72,7 +103,10 @@ const updateRequisition = async (req, res) => {
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Requisition not found' });
     return res.json({ success: true, data: rows[0] });
-  } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) {
+    logger.error('updateRequisition error:', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
 };
 
 // ── PURCHASE REQUESTS ───────────────────────────────────────
@@ -142,19 +176,197 @@ const reviewPurchaseRequest = async (req, res) => {
   } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
 };
 
+const disburseRequisition = async (req, res) => {
+  const { id } = req.params;
+  const { paymentMethod = 'paystack', amount, accountId, beneficiary, notes, reference } = req.body;
+
+  try {
+    const { rows: reqRows } = await query(
+      `SELECT r.*, c.payment_settings, c.name as church_name
+       FROM requisitions r
+       JOIN churches c ON c.id = r.church_id
+       WHERE r.id = $1 AND r.church_id = $2`,
+      [id, req.churchId]
+    );
+    const requisition = reqRows[0];
+    if (!requisition) {
+      return res.status(404).json({ success: false, message: 'Requisition not found' });
+    }
+
+    if (requisition.status !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: `Only approved requisitions can be disbursed (current status: ${requisition.status})`,
+      });
+    }
+
+    const disbursementAmount = Number(amount || requisition.total_amount || 0);
+    if (!disbursementAmount || disbursementAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid disbursement amount' });
+    }
+
+    let paymentResult = null;
+    let safeRef = reference || `DISB-${Date.now()}-${uuidv4().substring(0, 6).toUpperCase()}`;
+
+    // Execute transfer if paymentMethod is paystack
+    if (paymentMethod === 'paystack' && beneficiary?.accountNumber && beneficiary?.bankCode) {
+      const paymentService = require('../services/paymentService');
+      paymentResult = await paymentService.initiateDisbursement({
+        amount: disbursementAmount,
+        accountNumber: beneficiary.accountNumber,
+        bankCode: beneficiary.bankCode,
+        accountName: beneficiary.accountName || 'Beneficiary',
+        narration: notes || `Disbursement: ${requisition.title}`,
+        reference: safeRef,
+        churchSettings: requisition.payment_settings || {},
+      });
+      safeRef = paymentResult.reference || safeRef;
+    }
+
+    // 1. Record transaction in finance ledger
+    const txId = uuidv4();
+    try {
+      await query(
+        `INSERT INTO transactions (
+          id, church_id, branch_id, account_id, transaction_type,
+          amount, currency, description, reference, payment_method,
+          transaction_date, recorded_by, approved_by, status, notes
+        ) VALUES ($1,$2,$3,$4,'expense',$5,'NGN',$6,$7,$8,CURRENT_DATE,$9,$9,'completed',$10)`,
+        [
+          txId,
+          req.churchId,
+          requisition.branch_id || null,
+          accountId || null,
+          disbursementAmount,
+          `Requisition Disbursement: ${requisition.title}`,
+          safeRef,
+          paymentMethod,
+          req.user.id,
+          notes || `Disbursed to ${beneficiary?.accountName || 'beneficiary'}`
+        ]
+      );
+
+      // Deduct from finance account if accountId specified
+      if (accountId) {
+        await query(
+          `UPDATE finance_accounts
+           SET balance = balance - $1, updated_at = NOW()
+           WHERE id = $2 AND church_id = $3`,
+          [disbursementAmount, accountId, req.churchId]
+        );
+      }
+    } catch (ledgerErr) {
+      logger.warn('Could not record linked finance transaction during disbursement:', { error: ledgerErr.message });
+    }
+
+    // 2. Update requisition record
+    const details = {
+      beneficiary: beneficiary || {},
+      notes: notes || '',
+      paymentMethod,
+      paymentResult: paymentResult || { status: 'recorded_offline' },
+      disbursedAt: new Date().toISOString(),
+      disbursedBy: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
+    };
+
+    const { rows: updatedRows } = await query(
+      `UPDATE requisitions SET
+        status = 'disbursed',
+        disbursed_by = $1,
+        disbursed_at = NOW(),
+        disbursement_amount = $2,
+        disbursement_method = $3,
+        disbursement_reference = $4,
+        disbursement_details = $5,
+        transaction_id = $6,
+        updated_at = NOW()
+       WHERE id = $7 AND church_id = $8 RETURNING *`,
+      [
+        req.user.id,
+        disbursementAmount,
+        paymentMethod,
+        safeRef,
+        JSON.stringify(details),
+        txId,
+        id,
+        req.churchId
+      ]
+    );
+
+    return res.json({
+      success: true,
+      data: updatedRows[0],
+      transactionId: txId,
+      reference: safeRef,
+      message: 'Requisition funds disbursed successfully'
+    });
+  } catch (err) {
+    logger.error('disburseRequisition failed:', { error: err.message });
+    return res.status(500).json({ success: false, message: err.message || 'Server error processing disbursement' });
+  }
+};
+
+const getBanks = async (req, res) => {
+  try {
+    const { rows: churchRows } = await query('SELECT payment_settings FROM churches WHERE id = $1', [req.churchId]);
+    const paymentService = require('../services/paymentService');
+    const banks = await paymentService.listBanks(churchRows[0]?.payment_settings || {});
+    return res.json({ success: true, data: banks });
+  } catch (err) {
+    logger.error('getBanks failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error fetching bank list' });
+  }
+};
+
+const resolveAccountName = async (req, res) => {
+  const { accountNumber, bankCode } = req.query;
+  if (!accountNumber || !bankCode) {
+    return res.status(400).json({ success: false, message: 'Account number and bank code required' });
+  }
+  try {
+    const { rows: churchRows } = await query('SELECT payment_settings FROM churches WHERE id = $1', [req.churchId]);
+    const paymentService = require('../services/paymentService');
+    const result = await paymentService.resolveAccount({
+      accountNumber,
+      bankCode,
+      churchSettings: churchRows[0]?.payment_settings || {},
+    });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Failed to resolve account' });
+  }
+};
+
 const getProcurementStats = async (req, res) => {
   try {
     const { rows } = await query(
       `SELECT
         (SELECT COUNT(*) FROM requisitions WHERE church_id = $1) as total_requisitions,
-        (SELECT COUNT(*) FROM requisitions WHERE church_id = $1 AND status = 'submitted') as pending_requisitions,
+        (SELECT COUNT(*) FROM requisitions WHERE church_id = $1 AND status IN ('submitted', 'draft', 'correction', 'disputed')) as pending_requisitions,
+        (SELECT COUNT(*) FROM requisitions WHERE church_id = $1 AND status = 'approved') as approved_requisitions,
+        (SELECT COUNT(*) FROM requisitions WHERE church_id = $1 AND status = 'disbursed') as disbursed_requisitions,
+        (SELECT COALESCE(SUM(disbursement_amount), 0) FROM requisitions WHERE church_id = $1 AND status = 'disbursed') as disbursed_amount,
         (SELECT COUNT(*) FROM purchase_requests WHERE church_id = $1) as total_purchase_requests,
         (SELECT COUNT(*) FROM purchase_requests WHERE church_id = $1 AND status = 'pending') as pending_tickets,
         (SELECT COALESCE(SUM(total_amount), 0) FROM purchase_requests WHERE church_id = $1 AND status = 'approved') as approved_amount
       `, [req.churchId]
     );
     return res.json({ success: true, data: rows[0] });
-  } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
+  } catch (err) {
+    logger.error('getProcurementStats error:', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
 };
 
-module.exports = { getRequisitions, createRequisition, updateRequisition, getPurchaseRequests, createPurchaseRequest, reviewPurchaseRequest, getProcurementStats };
+module.exports = {
+  getRequisitions,
+  createRequisition,
+  updateRequisition,
+  disburseRequisition,
+  getBanks,
+  resolveAccountName,
+  getPurchaseRequests,
+  createPurchaseRequest,
+  reviewPurchaseRequest,
+  getProcurementStats
+};

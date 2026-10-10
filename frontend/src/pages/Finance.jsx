@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { DollarSign, Plus, TrendingUp, TrendingDown, Wallet, Loader2, ArrowUpRight, ArrowDownRight, FileSpreadsheet, HeartHandshake } from 'lucide-react';
+import { DollarSign, Plus, TrendingUp, TrendingDown, Wallet, Loader2, ArrowUpRight, ArrowDownRight, FileSpreadsheet, HeartHandshake, ClipboardList } from 'lucide-react';
 import { financeAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import CsvImportModal from '../components/ui/CsvImportModal';
@@ -130,6 +130,13 @@ export default function Finance() {
           >
             <HeartHandshake size={15} className="text-emerald-600" />
             <span>Projects & Campaigns</span>
+          </Link>
+          <Link
+            to="/procurement"
+            className="h-9 px-3.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+          >
+            <ClipboardList size={15} className="text-indigo-600" />
+            <span>Requisitions & Payouts</span>
           </Link>
           <select className="input h-9 text-sm w-auto py-1" value={period} onChange={e => setPeriod(e.target.value)}>
             <option value="week">This Week</option>

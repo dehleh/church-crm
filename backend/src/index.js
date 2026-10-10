@@ -96,8 +96,23 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve uploaded files
-app.use('/uploads', express.static(path.resolve(process.env.UPLOAD_DIR || 'uploads')));
+// Serve uploaded files (from attached Railway persistent volume or local uploads folder)
+const persistentUploadDir = path.resolve(process.env.UPLOAD_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || 'uploads');
+if (!fs.existsSync(persistentUploadDir)) {
+  fs.mkdirSync(persistentUploadDir, { recursive: true });
+}
+app.use(
+  '/uploads',
+  (req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+  },
+  express.static(persistentUploadDir, {
+    maxAge: '7d',
+    immutable: true,
+  })
+);
 
 // Rate limiting — global
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false });

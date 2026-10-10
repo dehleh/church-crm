@@ -191,6 +191,22 @@ const updateZone = async (req, res) => {
   }
 };
 
+const deleteZone = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await query(
+      `UPDATE fellowship_zones SET is_active = false, updated_at = NOW()
+       WHERE id = $1 AND church_id = $2 RETURNING *`,
+      [id, req.churchId]
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Zone not found' });
+    return res.json({ success: true, message: 'Fellowship zone deleted successfully' });
+  } catch (err) {
+    logger.error('deleteZone failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 // ── 4. Fellowship Centers ─────────────────────────────────────
 const getCenters = async (req, res) => {
   const { zoneId, search, status } = req.query;
@@ -384,6 +400,29 @@ const updateCenter = async (req, res) => {
     return res.json({ success: true, data: rows[0] });
   } catch (err) {
     logger.error('updateCenter failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const deleteCenter = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await query(
+      `UPDATE fellowship_centers SET status = 'inactive', updated_at = NOW()
+       WHERE id = $1 AND church_id = $2 RETURNING *`,
+      [id, req.churchId]
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Center not found' });
+
+    await query(
+      `UPDATE fellowship_members SET status = 'inactive'
+       WHERE center_id = $1 AND church_id = $2`,
+      [id, req.churchId]
+    );
+
+    return res.json({ success: true, message: 'Fellowship center deleted successfully' });
+  } catch (err) {
+    logger.error('deleteCenter failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
@@ -758,10 +797,12 @@ module.exports = {
   getZones,
   createZone,
   updateZone,
+  deleteZone,
   getCenters,
   getCenter,
   createCenter,
   updateCenter,
+  deleteCenter,
   getCenterMembers,
   addMemberToCenter,
   removeMemberFromCenter,

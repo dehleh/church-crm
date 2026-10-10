@@ -6,15 +6,16 @@ import {
   Edit3, Image, Globe, Sparkles, AlertCircle, CreditCard, Shield, QrCode, Key,
   Copy, Check, ExternalLink, Palette, Clock, LayoutDashboard, CheckCircle2, Tag,
   Eye, Sliders, Layers, Radio, FileText, HeartHandshake, Heart, BookOpen,
-  GraduationCap, Bell, Film, Cake, DollarSign, Calendar, MapPin, UserPlus
+  GraduationCap, Bell, Film, Cake, DollarSign, Calendar, MapPin, UserPlus,
+  Upload, Cloud, CheckSquare, Landmark
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { twoFactorAPI } from '../api/services';
+import { twoFactorAPI, settingsAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
 import SubscriptionBillingView from '../components/subscription/SubscriptionBillingView';
 import toast from 'react-hot-toast';
-import api from '../api/client';
+import api, { getAssetUrl } from '../api/client';
 
 const TABS = [
   { id: 'subscription', label: 'Subscription & Plans',   icon: Sparkles },
@@ -149,8 +150,14 @@ export default function Settings() {
   const [paymentSettings, setPaymentSettings] = useState({
     paystackPublicKey: '',
     paystackSecretKey: '',
+    flutterwavePublicKey: '',
+    flutterwaveSecretKey: '',
+    flutterwaveSecretHash: '',
+    defaultGateway: 'auto',
+    bankAccounts: [],
     bankDetails: { bankName: '', accountName: '', accountNumber: '' },
   });
+  const [bankModal, setBankModal] = useState({ open: false, index: null, data: {} });
   const [copiedLink, setCopiedLink] = useState(false);
   const [showGivingQrModal, setShowGivingQrModal] = useState(false);
 
@@ -165,6 +172,39 @@ export default function Settings() {
     backupCodes: [],
   });
   const [disable2FAModal, setDisable2FAModal] = useState({ open: false, password: '', code: '' });
+  const [uploadingBranding, setUploadingBranding] = useState({ logo: false, banner: false });
+  const [showUrlInput, setShowUrlInput] = useState({ logo: false, banner: false });
+
+  const handleUploadBranding = async (e, type) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      return toast.error('File size must be under 15MB');
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('assetType', type);
+
+    setUploadingBranding(prev => ({ ...prev, [type]: true }));
+    try {
+      const res = await settingsAPI.uploadBranding(formData);
+      const uploadedUrl = res.data?.data?.url;
+      if (uploadedUrl) {
+        if (type === 'logo') {
+          setChurch(prev => ({ ...prev, logoUrl: uploadedUrl }));
+        } else if (type === 'banner') {
+          setChurch(prev => ({ ...prev, bannerUrl: uploadedUrl }));
+        }
+        toast.success(`${type === 'logo' ? 'Logo' : 'Banner'} uploaded and saved in storage!`);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || `Failed to upload ${type}`);
+    } finally {
+      setUploadingBranding(prev => ({ ...prev, [type]: false }));
+      // Reset input value
+      e.target.value = '';
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -244,9 +284,28 @@ export default function Settings() {
       setChurchStats(statsRes.data.data);
       setMessaging(msgRes.data.data || { email: {}, sms: {}, whatsapp: {} });
       if (c.payment_settings) {
+        let accounts = Array.isArray(c.payment_settings.bankAccounts) ? [...c.payment_settings.bankAccounts] : [];
+        if (accounts.length === 0 && c.payment_settings.bankDetails?.accountNumber) {
+          accounts.push({
+            id: 'ba-legacy',
+            currency: c.currency || 'NGN',
+            bankName: c.payment_settings.bankDetails.bankName || '',
+            accountName: c.payment_settings.bankDetails.accountName || '',
+            accountNumber: c.payment_settings.bankDetails.accountNumber || '',
+            sortCode: '',
+            swiftCode: '',
+            instructions: '',
+            isDefault: true,
+          });
+        }
         setPaymentSettings({
           paystackPublicKey: c.payment_settings.paystackPublicKey || '',
           paystackSecretKey: c.payment_settings.paystackSecretKey || '',
+          flutterwavePublicKey: c.payment_settings.flutterwavePublicKey || '',
+          flutterwaveSecretKey: c.payment_settings.flutterwaveSecretKey || '',
+          flutterwaveSecretHash: c.payment_settings.flutterwaveSecretHash || '',
+          defaultGateway: c.payment_settings.defaultGateway || 'auto',
+          bankAccounts: accounts,
           bankDetails: c.payment_settings.bankDetails || { bankName: '', accountName: '', accountNumber: '' },
         });
       }
@@ -465,6 +524,89 @@ export default function Settings() {
     }
   };
 
+  const handleOpenAddBank = () => {
+    setBankModal({
+      open: true,
+      index: null,
+      data: {
+        id: `ba_${Date.now()}`,
+        currency: church.currency || 'NGN',
+        bankName: '',
+        accountName: church.name || '',
+        accountNumber: '',
+        sortCode: '',
+        swiftCode: '',
+        instructions: '',
+        isDefault: (paymentSettings.bankAccounts || []).length === 0,
+      }
+    });
+  };
+
+  const handleEditBank = (idx) => {
+    const item = (paymentSettings.bankAccounts || [])[idx];
+    if (!item) return;
+    setBankModal({
+      open: true,
+      index: idx,
+      data: { ...item }
+    });
+  };
+
+  const handleSaveBank = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!bankModal.data.bankName?.trim()) return toast.error('Bank Name is required');
+    if (!bankModal.data.accountName?.trim()) return toast.error('Account Name is required');
+    if (!bankModal.data.accountNumber?.trim()) return toast.error('Account Number / IBAN is required');
+
+    let updated = [...(paymentSettings.bankAccounts || [])];
+    if (bankModal.index !== null) {
+      updated[bankModal.index] = { ...bankModal.data };
+    } else {
+      updated.push({
+        ...bankModal.data,
+        id: bankModal.data.id || `ba_${Date.now()}`
+      });
+    }
+
+    if (bankModal.data.isDefault) {
+      updated = updated.map((acc, i) => {
+        if (bankModal.index !== null ? i === bankModal.index : i === updated.length - 1) {
+          return { ...acc, isDefault: true };
+        }
+        return acc.currency === bankModal.data.currency ? { ...acc, isDefault: false } : acc;
+      });
+    }
+
+    const primary = updated.find(a => a.isDefault) || updated[0] || {};
+    setPaymentSettings(p => ({
+      ...p,
+      bankAccounts: updated,
+      bankDetails: {
+        bankName: primary.bankName || '',
+        accountName: primary.accountName || '',
+        accountNumber: primary.accountNumber || ''
+      }
+    }));
+    setBankModal({ open: false, index: null, data: {} });
+    toast.success('Bank account staged! Click "Save Giving Settings" to save to church account.');
+  };
+
+  const handleDeleteBank = (idx) => {
+    if (!window.confirm('Are you sure you want to remove this bank account?')) return;
+    const updated = (paymentSettings.bankAccounts || []).filter((_, i) => i !== idx);
+    const primary = updated.find(a => a.isDefault) || updated[0] || {};
+    setPaymentSettings(p => ({
+      ...p,
+      bankAccounts: updated,
+      bankDetails: {
+        bankName: primary.bankName || '',
+        accountName: primary.accountName || '',
+        accountNumber: primary.accountNumber || ''
+      }
+    }));
+    toast.success('Bank account removed. Click "Save Giving Settings" to save.');
+  };
+
   const handleCopyGivingLink = () => {
     const url = `${window.location.origin}/give/${church.slug || ''}`;
     navigator.clipboard.writeText(url);
@@ -573,11 +715,11 @@ export default function Settings() {
               {/* Header preview */}
               <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gradient-to-r from-brand-800 to-indigo-950 text-white min-h-[140px] flex items-end p-6">
                 {church.bannerUrl && (
-                  <img src={church.bannerUrl} alt="Cover Banner" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+                  <img src={getAssetUrl(church.bannerUrl)} alt="Cover Banner" className="absolute inset-0 w-full h-full object-cover opacity-40" />
                 )}
                 <div className="relative z-10 flex items-center gap-4">
                   {church.logoUrl ? (
-                    <img src={church.logoUrl} alt="Logo" className="w-16 h-16 rounded-2xl bg-white p-1 object-contain border-2 border-white/30 shadow-md" />
+                    <img src={getAssetUrl(church.logoUrl)} alt="Logo" className="w-16 h-16 rounded-2xl bg-white p-1 object-contain border-2 border-white/30 shadow-md" />
                   ) : (
                     <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-3xl border border-white/30">⛪</div>
                   )}
@@ -590,20 +732,160 @@ export default function Settings() {
 
               {/* Visual Branding Section */}
               <div>
-                <h3 className="text-sm font-bold uppercase tracking-wider text-brand-600 mb-3 flex items-center gap-2">
-                  <Sparkles size={16} /> Visual Branding & Cover Graphics
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-brand-600 flex items-center gap-2">
+                    <Sparkles size={16} /> Visual Branding & Platform Asset Storage
+                  </h3>
+                  <span className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 font-medium">
+                    <Cloud size={13} /> Managed Media Storage Active
+                  </span>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 mb-5 text-xs text-slate-600 flex items-start gap-2.5">
+                  <Cloud className="text-brand-600 shrink-0 mt-0.5" size={16} />
                   <div>
-                    <label className="label">Church Banner / Cover Photo URL</label>
-                    <input className="input" placeholder="https://images.unsplash.com/... or uploaded URL" value={church.bannerUrl || ''} onChange={setC('bannerUrl')} />
-                    <p className="text-xs text-gray-400 mt-1">Displayed in Member Portal header & event reminder emails (16:9 ratio recommended)</p>
+                    <strong className="text-slate-800">Secure In-Platform Storage: </strong>
+                    Upload logos, banners, and letterhead assets directly from your device. Files are preserved in the platform's storage service (local media storage & cloud object bucket) so your church never depends on fragile third-party URLs.
                   </div>
-                  <div>
-                    <label className="label">Church Logo URL</label>
-                    <input className="input" placeholder="https://mychurch.org/logo.png" value={church.logoUrl || ''} onChange={setC('logoUrl')} />
-                    <p className="text-xs text-gray-400 mt-1">Square or circular transparent PNG recommended</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {/* Church Logo Uploader Card */}
+                  <div className="p-4 rounded-xl border border-gray-200 bg-white space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Church Logo</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowUrlInput(s => ({ ...s, logo: !s.logo }))}
+                        className="text-xs text-brand-600 hover:underline"
+                      >
+                        {showUrlInput.logo ? 'Hide URL input' : 'Or paste URL'}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      {church.logoUrl ? (
+                        <div className="relative group">
+                          <img
+                            src={getAssetUrl(church.logoUrl)}
+                            alt="Logo preview"
+                            className="w-16 h-16 rounded-xl object-contain border border-gray-200 bg-gray-50 p-1 shadow-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setChurch(prev => ({ ...prev, logoUrl: '' }))}
+                            className="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full p-0.5 shadow hover:bg-red-700"
+                            title="Remove Logo"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex items-center justify-center text-gray-400">
+                          <Image size={24} />
+                        </div>
+                      )}
+
+                      <div className="flex-1">
+                        <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-brand-50 hover:bg-brand-100 text-brand-700 rounded-lg text-xs font-semibold transition-colors border border-brand-200">
+                          {uploadingBranding.logo ? (
+                            <>
+                              <Loader2 size={14} className="animate-spin" /> Uploading to storage…
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={14} /> Upload Logo File
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                            className="hidden"
+                            disabled={uploadingBranding.logo}
+                            onChange={(e) => handleUploadBranding(e, 'logo')}
+                          />
+                        </label>
+                        <p className="text-[11px] text-gray-400 mt-1">PNG, JPG or WEBP (square or transparent recommended)</p>
+                      </div>
+                    </div>
+
+                    {showUrlInput.logo && (
+                      <div className="pt-2 border-t border-gray-100">
+                        <input
+                          className="input text-xs"
+                          placeholder="https://mychurch.org/logo.png"
+                          value={church.logoUrl || ''}
+                          onChange={setC('logoUrl')}
+                        />
+                      </div>
+                    )}
                   </div>
+
+                  {/* Church Banner Uploader Card */}
+                  <div className="p-4 rounded-xl border border-gray-200 bg-white space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Church Cover Banner</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowUrlInput(s => ({ ...s, banner: !s.banner }))}
+                        className="text-xs text-brand-600 hover:underline"
+                      >
+                        {showUrlInput.banner ? 'Hide URL input' : 'Or paste URL'}
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {church.bannerUrl ? (
+                        <div className="relative group rounded-lg overflow-hidden border border-gray-200 h-20 bg-gray-900">
+                          <img
+                            src={getAssetUrl(church.bannerUrl)}
+                            alt="Banner preview"
+                            className="w-full h-full object-cover opacity-80"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setChurch(prev => ({ ...prev, bannerUrl: '' }))}
+                            className="absolute top-1.5 right-1.5 bg-red-600 text-white rounded-full p-1 shadow hover:bg-red-700"
+                            title="Remove Banner"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ) : null}
+
+                      <div className="flex items-center gap-3">
+                        <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-brand-50 hover:bg-brand-100 text-brand-700 rounded-lg text-xs font-semibold transition-colors border border-brand-200">
+                          {uploadingBranding.banner ? (
+                            <>
+                              <Loader2 size={14} className="animate-spin" /> Uploading to storage…
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={14} /> Upload Banner Image
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            disabled={uploadingBranding.banner}
+                            onChange={(e) => handleUploadBranding(e, 'banner')}
+                          />
+                        </label>
+                        <span className="text-[11px] text-gray-400">16:9 ratio landscape image recommended</span>
+                      </div>
+
+                      {showUrlInput.banner && (
+                        <input
+                          className="input text-xs"
+                          placeholder="https://images.unsplash.com/... or hosted URL"
+                          value={church.bannerUrl || ''}
+                          onChange={setC('bannerUrl')}
+                        />
+                      )}
+                    </div>
+                  </div>
+
                   <div className="md:col-span-2">
                     <label className="label">Church Tagline / Motto</label>
                     <input className="input" placeholder="Transforming Lives, Impacting Nations" value={church.tagline || ''} onChange={setC('tagline')} />
@@ -1673,93 +1955,270 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Direct Bank Transfer Details */}
-              <div className="card">
-                <h3 className="font-display font-bold text-gray-900 text-base mb-1">Church Bank Transfer Details</h3>
-                <p className="text-xs text-gray-500 mb-4">
-                  These bank details are displayed on the public giving page for members who prefer direct bank transfers.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Direct Multi-Currency Bank Accounts */}
+              <div className="card space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <label className="label">Bank Name</label>
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="e.g. Access Bank, Zenith Bank"
-                      value={paymentSettings.bankDetails?.bankName || ''}
-                      onChange={e => setPaymentSettings(p => ({
-                        ...p,
-                        bankDetails: { ...(p.bankDetails || {}), bankName: e.target.value }
-                      }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Account Name</label>
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="e.g. The Baptizing Church Lekki"
-                      value={paymentSettings.bankDetails?.accountName || ''}
-                      onChange={e => setPaymentSettings(p => ({
-                        ...p,
-                        bankDetails: { ...(p.bankDetails || {}), accountName: e.target.value }
-                      }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Account Number</label>
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="e.g. 0123456789"
-                      value={paymentSettings.bankDetails?.accountNumber || ''}
-                      onChange={e => setPaymentSettings(p => ({
-                        ...p,
-                        bankDetails: { ...(p.bankDetails || {}), accountNumber: e.target.value }
-                      }))}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Paystack Integration */}
-              <div className="card">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-display font-bold text-gray-900 text-base">Paystack Payment Gateway</h3>
+                    <h3 className="font-display font-bold text-gray-900 text-base flex items-center gap-2">
+                      <Landmark size={18} className="text-brand-600" />
+                      Church Bank Accounts (Multi-Currency)
+                    </h3>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Enter your church's Paystack API credentials to receive card, USSD, and bank transfers directly into your church account.
+                      Configure church accounts for local and diaspora giving (NGN ₦, USD $, GBP £, EUR €, etc.). Displayed on public giving and the member dashboard.
                     </p>
                   </div>
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Active Gateway
-                  </span>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddBank}
+                    className="btn-secondary text-xs self-start sm:self-auto flex items-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    <span>Add Bank Account</span>
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="label">Paystack Public Key</label>
-                    <input
-                      type="text"
-                      className="input font-mono text-xs"
-                      placeholder="pk_live_... or pk_test_..."
-                      value={paymentSettings.paystackPublicKey || ''}
-                      onChange={e => setPaymentSettings(p => ({ ...p, paystackPublicKey: e.target.value }))}
-                    />
+                {(!paymentSettings.bankAccounts || paymentSettings.bankAccounts.length === 0) ? (
+                  <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-6 text-center">
+                    <Landmark size={32} className="mx-auto text-gray-300 mb-2" />
+                    <p className="text-sm font-semibold text-gray-700">No bank accounts configured</p>
+                    <p className="text-xs text-gray-400 max-w-md mx-auto mt-1 mb-4">
+                      Add your church's local and international accounts so members and diaspora supporters can make direct bank transfers.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleOpenAddBank}
+                      className="btn-primary text-xs mx-auto flex items-center gap-1.5"
+                    >
+                      <Plus size={14} /> Add First Account
+                    </button>
                   </div>
-                  <div>
-                    <label className="label">Paystack Secret Key</label>
-                    <input
-                      type="password"
-                      className="input font-mono text-xs"
-                      placeholder="sk_live_... or sk_test_..."
-                      value={paymentSettings.paystackSecretKey || ''}
-                      onChange={e => setPaymentSettings(p => ({ ...p, paystackSecretKey: e.target.value }))}
-                    />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {paymentSettings.bankAccounts.map((acc, idx) => (
+                      <div
+                        key={acc.id || idx}
+                        className="rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50/50 p-4 relative flex flex-col justify-between hover:border-brand-300 transition-all shadow-sm"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wider bg-brand-50 text-brand-700 border border-brand-200 flex items-center gap-1">
+                              <span>{acc.currency || 'NGN'}</span>
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {acc.isDefault && (
+                                <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                  Default
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleEditBank(idx)}
+                                className="p-1 text-gray-400 hover:text-brand-600 rounded transition-colors"
+                                title="Edit Account"
+                              >
+                                <Edit3 size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBank(idx)}
+                                className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
+                                title="Delete Account"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="font-semibold text-gray-900 text-sm">{acc.bankName}</div>
+                          <div className="text-xs text-gray-600 mt-0.5 font-medium">{acc.accountName}</div>
+                          <div className="mt-2 text-sm font-mono font-bold tracking-wider text-brand-900 bg-brand-50/60 px-2.5 py-1.5 rounded-lg border border-brand-100 flex items-center justify-between">
+                            <span>{acc.accountNumber}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(acc.accountNumber);
+                                toast.success(`Copied ${acc.currency} account number!`);
+                              }}
+                              className="text-brand-600 hover:text-brand-800 p-1"
+                              title="Copy Account Number"
+                            >
+                              <Copy size={13} />
+                            </button>
+                          </div>
+
+                          {(acc.sortCode || acc.swiftCode) && (
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-gray-500 font-mono">
+                              {acc.sortCode && <div><span className="text-gray-400">Sort/Routing:</span> {acc.sortCode}</div>}
+                              {acc.swiftCode && <div><span className="text-gray-400">SWIFT/BIC:</span> {acc.swiftCode}</div>}
+                            </div>
+                          )}
+
+                          {acc.instructions && (
+                            <p className="mt-2 text-[11px] text-gray-400 italic">
+                              Note: {acc.instructions}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Online Payment Gateways Section */}
+              <div className="card space-y-6">
+                <div>
+                  <h3 className="font-display font-bold text-gray-900 text-base">Online Payment Gateways & Routing</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Connect Flutterwave (for multi-currency, cards, diaspora) and Paystack (for local cards, bank transfer & USSD).
+                  </p>
+                </div>
+
+                {/* Gateway Routing Preference */}
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-gray-700 block mb-2">
+                    Default Gateway Preference
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {[
+                      { id: 'auto', title: 'Auto-Routing (Recommended)', desc: 'Routes USD, GBP, EUR, CAD to Flutterwave; NGN to Paystack or Flutterwave' },
+                      { id: 'flutterwave', title: 'Flutterwave Preferred', desc: 'Primary gateway for all giving and international cards' },
+                      { id: 'paystack', title: 'Paystack Preferred', desc: 'Primary gateway for Nigerian & regional card/bank payments' }
+                    ].map(opt => (
+                      <label
+                        key={opt.id}
+                        className={`cursor-pointer p-3 rounded-xl border text-xs flex flex-col justify-between transition-all ${
+                          paymentSettings.defaultGateway === opt.id
+                            ? 'bg-brand-50 border-brand-500 shadow-sm text-brand-900'
+                            : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 font-semibold">
+                          <input
+                            type="radio"
+                            name="defaultGateway"
+                            value={opt.id}
+                            checked={paymentSettings.defaultGateway === opt.id}
+                            onChange={() => setPaymentSettings(p => ({ ...p, defaultGateway: opt.id }))}
+                            className="text-brand-600 focus:ring-brand-500"
+                          />
+                          <span>{opt.title}</span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-1 pl-5">{opt.desc}</p>
+                      </label>
+                    ))}
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-5">
+                {/* Flutterwave Integration Card */}
+                <div className="p-4 rounded-xl border border-amber-200/80 bg-gradient-to-br from-amber-50/40 via-white to-orange-50/20">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500 text-white font-bold flex items-center justify-center text-sm shadow-sm">
+                        FW
+                      </div>
+                      <div>
+                        <h4 className="font-display font-bold text-gray-900 text-sm">Flutterwave (Multi-Currency & Global)</h4>
+                        <p className="text-[11px] text-gray-500">
+                          Accept USD, GBP, EUR, CAD, NGN, KES, GHS, mobile money, and diaspora cards.
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                      paymentSettings.flutterwavePublicKey
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}>
+                      {paymentSettings.flutterwavePublicKey ? 'Configured' : 'Test / Simulation Mode'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                    <div>
+                      <label className="label text-[11px]">Flutterwave Public Key</label>
+                      <input
+                        type="text"
+                        className="input font-mono text-xs"
+                        placeholder="FLWPUBK_TEST-... or FLWPUBK-..."
+                        value={paymentSettings.flutterwavePublicKey || ''}
+                        onChange={e => setPaymentSettings(p => ({ ...p, flutterwavePublicKey: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="label text-[11px]">Flutterwave Secret Key</label>
+                      <input
+                        type="password"
+                        className="input font-mono text-xs"
+                        placeholder="FLWSECK_TEST-... or FLWSECK-..."
+                        value={paymentSettings.flutterwaveSecretKey || ''}
+                        onChange={e => setPaymentSettings(p => ({ ...p, flutterwaveSecretKey: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="label text-[11px]">Webhook Secret Hash</label>
+                      <input
+                        type="password"
+                        className="input font-mono text-xs"
+                        placeholder="Custom secret hash in FLW dashboard"
+                        value={paymentSettings.flutterwaveSecretHash || ''}
+                        onChange={e => setPaymentSettings(p => ({ ...p, flutterwaveSecretHash: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-2">
+                    Leave blank to test transactions in automatic instant simulation mode. Webhook endpoint: <code className="text-gray-600 bg-gray-100 px-1 py-0.5 rounded">/api/v1/giving/webhook</code>
+                  </p>
+                </div>
+
+                {/* Paystack Integration Card */}
+                <div className="p-4 rounded-xl border border-sky-200/80 bg-gradient-to-br from-sky-50/40 via-white to-blue-50/20">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-sky-600 text-white font-bold flex items-center justify-center text-sm shadow-sm">
+                        PS
+                      </div>
+                      <div>
+                        <h4 className="font-display font-bold text-gray-900 text-sm">Paystack Gateway</h4>
+                        <p className="text-[11px] text-gray-500">
+                          Card, USSD, and bank transfers for Nigeria, Ghana, Kenya, and South Africa.
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                      paymentSettings.paystackPublicKey
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}>
+                      {paymentSettings.paystackPublicKey ? 'Configured' : 'Test / Simulation Mode'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    <div>
+                      <label className="label text-[11px]">Paystack Public Key</label>
+                      <input
+                        type="text"
+                        className="input font-mono text-xs"
+                        placeholder="pk_live_... or pk_test_..."
+                        value={paymentSettings.paystackPublicKey || ''}
+                        onChange={e => setPaymentSettings(p => ({ ...p, paystackPublicKey: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="label text-[11px]">Paystack Secret Key</label>
+                      <input
+                        type="password"
+                        className="input font-mono text-xs"
+                        placeholder="sk_live_... or sk_test_..."
+                        value={paymentSettings.paystackSecretKey || ''}
+                        onChange={e => setPaymentSettings(p => ({ ...p, paystackSecretKey: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <div className="flex justify-end pt-2">
                   <button onClick={savePaymentSettings} disabled={saving} className="btn-primary">
                     {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                     <span>Save Giving Settings</span>
@@ -2056,6 +2515,116 @@ export default function Settings() {
             <label className="label">Venue / Channel</label>
             <input className="input" placeholder="Main Auditorium & YouTube / Online" value={serviceModal.data.venue || ''} onChange={e => setServiceModal(m => ({ ...m, data: { ...m.data, venue: e.target.value } }))} />
           </div>
+        </form>
+      </Modal>
+
+      {/* Add / Edit Bank Account Modal */}
+      <Modal
+        open={bankModal.open}
+        onClose={() => setBankModal({ open: false, index: null, data: {} })}
+        title={bankModal.index !== null ? 'Edit Bank Account' : 'Add Church Bank Account'}
+        size="md"
+        footer={
+          <>
+            <button onClick={() => setBankModal({ open: false, index: null, data: {} })} className="btn-secondary">Cancel</button>
+            <button onClick={handleSaveBank} className="btn-primary">Save Bank Account</button>
+          </>
+        }
+      >
+        <form onSubmit={handleSaveBank} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Currency *</label>
+              <select
+                className="input font-semibold"
+                value={bankModal.data.currency || 'NGN'}
+                onChange={e => setBankModal(m => ({ ...m, data: { ...m.data, currency: e.target.value } }))}
+              >
+                <option value="NGN">NGN (₦ - Nigerian Naira)</option>
+                <option value="USD">USD ($ - US Dollar)</option>
+                <option value="GBP">GBP (£ - British Pound)</option>
+                <option value="EUR">EUR (€ - Euro)</option>
+                <option value="CAD">CAD (CA$ - Canadian Dollar)</option>
+                <option value="KES">KES (KSh - Kenyan Shilling)</option>
+                <option value="GHS">GHS (GH₵ - Ghanaian Cedi)</option>
+                <option value="ZAR">ZAR (R - South African Rand)</option>
+                <option value="AUD">AUD (AU$ - Australian Dollar)</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Bank Name *</label>
+              <input
+                className="input"
+                placeholder="Access Bank, Chase, Barclays..."
+                value={bankModal.data.bankName || ''}
+                onChange={e => setBankModal(m => ({ ...m, data: { ...m.data, bankName: e.target.value } }))}
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Account Name / Beneficiary *</label>
+            <input
+              className="input"
+              placeholder="The Baptizing Church Lekki"
+              value={bankModal.data.accountName || ''}
+              onChange={e => setBankModal(m => ({ ...m, data: { ...m.data, accountName: e.target.value } }))}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="label">Account Number / IBAN *</label>
+            <input
+              className="input font-mono font-bold"
+              placeholder="0123456789 or GB29NWBK60161331926819"
+              value={bankModal.data.accountNumber || ''}
+              onChange={e => setBankModal(m => ({ ...m, data: { ...m.data, accountNumber: e.target.value } }))}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Sort Code / Routing (Optional)</label>
+              <input
+                className="input font-mono text-xs"
+                placeholder="02-04-12 or 122105155"
+                value={bankModal.data.sortCode || ''}
+                onChange={e => setBankModal(m => ({ ...m, data: { ...m.data, sortCode: e.target.value } }))}
+              />
+            </div>
+            <div>
+              <label className="label">SWIFT / BIC Code (Optional)</label>
+              <input
+                className="input font-mono text-xs uppercase"
+                placeholder="ZENITHNGLA or BARCGB22"
+                value={bankModal.data.swiftCode || ''}
+                onChange={e => setBankModal(m => ({ ...m, data: { ...m.data, swiftCode: e.target.value.toUpperCase() } }))}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Instructions / Reference Note (Optional)</label>
+            <input
+              className="input text-xs"
+              placeholder="e.g. Please put your Phone Number or 'Tithe' as transfer narration"
+              value={bankModal.data.instructions || ''}
+              onChange={e => setBankModal(m => ({ ...m, data: { ...m.data, instructions: e.target.value } }))}
+            />
+          </div>
+
+          <label className="flex items-center gap-2 pt-1 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Boolean(bankModal.data.isDefault)}
+              onChange={e => setBankModal(m => ({ ...m, data: { ...m.data, isDefault: e.target.checked } }))}
+              className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+            />
+            <span className="text-xs text-gray-700">Set as primary default account for {bankModal.data.currency || 'this currency'}</span>
+          </label>
         </form>
       </Modal>
 

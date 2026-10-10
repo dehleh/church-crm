@@ -20,6 +20,7 @@ router.post('/zones', authorize('admin', 'pastor', 'director'), [
   body('name').notEmpty().trim(),
 ], handleValidationErrors, ctrl.createZone);
 router.put('/zones/:id', authorize('admin', 'pastor', 'director'), ctrl.updateZone);
+router.delete('/zones/:id', authorize('head_pastor', 'pastor', 'admin', 'director', 'super_admin'), ctrl.deleteZone);
 
 // Fellowship Centers
 router.get('/centers', ctrl.getCenters);
@@ -34,6 +35,7 @@ router.post('/centers', authorize('head_pastor', 'pastor', 'admin', 'branch_past
 ], handleValidationErrors, ctrl.createCenter);
 router.get('/centers/:id', ctrl.getCenter);
 router.put('/centers/:id', authorize('head_pastor', 'pastor', 'admin', 'branch_pastor', 'branch_admin', 'director', 'hod', 'leader', 'super_admin'), ctrl.updateCenter);
+router.delete('/centers/:id', authorize('head_pastor', 'pastor', 'admin', 'branch_pastor', 'director', 'super_admin'), ctrl.deleteCenter);
 
 // Center Members & Proximity Matching
 router.get('/centers/:id/members', ctrl.getCenterMembers);

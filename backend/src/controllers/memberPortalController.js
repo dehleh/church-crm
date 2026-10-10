@@ -232,7 +232,7 @@ const getHome = async (req, res) => {
         [req.member.id]
       ),
       query(
-        `SELECT name, tagline, banner_url, logo_url, mission, vision, pastors, website, phone, email, settings
+        `SELECT name, tagline, banner_url, logo_url, mission, vision, pastors, website, phone, email, currency, payment_settings, settings
          FROM churches WHERE id = $1`,
         [req.churchId]
       ),
@@ -321,10 +321,20 @@ const getHome = async (req, res) => {
         [req.churchId]
       )
     ]);
+    const chRow = churchRes.rows[0] || {};
+    const chPay = chRow.payment_settings || {};
+    const chBankDetails = chRow.settings?.bank_details || chPay.bankDetails || chPay.bank_details || null;
+    const chBankAccounts = Array.isArray(chPay.bankAccounts) && chPay.bankAccounts.length > 0
+      ? chPay.bankAccounts
+      : (chBankDetails ? [{ currency: chRow.currency || 'NGN', ...chBankDetails }] : []);
+
     return res.json({
       success: true,
       data: {
-        church: churchRes.rows[0],
+        church: {
+          ...chRow,
+          bankAccounts: chBankAccounts,
+        },
         givingYtd: giveRes.rows[0],
         upcomingEvents: evtRes.rows,
         departments: deptRes.rows,
@@ -1259,7 +1269,7 @@ const getGivingOptions = async (req, res) => {
   try {
     const [catRes, churchRes, evtRes, campRes] = await Promise.all([
       query('SELECT id, name, description FROM giving_categories WHERE church_id = $1 ORDER BY name ASC', [req.churchId]),
-      query('SELECT currency, settings FROM churches WHERE id = $1', [req.churchId]),
+      query('SELECT currency, settings, payment_settings FROM churches WHERE id = $1', [req.churchId]),
       query("SELECT id, title, start_datetime FROM events WHERE church_id = $1 AND status IN ('upcoming', 'ongoing') ORDER BY start_datetime ASC LIMIT 10", [req.churchId]),
       query(
         `SELECT
@@ -1280,6 +1290,12 @@ const getGivingOptions = async (req, res) => {
     ]);
     const church = churchRes.rows[0];
     const settings = church?.settings || {};
+    const paySettings = church?.payment_settings || {};
+    const legacyBank = settings.bank_details || paySettings.bankDetails || paySettings.bank_details || null;
+    const bankAccounts = Array.isArray(paySettings.bankAccounts) && paySettings.bankAccounts.length > 0
+      ? paySettings.bankAccounts
+      : (settings.bank_accounts || settings.bankAccounts || (legacyBank ? [{ currency: church?.currency || 'NGN', ...legacyBank }] : []));
+
     const formattedCampaigns = (campRes?.rows || []).map(c => {
       const target = Number(c.target_amount || 0);
       const raised = Number(c.amount_raised || 0);
@@ -1298,8 +1314,11 @@ const getGivingOptions = async (req, res) => {
         events: evtRes.rows,
         campaigns: formattedCampaigns,
         currency: church?.currency || 'NGN',
-        bankAccounts: settings.bank_accounts || settings.bankAccounts || [],
-        paystackPublicKey: settings.payment?.paystack_public_key || process.env.PAYSTACK_PUBLIC_KEY || '',
+        bankAccounts,
+        hasPaystack: Boolean(paySettings.paystackPublicKey || paySettings.paystackSecretKey || process.env.PAYSTACK_SECRET_KEY || true),
+        hasFlutterwave: Boolean(paySettings.flutterwavePublicKey || paySettings.flutterwaveSecretKey || process.env.FLUTTERWAVE_SECRET_KEY || true),
+        paystackPublicKey: paySettings.paystackPublicKey || process.env.PAYSTACK_PUBLIC_KEY || '',
+        flutterwavePublicKey: paySettings.flutterwavePublicKey || process.env.FLUTTERWAVE_PUBLIC_KEY || '',
       }
     });
   } catch (err) {
@@ -1310,7 +1329,7 @@ const getGivingOptions = async (req, res) => {
 
 // POST /api/me/giving/initiate — give for offering, projects, events, campaigns
 const initiatePortalGiving = async (req, res) => {
-  const { amount, categoryId, campaignId, purpose, eventId, paymentMethod = 'paystack', notes, reference: clientRef } = req.body;
+  const { amount, currency = 'NGN', categoryId, campaignId, purpose, eventId, paymentMethod = 'paystack', gateway, notes, reference: clientRef } = req.body;
   if (!amount || Number(amount) <= 0) {
     return res.status(400).json({ success: false, message: 'Valid amount is required' });
   }
@@ -1343,12 +1362,12 @@ const initiatePortalGiving = async (req, res) => {
       await query(
         `INSERT INTO online_giving_transactions (
            id, church_id, member_id, amount, currency, category_id,
-           giving_type, reference, status, donor_name, donor_email, donor_phone
-         ) VALUES ($1, $2, $3, $4, 'NGN', $5, $6, $7, 'success', $8, $9, $10)
+           giving_type, gateway, reference, status, donor_name, donor_email, donor_phone
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'success', $10, $11, $12)
          ON CONFLICT (reference) DO NOTHING`,
         [
-          uuidv4(), req.churchId, member.id, Number(amount), categoryId || null,
-          purpose || 'offering', ref,
+          uuidv4(), req.churchId, member.id, Number(amount), currency || 'NGN', categoryId || null,
+          purpose || 'offering', gateway || (paymentMethod === 'transfer' ? 'transfer' : 'online'), ref,
           `${member.first_name} ${member.last_name}`, member.email, member.phone
         ]
       );

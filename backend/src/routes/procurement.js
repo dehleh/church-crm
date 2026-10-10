@@ -16,10 +16,17 @@ router.post('/requisitions', authorize('admin', 'pastor', 'director', 'hod'), [
   body('title').notEmpty().withMessage('Title is required'),
   body('requisitionMonth').notEmpty().withMessage('Month is required'),
 ], handleValidationErrors, c.createRequisition);
-router.patch('/requisitions/:id', authorize('admin', 'pastor', 'director', 'finance'), [
+router.patch('/requisitions/:id', authorize('admin', 'pastor', 'director', 'finance', 'hod'), [
   param('id').isUUID(),
-  body('status').optional().isIn(['draft', 'submitted', 'approved', 'rejected']),
+  body('status').optional().isIn(['draft', 'submitted', 'approved', 'disputed', 'correction', 'rejected', 'disbursed']),
 ], handleValidationErrors, c.updateRequisition);
+router.post('/requisitions/:id/disburse', authorize('admin', 'pastor', 'director', 'finance'), [
+  param('id').isUUID(),
+], handleValidationErrors, c.disburseRequisition);
+
+// Banks & Account Verification
+router.get('/banks', authorize('admin', 'pastor', 'director', 'finance', 'hod'), c.getBanks);
+router.get('/resolve-account', authorize('admin', 'pastor', 'director', 'finance', 'hod'), c.resolveAccountName);
 
 // ── Purchase Requests ──
 router.get('/purchase-requests', authorize('admin', 'pastor', 'director', 'finance', 'hod'), c.getPurchaseRequests);

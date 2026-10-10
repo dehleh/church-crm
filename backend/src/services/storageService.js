@@ -23,7 +23,7 @@ class StorageService {
     this.accessKeyId = process.env.S3_ACCESS_KEY_ID || process.env.R2_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID || '';
     this.secretAccessKey = process.env.S3_SECRET_ACCESS_KEY || process.env.R2_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || '';
     this.publicBaseUrl = (process.env.STORAGE_PUBLIC_URL || process.env.CDN_URL || '').replace(/\/+$/, '');
-    this.uploadDir = path.resolve(process.env.UPLOAD_DIR || 'uploads');
+    this.uploadDir = path.resolve(process.env.UPLOAD_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || 'uploads');
 
     this.isS3Configured = Boolean(
       S3Client && this.bucket && this.accessKeyId && this.secretAccessKey
@@ -43,12 +43,12 @@ class StorageService {
       this.s3Client = new S3Client(clientConfig);
       logger.info('☁️ Cloud Object Storage initialized (S3/R2 compatible)');
     } else {
-      // Ensure local upload directories exist
-      ['avatars', 'branding', 'media', 'documents', 'general'].forEach(sub => {
+      // Ensure local upload volume directories exist
+      ['avatars', 'branding', 'logos', 'covers', 'media', 'documents', 'general'].forEach(sub => {
         const p = path.join(this.uploadDir, sub);
         if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
       });
-      logger.info('💾 Local Disk Storage initialized (uploads/ folder)');
+      logger.info(`💾 Persistent Volume Storage active at: ${this.uploadDir}`);
     }
   }
 
@@ -87,17 +87,19 @@ class StorageService {
       }
     }
 
-    // Local Disk Fallback
+    // Local Disk / Attached Volume Storage
     const targetDir = path.join(this.uploadDir, folder);
     if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-    const localFilePath = path.join(targetDir, `${Date.now()}-${uuidv4()}${ext}`);
+    const localFileName = `${Date.now()}-${uuidv4()}${ext}`;
+    const localFilePath = path.join(targetDir, localFileName);
     fs.writeFileSync(localFilePath, buffer);
 
-    const relativeUrl = `/uploads/${folder}/${path.basename(localFilePath)}`;
+    const relativeUrl = `/uploads/${folder}/${localFileName}`;
+    const url = this.publicBaseUrl ? `${this.publicBaseUrl}${relativeUrl}` : relativeUrl;
     return {
       storage: 'local',
       key: relativeUrl,
-      url: relativeUrl,
+      url,
       filename,
       mimetype,
       size: buffer.length,

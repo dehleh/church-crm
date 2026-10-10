@@ -2,12 +2,14 @@ const express = require('express');
 const router = express.Router();
 const c = require('../controllers/settingsController');
 const { authenticate, authorize } = require('../middleware/auth');
+const { upload, uploadFor } = require('../middleware/upload');
 const { body } = require('express-validator');
 const { handleValidationErrors } = require('../middleware/errorHandler');
 
 router.use(authenticate);
 router.get('/', c.getChurchSettings);
 router.get('/stats', c.getChurchStats);
+router.post('/upload-branding', authorize('admin', 'pastor', 'director'), uploadFor('branding'), upload.single('file'), c.uploadBrandingAsset);
 router.get('/messaging', authorize('admin'), c.getMessagingConfig);
 router.put('/messaging', authorize('admin'), c.updateMessagingConfig);
 router.post('/messaging/test', authorize('admin'), c.testMessaging);

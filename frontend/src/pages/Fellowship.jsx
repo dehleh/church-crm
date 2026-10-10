@@ -221,6 +221,30 @@ export default function Fellowship() {
     }
   };
 
+  const handleDeleteCenter = async (center) => {
+    const confirmText = `Are you sure you want to delete "${center.name}"?\n\nThis will deactivate the ${terms.singularTerm.toLowerCase()} and unassign members from this unit.`;
+    if (!window.confirm(confirmText)) return;
+    try {
+      await fellowshipAPI.deleteCenter(center.id);
+      toast.success(`${terms.singularTerm} deleted successfully`);
+      loadAll();
+    } catch (err) {
+      toast.error(err.response?.data?.message || `Failed to delete ${terms.singularTerm.toLowerCase()}`);
+    }
+  };
+
+  const handleDeleteZone = async (zone) => {
+    const confirmText = `Are you sure you want to delete ${terms.zoneTerm} "${zone.name}"?\n\nCenters linked to this zone will become unassigned.`;
+    if (!window.confirm(confirmText)) return;
+    try {
+      await fellowshipAPI.deleteZone(zone.id);
+      toast.success(`${terms.zoneTerm} deleted successfully`);
+      loadAll();
+    } catch (err) {
+      toast.error(err.response?.data?.message || `Failed to delete ${terms.zoneTerm.toLowerCase()}`);
+    }
+  };
+
   // Proximity Match
   const runProximityMatch = async (member, customAddress) => {
     setMatchingLoading(true);
@@ -532,6 +556,13 @@ export default function Fellowship() {
                         >
                           <Edit2 size={15} />
                         </button>
+                        <button
+                          onClick={() => handleDeleteCenter(center)}
+                          className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
+                          title={`Delete ${terms.singularTerm}`}
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -785,9 +816,18 @@ export default function Fellowship() {
               <div key={z.id} className="card p-5 hover:shadow-sm transition-shadow">
                 <div className="flex items-start justify-between">
                   <h3 className="font-bold text-gray-900 text-base">{z.name}</h3>
-                  <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700 font-medium">
-                    {z.centers_count || 0} {terms.pluralTerm}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700 font-medium">
+                      {z.centers_count || 0} {terms.pluralTerm}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteZone(z)}
+                      className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
+                      title={`Delete ${terms.zoneTerm}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
                 {z.description && <p className="text-xs text-gray-500 mt-1">{z.description}</p>}
 

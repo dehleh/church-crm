@@ -3,10 +3,10 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 
-const uploadDir = path.resolve(process.env.UPLOAD_DIR || 'uploads');
+const uploadDir = path.resolve(process.env.UPLOAD_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || 'uploads');
 
-// Ensure upload directories exist
-['media', 'avatars', 'documents'].forEach((sub) => {
+// Ensure upload directories exist on volume / disk
+['media', 'avatars', 'documents', 'branding', 'logos', 'covers', 'general'].forEach((sub) => {
   const dir = path.join(uploadDir, sub);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
@@ -14,7 +14,9 @@ const uploadDir = path.resolve(process.env.UPLOAD_DIR || 'uploads');
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
     const sub = req.uploadCategory || 'media';
-    cb(null, path.join(uploadDir, sub));
+    const target = path.join(uploadDir, sub);
+    if (!fs.existsSync(target)) fs.mkdirSync(target, { recursive: true });
+    cb(null, target);
   },
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -26,6 +28,9 @@ const ALLOWED_TYPES = {
   media: /\.(mp3|mp4|wav|m4a|webm|ogg|pdf|doc|docx|jpg|jpeg|png|gif|webp)$/i,
   avatars: /\.(jpg|jpeg|png|gif|webp)$/i,
   documents: /\.(pdf|doc|docx|xls|xlsx|csv|txt)$/i,
+  branding: /\.(jpg|jpeg|png|gif|webp|svg|ico)$/i,
+  logos: /\.(jpg|jpeg|png|gif|webp|svg|ico)$/i,
+  covers: /\.(jpg|jpeg|png|gif|webp)$/i,
 };
 
 const fileFilter = (req, file, cb) => {

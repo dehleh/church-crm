@@ -8,6 +8,21 @@ const normalizedApiUrl = rawApiUrl
 
 export const API_BASE = normalizedApiUrl ? `${normalizedApiUrl}/api` : '/api';
 
+/**
+ * Resolves static asset URLs (e.g. /uploads/branding/...) against the backend host or CDN
+ */
+export const getAssetUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
+  const base = normalizedApiUrl || '';
+  if (url.startsWith('/')) {
+    return `${base}${url}`;
+  }
+  return `${base}/${url}`;
+};
+
 const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },

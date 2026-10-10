@@ -10,6 +10,7 @@ router.get('/', authorize('admin', 'pastor', 'director', 'hod'), c.getDepartment
 router.post('/', authorize('admin', 'pastor', 'director'), [
   body('name').notEmpty().trim().escape(),
 ], handleValidationErrors, c.createDepartment);
+router.delete('/:id', authorize('admin', 'head_pastor', 'pastor', 'director'), c.deleteDepartment);
 router.get('/:id/members', authorize('admin', 'pastor', 'director', 'hod'), c.getDepartmentMembers);
 router.post('/:id/members', authorize('head_pastor', 'pastor', 'director', 'hod'), [
   body('memberId').notEmpty().isUUID(),

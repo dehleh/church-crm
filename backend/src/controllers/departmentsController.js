@@ -69,18 +69,33 @@ const addMemberToDepartment = async (req, res) => {
   }
 };
 
-const removeMemberFromDepartment = async (req, res) => {
-  const { id: departmentId, memberId } = req.params;
+const deleteDepartment = async (req, res) => {
+  const { id } = req.params;
   try {
+    const { rows } = await query(
+      `UPDATE departments SET is_active = false, updated_at = NOW()
+       WHERE id = $1 AND church_id = $2 RETURNING *`,
+      [id, req.churchId]
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Department / Unit not found' });
+
     await query(
       `UPDATE member_departments SET is_active = false
-       WHERE department_id = $1 AND member_id = $2 AND church_id = $3`,
-      [departmentId, memberId, req.churchId]
+       WHERE department_id = $1 AND church_id = $2`,
+      [id, req.churchId]
     );
-    return res.json({ success: true, message: 'Member removed from department' });
+
+    return res.json({ success: true, message: 'Department / Unit deleted successfully' });
   } catch (err) {
-    return res.status(500).json({ success: false, message: 'Server error' });
+    return res.status(500).json({ success: false, message: 'Server error deleting department' });
   }
 };
 
-module.exports = { getDepartments, createDepartment, getDepartmentMembers, addMemberToDepartment, removeMemberFromDepartment };
+module.exports = {
+  getDepartments,
+  createDepartment,
+  deleteDepartment,
+  getDepartmentMembers,
+  addMemberToDepartment,
+  removeMemberFromDepartment,
+};

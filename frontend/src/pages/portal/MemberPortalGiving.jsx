@@ -23,10 +23,13 @@ export default function MemberPortalGiving() {
   const [selectedEvent, setSelectedEvent] = useState('');
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [amount, setAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('paystack');
+  const [currency, setCurrency] = useState('NGN');
+  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [onlineGateway, setOnlineGateway] = useState('auto');
+  const [selectedBankCurrency, setSelectedBankCurrency] = useState('ALL');
   const [transferRef, setTransferRef] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [copiedAccount, setCopiedAccount] = useState(false);
+  const [copiedAccount, setCopiedAccount] = useState('');
   const [generatingVA, setGeneratingVA] = useState(false);
 
   const fetchGivingData = () => {
@@ -37,7 +40,9 @@ export default function MemberPortalGiving() {
     ])
       .then(([givRes, optRes]) => {
         setData(givRes.data.data || { items: [], totals: { total: 0, ytd: 0 } });
-        setGivingOptions(optRes.data.data);
+        const opts = optRes.data.data;
+        setGivingOptions(opts);
+        if (opts?.churchCurrency) setCurrency(opts.churchCurrency);
       })
       .catch(() => toast.error('Failed to load giving history'))
       .finally(() => setLoading(false));
@@ -47,11 +52,11 @@ export default function MemberPortalGiving() {
     fetchGivingData();
   }, []);
 
-  const handleCopyAccount = (accNo) => {
+  const handleCopyAccount = (accNo, cur) => {
     navigator.clipboard.writeText(accNo);
-    setCopiedAccount(true);
-    toast.success('Account number copied to clipboard');
-    setTimeout(() => setCopiedAccount(false), 2500);
+    setCopiedAccount(accNo);
+    toast.success(`Account number ${cur ? `(${cur}) ` : ''}copied to clipboard`);
+    setTimeout(() => setCopiedAccount(''), 2500);
   };
 
   const handleGenerateMyVirtualAccount = async () => {
@@ -79,11 +84,13 @@ export default function MemberPortalGiving() {
     try {
       const payload = {
         amount: numAmount,
+        currency,
         purpose: givingType,
         categoryId: selectedCategory || undefined,
         campaignId: selectedCampaign || undefined,
         eventId: selectedEvent || undefined,
         paymentMethod: paymentMethod === 'transfer' ? 'transfer' : 'card',
+        gateway: paymentMethod === 'transfer' ? undefined : (onlineGateway === 'auto' ? (currency !== 'NGN' ? 'flutterwave' : 'paystack') : onlineGateway),
         reference: paymentMethod === 'transfer' && transferRef ? transferRef : undefined,
         notes: givingType === 'Project' ? 'Church Project Contribution' : givingType === 'Event' ? 'Event / Program Support' : undefined,
       };
@@ -206,6 +213,102 @@ export default function MemberPortalGiving() {
           </div>
         )}
       </div>
+
+      {/* Church Multi-Currency Bank Accounts Directory */}
+      {givingOptions?.bankAccounts?.length > 0 && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+                <Landmark size={18} />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-sm sm:text-base">Church Bank Transfer Details</h3>
+                <p className="text-xs text-gray-500">Official church accounts for direct transfers in multiple currencies</p>
+              </div>
+            </div>
+
+            {/* Currency switcher tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              <button
+                type="button"
+                onClick={() => setSelectedBankCurrency('ALL')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold shrink-0 transition-colors ${
+                  selectedBankCurrency === 'ALL'
+                    ? 'bg-brand-600 text-white shadow-xs'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                All Currencies
+              </button>
+              {Array.from(new Set(givingOptions.bankAccounts.map(b => b.currency || 'NGN'))).map(cur => (
+                <button
+                  key={cur}
+                  type="button"
+                  onClick={() => setSelectedBankCurrency(cur)}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold shrink-0 transition-colors ${
+                    selectedBankCurrency === cur
+                      ? 'bg-brand-600 text-white shadow-xs'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {cur}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {givingOptions.bankAccounts
+              .filter(b => selectedBankCurrency === 'ALL' || (b.currency || 'NGN') === selectedBankCurrency)
+              .map((b, idx) => (
+                <div key={b.id || idx} className="p-3.5 rounded-xl border border-gray-100 bg-slate-50/70 hover:bg-slate-50 transition flex flex-col justify-between shadow-2xs">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 border border-brand-200/60">
+                        {b.currency || 'NGN'}
+                      </span>
+                      {b.isDefault && (
+                        <span className="text-[9px] uppercase font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60">
+                          Primary
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-bold text-gray-900 text-sm truncate">{b.bank_name || b.bankName}</div>
+                    <div className="text-xs text-gray-500 truncate mt-0.5">{b.account_name || b.accountName}</div>
+
+                    <div className="mt-2.5 flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-gray-200/80">
+                      <span className="font-mono font-bold text-gray-900 text-xs sm:text-sm tracking-wide">
+                        {b.account_number || b.accountNumber}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAccount(b.account_number || b.accountNumber, b.currency)}
+                        className="p-1 text-gray-400 hover:text-brand-600 rounded transition-colors"
+                        title="Copy Account Number"
+                      >
+                        {copiedAccount === (b.account_number || b.accountNumber) ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                      </button>
+                    </div>
+
+                    {(b.sort_code || b.sortCode || b.swift_code || b.swiftCode) && (
+                      <div className="mt-2 pt-2 border-t border-gray-200/50 text-[10px] text-gray-500 font-mono space-y-0.5">
+                        {(b.sort_code || b.sortCode) && <div>Sort/Routing: <span className="text-gray-700 font-bold">{b.sort_code || b.sortCode}</span></div>}
+                        {(b.swift_code || b.swiftCode) && <div>SWIFT/BIC: <span className="text-gray-700 font-bold">{b.swift_code || b.swiftCode}</span></div>}
+                      </div>
+                    )}
+
+                    {b.instructions && (
+                      <p className="mt-1.5 text-[10px] text-gray-400 italic line-clamp-1">
+                        {b.instructions}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Metrics */}
 
@@ -417,36 +520,60 @@ export default function MemberPortalGiving() {
                 </div>
               )}
 
-              {/* Amount input */}
+              {/* Amount & Currency input */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Amount (NGN)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-gray-700">Amount & Currency</label>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-gray-400">Currency:</span>
+                    <select
+                      value={currency}
+                      onChange={e => setCurrency(e.target.value)}
+                      className="text-xs font-bold bg-gray-50 border border-gray-200 rounded-lg px-2 py-0.5 text-gray-800 outline-none focus:border-brand-500"
+                    >
+                      <option value="NGN">NGN (₦)</option>
+                      <option value="USD">USD ($)</option>
+                      <option value="GBP">GBP (£)</option>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="CAD">CAD (CA$)</option>
+                      <option value="KES">KES (KSh)</option>
+                      <option value="GHS">GHS (GH₵)</option>
+                      <option value="ZAR">ZAR (R)</option>
+                      <option value="AUD">AUD (AU$)</option>
+                    </select>
+                  </div>
+                </div>
                 <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">₦</span>
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">
+                    {{ NGN: '₦', USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', KES: 'KSh', GHS: 'GH₵', ZAR: 'R', AUD: 'AU$' }[currency] || currency}
+                  </span>
                   <input
                     type="number"
-                    min="100"
-                    step="100"
+                    min="1"
+                    step="any"
                     required
                     placeholder="Enter amount (e.g. 5000)"
                     value={amount}
                     onChange={e => setAmount(e.target.value)}
-                    className="w-full pl-8 pr-4 py-2.5 border border-gray-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-100 font-bold text-lg text-gray-900 outline-none"
+                    className="w-full pl-12 pr-4 py-2.5 border border-gray-200 rounded-xl focus:border-brand-500 focus:ring-2 focus:ring-brand-100 font-bold text-lg text-gray-900 outline-none"
                   />
                 </div>
 
-                {/* Preset Amount Chips */}
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {PRESET_AMOUNTS.map(p => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setAmount(String(p))}
-                      className="px-2.5 py-1 text-xs rounded-lg border border-gray-200 hover:border-brand-300 hover:bg-brand-50 text-gray-700 font-medium transition-colors"
-                    >
-                      +{p.toLocaleString()}
-                    </button>
-                  ))}
-                </div>
+                {/* Preset Amount Chips (for NGN) */}
+                {currency === 'NGN' && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {PRESET_AMOUNTS.map(p => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setAmount(String(p))}
+                        className="px-2.5 py-1 text-xs rounded-lg border border-gray-200 hover:border-brand-300 hover:bg-brand-50 text-gray-700 font-medium transition-colors"
+                      >
+                        +{p.toLocaleString()}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Payment Method Selector */}
@@ -455,15 +582,15 @@ export default function MemberPortalGiving() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod('paystack')}
+                    onClick={() => setPaymentMethod('card')}
                     className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs font-semibold transition-all ${
-                      paymentMethod === 'paystack'
+                      paymentMethod === 'card'
                         ? 'border-brand-600 bg-brand-50 text-brand-700 shadow-xs'
                         : 'border-gray-200 text-gray-600 hover:border-gray-300'
                     }`}
                   >
                     <CreditCard size={18} />
-                    <span>Card / Online Pay</span>
+                    <span>Card / Instant Pay</span>
                   </button>
                   <button
                     type="button"
@@ -478,32 +605,86 @@ export default function MemberPortalGiving() {
                     <span>Bank Transfer</span>
                   </button>
                 </div>
+
+                {/* Gateway Routing Details for Online Pay */}
+                {paymentMethod === 'card' && (
+                  <div className="mt-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-gray-600 flex items-center justify-between">
+                    <div>
+                      {currency !== 'NGN' ? (
+                        <span>
+                          <strong className="text-gray-800">Flutterwave:</strong> Supports {currency} and international card payments.
+                        </span>
+                      ) : (
+                        <span>
+                          <strong className="text-gray-800">Secure Gateway:</strong> Paystack & Flutterwave card/bank payment.
+                        </span>
+                      )}
+                    </div>
+                    {(givingOptions?.hasPaystack && givingOptions?.hasFlutterwave) && (
+                      <select
+                        value={onlineGateway}
+                        onChange={e => setOnlineGateway(e.target.value)}
+                        className="text-[11px] font-semibold bg-white border border-gray-200 rounded px-2 py-0.5 text-gray-700 outline-none"
+                      >
+                        <option value="auto">Auto-Select</option>
+                        <option value="paystack">Paystack</option>
+                        <option value="flutterwave">Flutterwave</option>
+                      </select>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Bank Details display if Transfer chosen */}
               {paymentMethod === 'transfer' && (
                 <div className="bg-amber-50/60 border border-amber-200/70 rounded-2xl p-4 text-xs space-y-2">
-                  <div className="font-bold text-amber-900 flex items-center gap-1.5">
-                    <Landmark size={14} /> Church Bank Account Details
+                  <div className="flex items-center justify-between font-bold text-amber-900">
+                    <span className="flex items-center gap-1.5"><Landmark size={14} /> Church Bank Accounts</span>
+                    {givingOptions?.bankAccounts?.length > 1 && (
+                      <span className="text-[10px] text-amber-700 font-normal">
+                        Showing accounts for {currency}
+                      </span>
+                    )}
                   </div>
+
                   {givingOptions?.bankAccounts?.length > 0 ? (
-                    givingOptions.bankAccounts.map((b, idx) => (
-                      <div key={idx} className="bg-white p-2.5 rounded-xl border border-amber-200 flex items-center justify-between">
-                        <div>
-                          <div className="font-bold text-gray-800">{b.bank_name || b.bankName}</div>
-                          <div className="text-gray-500 font-mono tracking-wider">{b.account_number || b.accountNumber}</div>
-                          <div className="text-[10px] text-gray-400">{b.account_name || b.accountName}</div>
+                    givingOptions.bankAccounts
+                      .filter(b => (b.currency || 'NGN') === currency || givingOptions.bankAccounts.length === 1)
+                      .concat(
+                        givingOptions.bankAccounts.some(b => (b.currency || 'NGN') === currency)
+                          ? []
+                          : givingOptions.bankAccounts
+                      )
+                      .map((b, idx) => (
+                        <div key={idx} className="bg-white p-2.5 rounded-xl border border-amber-200 flex items-center justify-between shadow-2xs">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-gray-800">{b.bank_name || b.bankName}</span>
+                              <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-brand-50 text-brand-700">
+                                {b.currency || 'NGN'}
+                              </span>
+                            </div>
+                            <div className="text-gray-700 font-mono font-bold tracking-wider text-xs sm:text-sm mt-0.5">
+                              {b.account_number || b.accountNumber}
+                            </div>
+                            <div className="text-[10px] text-gray-400">{b.account_name || b.accountName}</div>
+                            {(b.sort_code || b.sortCode || b.swift_code || b.swiftCode) && (
+                              <div className="text-[10px] text-gray-500 font-mono mt-0.5">
+                                {b.sort_code || b.sortCode ? `Sort: ${b.sort_code || b.sortCode} ` : ''}
+                                {b.swift_code || b.swiftCode ? `SWIFT: ${b.swift_code || b.swiftCode}` : ''}
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyAccount(b.account_number || b.accountNumber, b.currency)}
+                            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors shrink-0"
+                            title="Copy account number"
+                          >
+                            {copiedAccount === (b.account_number || b.accountNumber) ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyAccount(b.account_number || b.accountNumber)}
-                          className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-                          title="Copy account number"
-                        >
-                          {copiedAccount ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
-                        </button>
-                      </div>
-                    ))
+                      ))
                   ) : (
                     <div className="text-gray-600">
                       Transfer directly to the church's designated account and paste your transfer session ID / reference below.
@@ -531,7 +712,7 @@ export default function MemberPortalGiving() {
                 className="w-full py-3 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all text-sm mt-4"
               >
                 {submitting ? <Loader2 size={18} className="animate-spin" /> : <HeartHandshake size={18} />}
-                <span>{submitting ? 'Recording Giving…' : `Give ${amount ? fmt(amount) : ''} for ${givingType}`}</span>
+                <span>{submitting ? 'Recording Giving…' : `Give ${amount ? `${{ NGN: '₦', USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', KES: 'KSh', GHS: 'GH₵', ZAR: 'R', AUD: 'AU$' }[currency] || currency}${amount}` : ''} for ${givingType}`}</span>
               </button>
             </form>
           </div>

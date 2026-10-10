@@ -1,5 +1,6 @@
 const { query } = require('../config/database');
 const bcrypt = require('bcryptjs');
+const fs = require('fs');
 const logger = require('../config/logger');
 const { sendEmail } = require('../services/emailService');
 const { sendSMS, sendWhatsApp } = require('../services/smsService');
@@ -298,4 +299,62 @@ const testMessaging = async (req, res) => {
   }
 };
 
-module.exports = { getChurchSettings, updateChurchSettings, changePassword, updateProfile, getChurchStats, getMessagingConfig, updateMessagingConfig, testMessaging };
+const uploadBrandingAsset = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No file uploaded' });
+  }
+
+  try {
+    const storageService = require('../services/storageService');
+    const fileBuffer = req.file.buffer || fs.readFileSync(req.file.path);
+    const uploaded = await storageService.uploadFile({
+      buffer: fileBuffer,
+      filename: req.file.originalname || req.file.filename,
+      mimetype: req.file.mimetype,
+      folder: 'branding',
+    });
+
+    const url = uploaded.url;
+    if (req.file.path && fs.existsSync(req.file.path)) {
+      const finalLocalPath = path.resolve(storageService.uploadDir, uploaded.key.replace(/^\/uploads\//, ''));
+      if (path.resolve(req.file.path) !== finalLocalPath) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+      }
+    }
+
+    const assetType = req.body?.assetType || req.query?.assetType;
+    if (assetType === 'logo') {
+      await query('UPDATE churches SET logo_url = $1, updated_at = NOW() WHERE id = $2', [url, req.churchId]);
+    } else if (assetType === 'banner') {
+      await query('UPDATE churches SET banner_url = $1, updated_at = NOW() WHERE id = $2', [url, req.churchId]);
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        url,
+        storage: uploaded.storage,
+        filename: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        assetType: assetType || 'general',
+      },
+      message: 'Asset uploaded and stored successfully',
+    });
+  } catch (err) {
+    logger.error('uploadBrandingAsset failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to upload asset' });
+  }
+};
+
+module.exports = {
+  getChurchSettings,
+  updateChurchSettings,
+  changePassword,
+  updateProfile,
+  getChurchStats,
+  getMessagingConfig,
+  updateMessagingConfig,
+  testMessaging,
+  uploadBrandingAsset,
+};

@@ -15,12 +15,20 @@ import {
   Mail,
   Phone,
   MessageSquare,
-  AlertCircle
+  AlertCircle,
+  Landmark,
+  Copy,
+  Check
 } from 'lucide-react';
 import { givingAPI } from '../api/services';
+import { getAssetUrl } from '../api/client';
 import toast from 'react-hot-toast';
 
 const PRESET_AMOUNTS = [2000, 5000, 10000, 25000, 50000, 100000];
+
+const CURRENCY_SYMBOLS = {
+  NGN: '₦', USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', KES: 'KSh', GHS: 'GH₵', ZAR: 'R', AUD: 'AU$'
+};
 
 export default function PublicGiving() {
   const { slug } = useParams();
@@ -34,12 +42,22 @@ export default function PublicGiving() {
   const [amount, setAmount] = useState('5000');
   const [customAmount, setCustomAmount] = useState('');
   const [currency, setCurrency] = useState('NGN');
+  const [gateway, setGateway] = useState('auto');
+  const [selectedBankCurrency, setSelectedBankCurrency] = useState('ALL');
+  const [copiedAccount, setCopiedAccount] = useState('');
   const [donorName, setDonorName] = useState('');
   const [donorEmail, setDonorEmail] = useState('');
   const [donorPhone, setDonorPhone] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const handleCopyAccount = (accNo, cur) => {
+    navigator.clipboard.writeText(accNo);
+    setCopiedAccount(accNo);
+    toast.success(`Copied ${cur ? `(${cur}) ` : ''}account number!`);
+    setTimeout(() => setCopiedAccount(''), 2500);
+  };
 
   // Verification state (if returned from payment gateway)
   const [verifying, setVerifying] = useState(Boolean(referenceParam));
@@ -127,6 +145,7 @@ export default function PublicGiving() {
         campaignId: selectedCampaign ? selectedCampaign.id : null,
         amount: finalAmount,
         currency,
+        gateway: gateway === 'auto' ? undefined : gateway,
         donorName: isAnonymous ? 'Anonymous' : donorName,
         donorEmail: isAnonymous ? 'anonymous@giving.churchos' : donorEmail,
         donorPhone,
@@ -251,7 +270,7 @@ export default function PublicGiving() {
         {/* Header */}
         <div className="text-center mb-8">
           {church?.logoUrl ? (
-            <img src={church.logoUrl} alt={church.name} className="w-16 h-16 rounded-2xl mx-auto mb-3 object-cover shadow-lg border border-slate-800" />
+            <img src={getAssetUrl(church.logoUrl)} alt={church.name} className="w-16 h-16 rounded-2xl mx-auto mb-3 object-contain shadow-lg border border-slate-800 bg-white/5 p-1" />
           ) : (
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-primary to-indigo-500 text-white flex items-center justify-center mx-auto mb-3 shadow-lg shadow-primary/20">
               <Heart size={28} />
@@ -377,51 +396,85 @@ export default function PublicGiving() {
                 <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
                   Select Donation Amount
                 </label>
-                <div className="flex items-center gap-1 text-xs text-slate-400">
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
                   <span>Currency:</span>
                   <select
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value)}
-                    className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-0.5 text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-primary"
                   >
-                    <option value="NGN">NGN (₦)</option>
-                    <option value="USD">USD ($)</option>
-                    <option value="GBP">GBP (£)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="GHS">GHS (₵)</option>
-                    <option value="KES">KES (KSh)</option>
+                    <option value="NGN">NGN (₦ - Naira)</option>
+                    <option value="USD">USD ($ - US Dollar)</option>
+                    <option value="GBP">GBP (£ - British Pound)</option>
+                    <option value="EUR">EUR (€ - Euro)</option>
+                    <option value="CAD">CAD (CA$ - Canadian Dollar)</option>
+                    <option value="KES">KES (KSh - Kenyan Shilling)</option>
+                    <option value="GHS">GHS (GH₵ - Ghanaian Cedi)</option>
+                    <option value="ZAR">ZAR (R - South African Rand)</option>
+                    <option value="AUD">AUD (AU$ - Australian Dollar)</option>
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                {PRESET_AMOUNTS.map((val) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => handleSelectPreset(val)}
-                    className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
-                      amount === String(val) && !customAmount
-                        ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30'
-                        : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700'
-                    }`}
-                  >
-                    {currency === 'NGN' ? '₦' : ''}{val.toLocaleString()}
-                  </button>
-                ))}
-              </div>
+              {currency === 'NGN' && (
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  {PRESET_AMOUNTS.map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => handleSelectPreset(val)}
+                      className={`py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                        amount === String(val) && !customAmount
+                          ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30'
+                          : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      ₦{val.toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">
-                  {currency}
+                  {CURRENCY_SYMBOLS[currency] || currency}
                 </span>
                 <input
                   type="text"
-                  placeholder="Or enter custom amount..."
-                  value={customAmount}
+                  placeholder="Enter amount..."
+                  value={amount}
                   onChange={handleCustomChange}
                   className="w-full pl-16 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                 />
+              </div>
+
+              {/* Payment Gateway Routing Info */}
+              <div className="mt-3 p-3 rounded-xl bg-slate-950/70 border border-slate-850 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="text-slate-400">
+                  {currency !== 'NGN' ? (
+                    <span className="flex items-center gap-1.5 text-amber-300">
+                      <Sparkles size={13} className="shrink-0" />
+                      <span>Processed via <strong>Flutterwave</strong> (Multi-Currency debit/credit cards)</span>
+                    </span>
+                  ) : (
+                    <span>Instant debit card, USSD, and bank transfer support</span>
+                  )}
+                </div>
+
+                {(church?.hasPaystack && church?.hasFlutterwave) && (
+                  <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                    <span className="text-[11px] text-slate-500">Gateway:</span>
+                    <select
+                      value={gateway}
+                      onChange={e => setGateway(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-[11px] text-slate-200 outline-none"
+                    >
+                      <option value="auto">Auto-Select</option>
+                      <option value="paystack">Paystack</option>
+                      <option value="flutterwave">Flutterwave</option>
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -536,21 +589,105 @@ export default function PublicGiving() {
             </div>
           </form>
 
-          {/* Direct Bank Transfer option if available */}
-          {church?.bankDetails && (
-            <div className="mt-6 pt-5 border-t border-slate-850">
-              <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                Or Give via Direct Bank Transfer
-              </h4>
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-1">
-                <p><strong>Bank:</strong> {church.bankDetails.bankName || 'Access Bank'}</p>
-                <p><strong>Account Name:</strong> {church.bankDetails.accountName || church.name}</p>
-                <p className="font-mono text-emerald-400 text-sm">
-                  <strong>Account Number:</strong> {church.bankDetails.accountNumber}
-                </p>
+          {/* Direct Bank Transfer Directory (Multi-Currency) */}
+          {(church?.bankAccounts?.length > 0 || church?.bankDetails?.accountNumber) && (() => {
+            let accounts = Array.isArray(church?.bankAccounts) && church.bankAccounts.length > 0
+              ? church.bankAccounts
+              : [{
+                  currency: church?.currency || 'NGN',
+                  bankName: church?.bankDetails?.bankName || 'Church Bank',
+                  accountName: church?.bankDetails?.accountName || church?.name,
+                  accountNumber: church?.bankDetails?.accountNumber,
+                }];
+            const availCurrencies = Array.from(new Set(accounts.map(a => a.currency || 'NGN')));
+            const displayedAccounts = selectedBankCurrency === 'ALL'
+              ? accounts
+              : accounts.filter(a => (a.currency || 'NGN') === selectedBankCurrency);
+
+            return (
+              <div className="mt-8 pt-6 border-t border-slate-800 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                    <Landmark size={14} className="text-primary" />
+                    Direct Bank Transfer Accounts
+                  </h4>
+
+                  {availCurrencies.length > 1 && (
+                    <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedBankCurrency('ALL')}
+                        className={`px-2.5 py-0.5 rounded-lg text-[11px] font-semibold transition-colors ${
+                          selectedBankCurrency === 'ALL'
+                            ? 'bg-primary text-white'
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        All
+                      </button>
+                      {availCurrencies.map(c => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setSelectedBankCurrency(c)}
+                          className={`px-2.5 py-0.5 rounded-lg text-[11px] font-semibold transition-colors ${
+                            selectedBankCurrency === c
+                              ? 'bg-primary text-white'
+                              : 'bg-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {displayedAccounts.map((acc, idx) => (
+                    <div key={acc.id || idx} className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/90 text-xs text-slate-300 space-y-1.5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <span className="font-bold text-white text-sm truncate">{acc.bankName || acc.bank_name}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30">
+                            {acc.currency || 'NGN'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 truncate">{acc.accountName || acc.account_name}</p>
+
+                        <div className="mt-2 p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                          <span className="font-mono text-emerald-400 font-bold text-sm tracking-wide">
+                            {acc.accountNumber || acc.account_number}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyAccount(acc.accountNumber || acc.account_number, acc.currency)}
+                            className="p-1 rounded text-slate-400 hover:text-white transition-colors"
+                            title="Copy Account Number"
+                          >
+                            {copiedAccount === (acc.accountNumber || acc.account_number) ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                          </button>
+                        </div>
+
+                        {(acc.sortCode || acc.sort_code || acc.swiftCode || acc.swift_code) && (
+                          <div className="mt-1.5 pt-1.5 border-t border-slate-900 text-[10px] text-slate-400 font-mono space-y-0.5">
+                            {(acc.sortCode || acc.sort_code) && <div>Sort / Routing: <strong className="text-slate-300">{acc.sortCode || acc.sort_code}</strong></div>}
+                            {(acc.swiftCode || acc.swift_code) && <div>SWIFT / BIC: <strong className="text-slate-300">{acc.swiftCode || acc.swift_code}</strong></div>}
+                          </div>
+                        )}
+
+                        {acc.instructions && (
+                          <p className="mt-1 text-[10px] text-slate-500 italic">
+                            Note: {acc.instructions}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
 

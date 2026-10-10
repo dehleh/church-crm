@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { PiggyBank, Plus, Loader2, TrendingUp } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { PiggyBank, Plus, Loader2, TrendingUp, ClipboardList } from 'lucide-react';
 import { budgetsAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
@@ -41,8 +42,13 @@ export default function Budgets() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-start justify-between mb-6">
-        <div><h1 className="page-title">Budgets</h1><p className="text-gray-500 text-sm mt-1">Plan and track financial allocations</p></div>
-        <button onClick={() => { setForm({ periodType: 'monthly' }); setModal(true); }} className="btn-primary"><Plus size={16} /> New Budget</button>
+        <div><h1 className="page-title">Budgets</h1><p className="text-gray-500 text-sm mt-1">Plan and track financial allocations and department requisitions</p></div>
+        <div className="flex items-center gap-2">
+          <Link to="/procurement" className="btn-secondary flex items-center gap-1.5 text-sm">
+            <ClipboardList size={16} /> Requisitions & Payouts
+          </Link>
+          <button onClick={() => { setForm({ periodType: 'monthly' }); setModal(true); }} className="btn-primary"><Plus size={16} /> New Budget</button>
+        </div>
       </div>
 
       {/* Summary */}
