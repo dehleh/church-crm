@@ -9,6 +9,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const fs = require('fs');
 const logger = require('./config/logger');
 
 // Optional Sentry init (only if DSN provided)
