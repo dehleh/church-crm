@@ -69,6 +69,24 @@ const addMemberToDepartment = async (req, res) => {
   }
 };
 
+const removeMemberFromDepartment = async (req, res) => {
+  const { id: departmentId, memberId } = req.params;
+  try {
+    const { rows } = await query(
+      `UPDATE member_departments SET is_active = false
+       WHERE department_id = $1 AND member_id = $2 AND church_id = $3
+       RETURNING *`,
+      [departmentId, memberId, req.churchId]
+    );
+    if (!rows[0]) {
+      return res.status(404).json({ success: false, message: 'Member is not assigned to this department' });
+    }
+    return res.json({ success: true, message: 'Member removed from department successfully' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Server error removing member from department' });
+  }
+};
+
 const deleteDepartment = async (req, res) => {
   const { id } = req.params;
   try {
