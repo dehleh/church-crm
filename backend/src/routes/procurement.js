@@ -18,7 +18,7 @@ router.post('/requisitions', authorize('admin', 'pastor', 'director', 'hod'), [
 ], handleValidationErrors, c.createRequisition);
 router.patch('/requisitions/:id', authorize('admin', 'pastor', 'director', 'finance', 'hod'), [
   param('id').isUUID(),
-  body('status').optional().isIn(['draft', 'submitted', 'approved', 'disputed', 'correction', 'rejected', 'disbursed']),
+  body('status').optional().isIn(['draft', 'submitted', 'approved', 'disputed', 'correction', 'rejected']),
 ], handleValidationErrors, c.updateRequisition);
 router.post('/requisitions/:id/disburse', authorize('admin', 'pastor', 'director', 'finance'), [
   param('id').isUUID(),

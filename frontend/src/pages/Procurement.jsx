@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { procurementAPI, departmentsAPI } from '../api/services';
 import { useAuth } from '../context/AuthContext';
+import { formatCurrency, getCurrencySymbol } from '../utils/currency';
 import CsvImportModal from '../components/ui/CsvImportModal';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
@@ -37,7 +38,6 @@ const PRIORITY_COLORS = {
   urgent: 'bg-red-100 text-red-700',
 };
 
-const currency = n => `₦${Number(n || 0).toLocaleString()}`;
 const fmtStatus = s => {
   if (s === 'correction') return 'Needs Correction';
   if (s === 'disbursed') return 'Disbursed / Paid';
@@ -46,6 +46,8 @@ const fmtStatus = s => {
 
 export default function Procurement() {
   const { user } = useAuth();
+  const currency = (n) => formatCurrency(n, user?.currency);
+  const currencySymbol = getCurrencySymbol(user?.currency);
   const [tab, setTab] = useState('requisitions');
   const [stats, setStats] = useState({});
   const [requisitions, setRequisitions] = useState([]);
@@ -917,7 +919,7 @@ export default function Procurement() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Disbursement Amount (₦) *</label>
+                <label className="label">Disbursement Amount ({currencySymbol.trim()}) *</label>
                 <input
                   type="number"
                   className="input font-bold"

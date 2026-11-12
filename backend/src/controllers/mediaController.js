@@ -111,16 +111,38 @@ const uploadMediaFile = async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'No file uploaded' });
   }
-  const fileUrl = `/uploads/media/${req.file.filename}`;
-  return res.json({
-    success: true,
-    data: {
-      fileUrl,
-      originalName: req.file.originalname,
-      size: req.file.size,
+  const fs = require('fs');
+  const path = require('path');
+  const storageService = require('../services/storageService');
+  try {
+    const fileBuffer = req.file.buffer || fs.readFileSync(req.file.path);
+    const uploaded = await storageService.uploadFile({
+      buffer: fileBuffer,
+      filename: req.file.originalname || req.file.filename,
       mimetype: req.file.mimetype,
-    },
-  });
+      folder: 'media',
+    });
+
+    if (req.file.path && fs.existsSync(req.file.path)) {
+      const finalLocalPath = path.resolve(storageService.uploadDir, uploaded.key.replace(/^\/uploads\//, ''));
+      if (path.resolve(req.file.path) !== finalLocalPath) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        fileUrl: uploaded.url,
+        storage: uploaded.storage,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Failed to store uploaded media file' });
+  }
 };
 
 module.exports = { getMediaItems, createMediaItem, uploadMediaFile, publishMediaItem, getMediaStats };

@@ -1,6 +1,7 @@
 const { query, getClient } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { createFirstTimerRecord } = require('../services/intakeService');
+const { resolveWriteBranchId, applyBranchFilter } = require('../utils/branchScope');
 
 const getFirstTimers = async (req, res) => {
   const { page = 1, limit = 20, search, followUpStatus, branchId } = req.query;
@@ -16,7 +17,11 @@ const getFirstTimers = async (req, res) => {
       params.push(`%${search}%`); idx++;
     }
     if (followUpStatus) { conditions.push(`ft.follow_up_status = $${idx++}`); params.push(followUpStatus); }
-    if (branchId) { conditions.push(`ft.branch_id = $${idx++}`); params.push(branchId); }
+    if (req.branchId) {
+      idx = applyBranchFilter(req, 'ft.branch_id', conditions, params, idx);
+    } else if (branchId) {
+      conditions.push(`ft.branch_id = $${idx++}`); params.push(branchId);
+    }
 
     const where = conditions.join(' AND ');
     const countRes = await query(`SELECT COUNT(*) FROM first_timers ft WHERE ${where}`, params);
@@ -52,7 +57,9 @@ const getFirstTimers = async (req, res) => {
 
 const createFirstTimer = async (req, res) => {
   try {
-    const record = await createFirstTimerRecord({ churchId: req.churchId, data: req.body });
+    const resolvedBranch = resolveWriteBranchId(req, req.body?.branchId);
+    const payload = resolvedBranch !== null ? { ...req.body, branchId: resolvedBranch } : req.body;
+    const record = await createFirstTimerRecord({ churchId: req.churchId, data: payload });
     return res.status(201).json({ success: true, data: record });
   } catch (err) {
     return res.status(err.status || 500).json({ success: false, message: err.status ? err.message : 'Server error' });
@@ -84,8 +91,10 @@ const convertToMember = async (req, res) => {
   try {
     await client.query('BEGIN');
     const { rows: ftRows } = await client.query(
-      'SELECT * FROM first_timers WHERE id = $1 AND church_id = $2 FOR UPDATE',
-      [id, req.churchId]
+      req.branchId
+        ? 'SELECT * FROM first_timers WHERE id = $1 AND church_id = $2 AND branch_id = $3 FOR UPDATE'
+        : 'SELECT * FROM first_timers WHERE id = $1 AND church_id = $2 FOR UPDATE',
+      req.branchId ? [id, req.churchId, req.branchId] : [id, req.churchId]
     );
     if (!ftRows[0]) {
       await client.query('ROLLBACK');
@@ -127,6 +136,12 @@ const convertToMember = async (req, res) => {
 
 const getFirstTimerStats = async (req, res) => {
   try {
+    const params = [req.churchId];
+    let branchCond = '';
+    if (req.branchId) {
+      params.push(req.branchId);
+      branchCond = ' AND branch_id = $2';
+    }
     const { rows } = await query(
       `SELECT
         COUNT(*) as total,
@@ -134,8 +149,8 @@ const getFirstTimerStats = async (req, res) => {
         COUNT(*) FILTER (WHERE follow_up_status = 'contacted') as contacted,
         COUNT(*) FILTER (WHERE follow_up_status = 'converted') as converted,
         COUNT(*) FILTER (WHERE visit_date >= NOW() - INTERVAL '30 days') as this_month
-       FROM first_timers WHERE church_id = $1`,
-      [req.churchId]
+       FROM first_timers WHERE church_id = $1${branchCond}`,
+      params
     );
     return res.json({ success: true, data: rows[0] });
   } catch (err) {
@@ -150,6 +165,14 @@ const updateFirstTimer = async (req, res) => {
     howDidYouHear, visitDate, serviceAttended, prayerRequest, branchId
   } = req.body;
   try {
+    const effectiveBranchId = req.branchId ? req.branchId : (branchId || null);
+    const params = [id, req.churchId, firstName, lastName, email, phone, address, gender,
+      dateOfBirth || null, howDidYouHear, visitDate, serviceAttended, prayerRequest, effectiveBranchId];
+    let branchWhere = '';
+    if (req.branchId) {
+      params.push(req.branchId);
+      branchWhere = ' AND branch_id = $15';
+    }
     const { rows } = await query(
       `UPDATE first_timers SET
         first_name = COALESCE($3, first_name),
@@ -164,9 +187,8 @@ const updateFirstTimer = async (req, res) => {
         service_attended = COALESCE($12, service_attended),
         prayer_request = COALESCE($13, prayer_request),
         branch_id = COALESCE($14, branch_id)
-       WHERE id = $1 AND church_id = $2 RETURNING *`,
-      [id, req.churchId, firstName, lastName, email, phone, address, gender,
-       dateOfBirth || null, howDidYouHear, visitDate, serviceAttended, prayerRequest, branchId || null]
+       WHERE id = $1 AND church_id = $2${branchWhere} RETURNING *`,
+      params
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'First timer not found' });
     return res.json({ success: true, data: rows[0] });

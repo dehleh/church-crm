@@ -1,29 +1,17 @@
-const { pool, query } = require('../config/database');
+const { query } = require('../config/database');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
 
+/**
+ * Ensures the system operations tenant exists and optionally bootstraps an
+ * initial Platform Super Admin ONLY when PLATFORM_ADMIN_EMAIL and
+ * PLATFORM_ADMIN_PASSWORD are explicitly configured via environment variables
+ * and the account does not already exist. Never overwrites existing passwords.
+ */
 async function ensureSuperAdmin() {
   try {
-    const adminEmail = (process.env.PLATFORM_ADMIN_EMAIL || 'superadmin@churchos.platform').toLowerCase().trim();
-    const adminPassword = process.env.PLATFORM_ADMIN_PASSWORD || 'PlatformAdmin2026!';
-    const hash = await bcrypt.hash(adminPassword, 12);
-
-    // 1. Promote and unlock any demo admin if found
-    try {
-      await query(
-        `UPDATE users 
-         SET is_super_admin = true,
-             is_active = true,
-             failed_login_attempts = 0,
-             locked_until = NULL
-         WHERE LOWER(email) = 'admin@tbclekki.ng'`
-      );
-    } catch {
-      // Non-fatal if table not initialized
-    }
-
-    // 2. Ensure the dedicated, permanent platform operations system tenant exists
+    // 1. Ensure the dedicated system tenant exists
     const systemChurchId = '00000000-0000-0000-0000-000000000001';
     try {
       await query(
@@ -33,7 +21,6 @@ async function ensureSuperAdmin() {
         [systemChurchId]
       );
     } catch {
-      // Fallback if is_system column is not yet migrated
       await query(
         `INSERT INTO churches (id, name, slug, subscription_plan, is_active)
          VALUES ($1, 'ChurchOS Platform Operations', 'platform-operations-system', 'enterprise', true)
@@ -42,32 +29,23 @@ async function ensureSuperAdmin() {
       );
     }
 
-    // 3. Check if the dedicated platform superadmin already exists
-    const { rows: existingUsers } = await query(
-      'SELECT id, church_id, email, is_super_admin FROM users WHERE LOWER(email) = $1',
-      [adminEmail]
-    );
-
-    if (existingUsers && existingUsers.length > 0) {
-      const existingUser = existingUsers[0];
-      await query(
-        `UPDATE users
-         SET password_hash = $1,
-             church_id = $2,
-             is_super_admin = true,
-             is_active = true,
-             role = 'super_admin',
-             failed_login_attempts = 0,
-             locked_until = NULL
-         WHERE id = $3`,
-        [hash, systemChurchId, existingUser.id]
-      );
-      logger.info(`✅ Platform Super Admin account verified & updated: ${adminEmail}`);
-      console.log(`✅ Platform Super Admin account verified & updated: ${adminEmail}`);
+    const adminEmail = (process.env.PLATFORM_ADMIN_EMAIL || '').toLowerCase().trim();
+    const adminPassword = process.env.PLATFORM_ADMIN_PASSWORD || '';
+    if (!adminEmail || !adminPassword) {
       return;
     }
 
-    // 4. Create the dedicated superadmin account safely, bound to the system church
+    // 2. Never overwrite an existing user's credentials during startup
+    const { rows: existingUsers } = await query(
+      'SELECT id FROM users WHERE LOWER(email) = $1',
+      [adminEmail]
+    );
+    if (existingUsers && existingUsers.length > 0) {
+      return;
+    }
+
+    // 3. Create the dedicated superadmin account bound to the system church
+    const hash = await bcrypt.hash(adminPassword, 12);
     const userId = uuidv4();
     await query(
       `INSERT INTO users (
@@ -77,11 +55,9 @@ async function ensureSuperAdmin() {
       [userId, systemChurchId, adminEmail, hash]
     );
 
-    logger.info(`✅ Default Platform Super Admin initialized successfully: ${adminEmail}`);
-    console.log(`✅ Default Platform Super Admin initialized successfully: ${adminEmail}`);
+    logger.info(`Platform Super Admin initialized: ${adminEmail}`);
   } catch (err) {
-    logger.error('❌ Failed to ensure Platform Super Admin:', { error: err.message, stack: err.stack });
-    console.error('❌ Failed to ensure Platform Super Admin:', err.message);
+    logger.error('Failed to ensure Platform Super Admin:', { error: err.message });
   }
 }
 

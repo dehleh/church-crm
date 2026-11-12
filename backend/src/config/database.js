@@ -26,7 +26,6 @@ const pool = new Pool({
 
 pool.on('error', (err) => {
   logger.error('Unexpected error on idle client', { error: err.message });
-  process.exit(-1);
 });
 
 const query = async (text, params) => {

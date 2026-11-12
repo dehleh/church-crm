@@ -12,9 +12,9 @@ import {
 import { dashboardAPI } from '../api/services';
 import { format, parseISO } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
+import { formatCurrency, getCurrencySymbol } from '../utils/currency';
 
 const fmt = (n) => Number(n || 0).toLocaleString();
-const currency = (n) => `₦${Number(n || 0).toLocaleString()}`;
 
 function StatCard({ icon: Icon, label, value, sub, subUp, color = 'brand', to }) {
   const colors = {
@@ -42,14 +42,14 @@ function StatCard({ icon: Icon, label, value, sub, subUp, color = 'brand', to })
   return to ? <Link to={to} className="block">{card}</Link> : card;
 }
 
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload, label, currencyCode }) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-lg px-4 py-3 text-sm">
       <p className="font-semibold text-gray-700 mb-1">{label}</p>
       {payload.map(p => (
         <p key={p.name} style={{ color: p.color }}>
-          {p.name}: {p.name.includes('income') || p.name.includes('expense') ? `₦${Number(p.value).toLocaleString()}` : p.value}
+          {p.name}: {p.name.includes('income') || p.name.includes('expense') ? formatCurrency(p.value, currencyCode) : p.value}
         </p>
       ))}
     </div>
@@ -58,6 +58,8 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const currency = (n) => formatCurrency(n, user?.currency);
+  const currencySymbol = getCurrencySymbol(user?.currency).trim();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [guideDismissed, setGuideDismissed] = useState(() => {
@@ -310,7 +312,7 @@ export default function Dashboard() {
           sub={`Avg. ${Math.round(data?.events?.avg_attendance || 0)} attendance`} subUp />
         <StatCard icon={DollarSign} label="Monthly Income" color="green" to="/finance"
           value={currency(data?.finance?.month_income)}
-          sub={`₦${Number(data?.finance?.month_expense || 0).toLocaleString()} expenses`} />
+          sub={`${currency(data?.finance?.month_expense)} expenses`} />
       </div>
 
       {/* Charts row */}
@@ -341,8 +343,8 @@ export default function Dashboard() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `₦${(v/1000).toFixed(0)}k`} />
-                <Tooltip content={<CustomTooltip />} />
+                <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `${currencySymbol}${(v/1000).toFixed(0)}k`} />
+                <Tooltip content={<CustomTooltip currencyCode={user?.currency} />} />
                 <Area type="monotone" dataKey="income" stroke="#3b6ef6" strokeWidth={2} fill="url(#income)" name="income" />
                 <Area type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={2} fill="url(#expense)" name="expense" />
               </AreaChart>

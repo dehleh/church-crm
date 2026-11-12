@@ -492,15 +492,17 @@ const impersonateChurch = async (req, res) => {
 
     const jwt = require('jsonwebtoken');
     const accessToken = jwt.sign(
-      { userId: req.user.id, churchId: targetChurch.id, role: 'head_pastor' },
+      { userId: req.user.id, churchId: targetChurch.id, role: 'head_pastor', isImpersonating: true },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '2h' }
     );
     const refreshToken = jwt.sign(
-      { userId: req.user.id, churchId: targetChurch.id },
+      { userId: req.user.id, churchId: targetChurch.id, isImpersonating: true },
       process.env.JWT_REFRESH_SECRET,
       { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
     );
+
+    await query('UPDATE users SET refresh_token = $1 WHERE id = $2', [refreshToken, req.user.id]);
 
     await audit(req.user.id, 'impersonate_church', targetChurch.id, {
       churchName: targetChurch.name,

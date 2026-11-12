@@ -1,10 +1,17 @@
 const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
+const { resolveWriteBranchId, applyBranchFilter } = require('../utils/branchScope');
 
 // GET /api/assets/stats
 const getAssetStats = async (req, res) => {
   try {
+    const params = [req.churchId];
+    let branchCond = '';
+    if (req.branchId) {
+      params.push(req.branchId);
+      branchCond = ' AND branch_id = $2';
+    }
     const { rows } = await query(
       `SELECT
          COUNT(*) as total,
@@ -12,8 +19,8 @@ const getAssetStats = async (req, res) => {
          COUNT(*) FILTER (WHERE condition = 'needs_repair') as needs_repair,
          COUNT(DISTINCT category) as categories,
          COALESCE(SUM(purchase_price * quantity), 0) as total_value
-       FROM assets WHERE church_id = $1`,
-      [req.churchId]
+       FROM assets WHERE church_id = $1${branchCond}`,
+      params
     );
     return res.json({ success: true, data: rows[0] });
   } catch (err) {
@@ -39,7 +46,11 @@ const getAssets = async (req, res) => {
     if (category) { conditions.push(`a.category = $${idx++}`); params.push(category); }
     if (status) { conditions.push(`a.status = $${idx++}`); params.push(status); }
     if (condition) { conditions.push(`a.condition = $${idx++}`); params.push(condition); }
-    if (branchId) { conditions.push(`a.branch_id = $${idx++}`); params.push(branchId); }
+    if (req.branchId) {
+      idx = applyBranchFilter(req, 'a.branch_id', conditions, params, idx);
+    } else if (branchId) {
+      conditions.push(`a.branch_id = $${idx++}`); params.push(branchId);
+    }
 
     const where = conditions.join(' AND ');
     const countRes = await query(`SELECT COUNT(*) FROM assets a WHERE ${where}`, params);
@@ -108,13 +119,14 @@ const createAsset = async (req, res) => {
     purchaseDate, purchasePrice, currentValue, location, custodianId, branchId, notes
   } = req.body;
   try {
+    const finalBranchId = resolveWriteBranchId(req, branchId);
     const { rows } = await query(
       `INSERT INTO assets (id, church_id, branch_id, name, description, category, asset_tag,
         quantity, condition, status, purchase_date, purchase_price, current_value,
         location, custodian_id, notes, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
       [
-        uuidv4(), req.churchId, branchId || null, name, description || null,
+        uuidv4(), req.churchId, finalBranchId, name, description || null,
         category || 'general', assetTag || null, quantity || 1,
         condition || 'good', status || 'active',
         purchaseDate || null, purchasePrice || null, currentValue || null,

@@ -28,8 +28,8 @@ const ALLOWED_TYPES = {
   media: /\.(mp3|mp4|wav|m4a|webm|ogg|pdf|doc|docx|jpg|jpeg|png|gif|webp)$/i,
   avatars: /\.(jpg|jpeg|png|gif|webp)$/i,
   documents: /\.(pdf|doc|docx|xls|xlsx|csv|txt)$/i,
-  branding: /\.(jpg|jpeg|png|gif|webp|svg|ico)$/i,
-  logos: /\.(jpg|jpeg|png|gif|webp|svg|ico)$/i,
+  branding: /\.(jpg|jpeg|png|gif|webp|ico)$/i,
+  logos: /\.(jpg|jpeg|png|gif|webp|ico)$/i,
   covers: /\.(jpg|jpeg|png|gif|webp)$/i,
 };
 

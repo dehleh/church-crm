@@ -10,7 +10,7 @@ A full-featured, multi-tenant church management platform built with React, Node.
 |----------|-----------|
 | Frontend | React 18, Vite, Tailwind CSS, Recharts, React Router v6 |
 | Backend  | Node.js, Express, JWT Auth |
-| Database | PostgreSQL (18 tables, multi-tenant) |
+| Database | PostgreSQL (27 SQL migrations, multi-tenant) |
 
 ---
 

@@ -42,8 +42,8 @@ const getPublicGivingInfo = async (req, res) => {
 
     const paystackPublicKey = paySettings.paystackPublicKey || process.env.PAYSTACK_PUBLIC_KEY || null;
     const flutterwavePublicKey = paySettings.flutterwavePublicKey || process.env.FLUTTERWAVE_PUBLIC_KEY || null;
-    const hasPaystack = Boolean(paystackPublicKey || paySettings.paystackSecretKey || process.env.PAYSTACK_SECRET_KEY || true);
-    const hasFlutterwave = Boolean(flutterwavePublicKey || paySettings.flutterwaveSecretKey || process.env.FLUTTERWAVE_SECRET_KEY || true);
+    const hasPaystack = Boolean(paystackPublicKey || paySettings.paystackSecretKey || process.env.PAYSTACK_SECRET_KEY);
+    const hasFlutterwave = Boolean(flutterwavePublicKey || paySettings.flutterwaveSecretKey || process.env.FLUTTERWAVE_SECRET_KEY);
 
     // Fetch active public giving campaigns
     let campaigns = [];
@@ -332,7 +332,9 @@ const verifyGiving = async (req, res) => {
       verifyResult = await paymentService.verifyPaystack(reference, tx.payment_settings);
     }
 
-    if (verifyResult.success || req.query.mock === 'true') {
+    const amountVerified = verifyResult.mock || Number(verifyResult.amount || 0) >= Number(tx.amount || 0);
+    const currencyVerified = verifyResult.mock || !verifyResult.currency || verifyResult.currency.toUpperCase() === (tx.currency || 'NGN').toUpperCase();
+    if (verifyResult.success && amountVerified && currencyVerified) {
       const receiptNumber = `REC-${Date.now().toString().slice(-8)}`;
 
       // Run accounting sync in a transaction
@@ -535,67 +537,70 @@ const handleGivingWebhook = async (req, res) => {
   const rawBody = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
 
   // 1. Flutterwave Webhook Event
-  if (flwSignature || req.body?.['event.type'] === 'CARD_TRANSACTION' || req.body?.event === 'charge.completed') {
+  if (flwSignature || req.body?.['event.type'] === 'CARD_TRANSACTION' || (req.body?.event === 'charge.completed' && !paystackSignature)) {
     const flwEvent = req.body || {};
     const flwData = flwEvent.data || flwEvent;
     const txRef = flwData.tx_ref || flwData.txRef;
 
-    if (flwData.status === 'successful' && txRef) {
-      try {
+    try {
+      let tx = null;
+      if (txRef) {
         const { rows: txRows } = await query(
           `SELECT t.*, c.name as church_name, c.payment_settings FROM online_giving_transactions t JOIN churches c ON c.id = t.church_id WHERE t.reference = $1`,
           [txRef]
         );
-        if (txRows[0] && txRows[0].status !== 'successful') {
-          const tx = txRows[0];
-          const receiptNumber = `REC-${Date.now().toString().slice(-8)}`;
-          await query(
-            `UPDATE online_giving_transactions SET status = 'successful', paid_at = NOW(), receipt_number = $1, gateway_reference = $2, updated_at = NOW() WHERE id = $3`,
-            [receiptNumber, String(flwData.id || flwData.flw_ref || txRef), tx.id]
-          );
-
-          try {
-            await query(
-              `INSERT INTO transactions (
-                id, church_id, branch_id, campaign_id, category_id, member_id,
-                transaction_type, amount, currency, description, payment_method,
-                reference, transaction_date, status
-              ) VALUES ($1, $2, $3, $4, $5, $6, 'income', $7, $8, $9, 'card', $10, CURRENT_DATE, 'completed')
-              ON CONFLICT (reference) DO NOTHING`,
-              [
-                uuidv4(), tx.church_id, tx.branch_id, tx.campaign_id || null, tx.category_id, tx.member_id || null,
-                tx.amount, tx.currency, `Online Giving (${tx.category_name}) - ${tx.donor_name}`, txRef
-              ]
-            );
-          } catch {}
-        }
-        return res.status(200).send('Flutterwave webhook processed');
-      } catch (err) {
-        logger.error('Flutterwave webhook processing error:', { error: err.message, txRef });
-        return res.status(500).send('Error');
+        tx = txRows[0] || null;
       }
+
+      const isFlwValid = paymentService.verifyFlutterwaveSignature(flwSignature, tx?.payment_settings || {});
+      if (!isFlwValid) {
+        logger.warn('Invalid or missing Flutterwave webhook signature for giving', { txRef });
+        return res.status(400).send('Invalid signature');
+      }
+
+      if (flwData.status === 'successful' && txRef && tx && tx.status !== 'successful') {
+        if (Number(flwData.amount || 0) < Number(tx.amount || 0)) {
+          logger.warn('Flutterwave webhook amount mismatch', { txRef, paid: flwData.amount, expected: tx.amount });
+          return res.status(400).send('Amount mismatch');
+        }
+        const receiptNumber = `REC-${Date.now().toString().slice(-8)}`;
+        await query(
+          `UPDATE online_giving_transactions SET status = 'successful', paid_at = NOW(), receipt_number = $1, gateway_reference = $2, updated_at = NOW() WHERE id = $3`,
+          [receiptNumber, String(flwData.id || flwData.flw_ref || txRef), tx.id]
+        );
+
+        try {
+          await query(
+            `INSERT INTO transactions (
+              id, church_id, branch_id, campaign_id, category_id, member_id,
+              transaction_type, amount, currency, description, payment_method,
+              reference, transaction_date, status
+            ) VALUES ($1, $2, $3, $4, $5, $6, 'income', $7, $8, $9, 'card', $10, CURRENT_DATE, 'completed')
+            ON CONFLICT (reference) DO NOTHING`,
+            [
+              uuidv4(), tx.church_id, tx.branch_id, tx.campaign_id || null, tx.category_id, tx.member_id || null,
+              tx.amount, tx.currency, `Online Giving (${tx.category_name}) - ${tx.donor_name}`, txRef
+            ]
+          );
+        } catch {}
+        return res.status(200).send('Flutterwave webhook processed');
+      }
+      return res.status(200).send('Event ignored');
+    } catch (err) {
+      logger.error('Flutterwave webhook processing error:', { error: err.message, txRef });
+      return res.status(500).send('Error');
     }
-    return res.status(200).send('Event ignored');
   }
 
   // 2. Paystack Webhook Event
-  if (process.env.PAYSTACK_SECRET_KEY && paystackSignature) {
-    const isValid = paymentService.verifyPaystackSignature(rawBody, paystackSignature);
-    if (!isValid && process.env.NODE_ENV === 'production') {
-      logger.warn('Invalid Paystack webhook signature for giving');
-      return res.status(400).send('Invalid signature');
-    }
+  if (!paystackSignature) {
+    logger.warn('Missing Paystack webhook signature for giving');
+    return res.status(400).send('No signature');
   }
 
   const event = req.body;
-  if (!event || event.event !== 'charge.success') {
-    return res.status(200).send('Event ignored');
-  }
-
-  const data = event.data || {};
+  const data = event?.data || {};
   const reference = data.reference;
-  const amount = Number(data.amount) / 100;
-  const currency = data.currency || 'NGN';
 
   try {
     const dvaAccountNumber = data.dedicated_account?.account_number;
@@ -623,6 +628,35 @@ const handleGivingWebhook = async (req, res) => {
       );
       account = rows[0];
     }
+
+    let givingTx = null;
+    if (!account && reference) {
+      const { rows } = await query(
+        `SELECT t.*, c.payment_settings
+         FROM online_giving_transactions t
+         JOIN churches c ON c.id = t.church_id
+         WHERE t.reference = $1`,
+        [reference]
+      );
+      givingTx = rows[0] || null;
+    }
+
+    const churchPaystackKey = account?.payment_settings?.paystackSecretKey || givingTx?.payment_settings?.paystackSecretKey;
+    const isPaystackValid =
+      paymentService.verifyPaystackSignature(rawBody, paystackSignature) ||
+      (churchPaystackKey ? paymentService.verifyPaystackSignature(rawBody, paystackSignature, churchPaystackKey) : false);
+
+    if (!isPaystackValid) {
+      logger.warn('Invalid Paystack webhook signature for giving', { reference });
+      return res.status(400).send('Invalid signature');
+    }
+
+    if (!event || event.event !== 'charge.success') {
+      return res.status(200).send('Event ignored');
+    }
+
+    const amount = Number(data.amount) / 100;
+    const currency = data.currency || 'NGN';
 
     if (account) {
       const client = await getClient();
@@ -653,17 +687,16 @@ const handleGivingWebhook = async (req, res) => {
       return res.status(200).send('DVA transfer recorded');
     }
 
-    if (reference) {
-      const { rows } = await query(
-        `SELECT * FROM online_giving_transactions WHERE reference = $1`,
-        [reference]
-      );
-      if (rows.length && rows[0].status !== 'successful') {
-        await query(
-          `UPDATE online_giving_transactions SET status = 'successful', paid_at = NOW(), updated_at = NOW() WHERE id = $1`,
-          [rows[0].id]
-        );
+    if (givingTx && givingTx.status !== 'successful') {
+      if (amount < Number(givingTx.amount || 0)) {
+        logger.warn('Paystack webhook amount mismatch', { reference, paid: amount, expected: givingTx.amount });
+        return res.status(400).send('Amount mismatch');
       }
+      const receiptNumber = `REC-${Date.now().toString().slice(-8)}`;
+      await query(
+        `UPDATE online_giving_transactions SET status = 'successful', paid_at = NOW(), receipt_number = COALESCE(receipt_number, $2), updated_at = NOW() WHERE id = $1`,
+        [givingTx.id, receiptNumber]
+      );
     }
 
     return res.status(200).send('OK');

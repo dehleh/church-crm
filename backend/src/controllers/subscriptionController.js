@@ -384,7 +384,7 @@ const handlePaystackWebhook = async (req, res) => {
   const rawBody = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
   const isValid = paymentService.verifyPaystackSignature(rawBody, signature);
 
-  if (!isValid && process.env.NODE_ENV === 'production') {
+  if (!isValid) {
     logger.warn('Invalid Paystack webhook signature for subscription');
     return res.status(400).send('Invalid signature');
   }

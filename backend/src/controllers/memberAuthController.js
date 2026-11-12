@@ -59,9 +59,9 @@ const setPassword = async (req, res) => {
         });
       }
     } else if (memberNumber) {
-      // 2. Verify by Member Number
+      // 2. First-time activation only: never allow overwriting an existing password via Member Number alone
       const mRes = await query(
-        `SELECT id, first_name, last_name, email, member_number, membership_status
+        `SELECT id, first_name, last_name, email, member_number, membership_status, password_hash
          FROM members
          WHERE church_id = $1 AND LOWER(email) = LOWER($2) AND UPPER(member_number) = UPPER($3)
            AND membership_status != 'inactive'`,
@@ -70,6 +70,12 @@ const setPassword = async (req, res) => {
       member = mRes.rows[0];
       if (!member) {
         return res.status(404).json({ success: false, message: 'No matching member record found for this email and member number' });
+      }
+      if (member.password_hash) {
+        return res.status(403).json({
+          success: false,
+          message: 'This member account is already activated. Please use "Forgot Password" to receive a secure reset link via email.'
+        });
       }
     }
 

@@ -1,4 +1,5 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const logger = require('../config/logger');
 const { query } = require('../config/database');
@@ -28,8 +29,14 @@ class PushNotificationService {
     }
 
     if (!this.vapidPublicKey || !this.vapidPrivateKey) {
-      // Check persistent keys file
-      const keysFile = path.join(__dirname, '../../.vapid.json');
+      if (process.env.NODE_ENV === 'production') {
+        logger.warn('VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY not configured; Web Push notifications disabled');
+        return;
+      }
+
+      // Non-production convenience: store ephemeral keys outside the source repo
+      const keysDir = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : os.tmpdir();
+      const keysFile = path.join(keysDir, '.vapid.json');
       if (fs.existsSync(keysFile)) {
         try {
           const saved = JSON.parse(fs.readFileSync(keysFile, 'utf8'));
@@ -40,11 +47,12 @@ class PushNotificationService {
 
       if (!this.vapidPublicKey || !this.vapidPrivateKey) {
         try {
+          if (!fs.existsSync(keysDir)) fs.mkdirSync(keysDir, { recursive: true });
           const generated = webpush.generateVAPIDKeys();
           this.vapidPublicKey = generated.publicKey;
           this.vapidPrivateKey = generated.privateKey;
           fs.writeFileSync(keysFile, JSON.stringify(generated, null, 2), 'utf8');
-          logger.info('Generated persistent VAPID keys for Web Push Notifications');
+          logger.info('Generated ephemeral non-production VAPID keys for Web Push Notifications');
         } catch (e) {
           logger.warn('Failed to generate VAPID keys:', { error: e.message });
           return;

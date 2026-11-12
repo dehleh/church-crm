@@ -214,7 +214,7 @@ const verify2FALogin = async (req, res) => {
 
     const { rows } = await query(
       `SELECT u.*,
-         c.name as church_name, c.slug as church_slug, c.is_active as church_active,
+         c.name as church_name, c.slug as church_slug, c.is_active as church_active, c.currency as church_currency,
          c.multi_branch_enabled, c.is_whitelisted, c.subscription_plan, c.subscription_expires_at,
          c.branch_limit, c.member_limit
        FROM users u LEFT JOIN churches c ON c.id = u.church_id
@@ -227,6 +227,23 @@ const verify2FALogin = async (req, res) => {
     }
 
     const user = rows[0];
+    if (user.church_id && !user.church_active && !user.is_super_admin) {
+      return res.status(403).json({ success: false, message: 'Church account suspended' });
+    }
+
+    const failedAttempts = user.failed_login_attempts || 0;
+    if (failedAttempts >= 5 && user.locked_until) {
+      const lockedUntil = new Date(user.locked_until);
+      if (lockedUntil > new Date()) {
+        const minutes = Math.ceil((lockedUntil - new Date()) / 60000);
+        return res.status(423).json({
+          success: false,
+          message: `Account locked due to too many failed attempts. Try again in ${minutes} minutes.`,
+        });
+      }
+      await query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [user.id]);
+    }
+
     const cleanCode = String(code).trim().toUpperCase();
     const backupCodes = user.two_factor_backup_codes || [];
 
@@ -234,6 +251,14 @@ const verify2FALogin = async (req, res) => {
     const backupIdx = backupCodes.indexOf(cleanCode);
 
     if (!isTotpValid && backupIdx === -1) {
+      const newAttempts = failedAttempts + 1;
+      const lockUntil = newAttempts >= 5
+        ? new Date(Date.now() + 15 * 60 * 1000).toISOString()
+        : null;
+      await query(
+        'UPDATE users SET failed_login_attempts = $1, locked_until = $2 WHERE id = $3',
+        [newAttempts, lockUntil, user.id]
+      );
       return res.status(401).json({ success: false, message: 'Invalid 2FA code or backup key' });
     }
 
@@ -271,6 +296,7 @@ const verify2FALogin = async (req, res) => {
           churchId: user.church_id,
           churchName: user.church_name,
           churchSlug: user.church_slug,
+          currency: user.church_currency || 'NGN',
           avatarUrl: user.avatar_url,
           branchId: user.branch_id,
           subscriptionPlan: user.subscription_plan,

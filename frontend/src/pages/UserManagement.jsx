@@ -48,8 +48,8 @@ export default function UserManagement() {
     setSaving(true);
     try {
       const res = await usersAPI.invite(form);
-      setTempPw(res.data.tempPassword);
-      toast.success('User invited!');
+      setTempPw(res.data.tempPassword || null);
+      toast.success(res.data.message || 'User invited!');
       setModal('success');
       fetch();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to invite user'); }
@@ -70,7 +70,11 @@ export default function UserManagement() {
     if (!window.confirm('Reset this user\'s password?')) return;
     try {
       const res = await usersAPI.resetPassword(id);
-      toast.success(`New temp password: ${res.data.tempPassword}`, { duration: 8000 });
+      if (res.data.tempPassword) {
+        toast.success(`New temp password: ${res.data.tempPassword}`, { duration: 8000 });
+      } else {
+        toast.success(res.data.message || 'Password reset. New credentials sent via email.');
+      }
     } catch { toast.error('Failed to reset password'); }
   };
 
@@ -222,13 +226,19 @@ export default function UserManagement() {
         </div>
       </Modal>
 
-      {/* Success Modal with temp password */}
+      {/* Success Modal */}
       <Modal open={modal === 'success'} onClose={() => setModal(null)} title="User Invited Successfully 🎉">
         <div className="text-center py-2">
           <ShieldCheck size={48} className="mx-auto text-emerald-500 mb-3" />
-          <p className="text-gray-700 mb-4">Share this temporary password securely with the new user:</p>
-          <div className="bg-gray-100 rounded-xl p-4 font-mono text-xl font-bold text-gray-900 tracking-widest">{tempPw}</div>
-          <p className="text-xs text-gray-400 mt-3">The user should change this password on their first login.</p>
+          {tempPw ? (
+            <>
+              <p className="text-gray-700 mb-4">Share this temporary password securely with the new user:</p>
+              <div className="bg-gray-100 rounded-xl p-4 font-mono text-xl font-bold text-gray-900 tracking-widest">{tempPw}</div>
+            </>
+          ) : (
+            <p className="text-gray-700 mb-4">Temporary login credentials have been generated and emailed directly to the invited user.</p>
+          )}
+          <p className="text-xs text-gray-400 mt-3">The user will be required to change their temporary password on first login.</p>
         </div>
       </Modal>
     </div>

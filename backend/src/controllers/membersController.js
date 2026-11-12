@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
 const { createMemberRecord } = require('../services/intakeService');
 const paymentService = require('../services/paymentService');
+const { resolveWriteBranchId, applyBranchFilter } = require('../utils/branchScope');
 
 // GET /api/members
 const getMembers = async (req, res) => {
@@ -20,7 +21,11 @@ const getMembers = async (req, res) => {
       params.push(`%${search}%`); idx++;
     }
     if (status) { conditions.push(`m.membership_status = $${idx}`); params.push(status); idx++; }
-    if (branchId) { conditions.push(`m.branch_id = $${idx}`); params.push(branchId); idx++; }
+    if (req.branchId) {
+      idx = applyBranchFilter(req, 'm.branch_id', conditions, params, idx);
+    } else if (branchId) {
+      conditions.push(`m.branch_id = $${idx}`); params.push(branchId); idx++;
+    }
     if (cellId) { conditions.push(`m.fellowship_cell_id = $${idx}`); params.push(cellId); idx++; }
     if (designation) { conditions.push(`m.designation = $${idx}`); params.push(designation); idx++; }
     if (isWorker !== undefined && isWorker !== '') {
@@ -88,6 +93,12 @@ const getMembers = async (req, res) => {
 const getMember = async (req, res) => {
   const { id } = req.params;
   try {
+    const params = [id, req.churchId];
+    let branchCond = '';
+    if (req.branchId) {
+      params.push(req.branchId);
+      branchCond = ' AND m.branch_id = $3';
+    }
     const { rows } = await query(
       `SELECT m.*, b.name as branch_name,
               fc.name as fellowship_cell_name, fc.meeting_day as fellowship_meeting_day, fc.meeting_time as fellowship_meeting_time, fc.host_address as fellowship_cell_address,
@@ -102,9 +113,9 @@ const getMember = async (req, res) => {
        LEFT JOIN members sp ON sp.id = m.spouse_id
        LEFT JOIN member_departments md ON md.member_id = m.id AND md.is_active = true
        LEFT JOIN departments d ON d.id = md.department_id
-       WHERE m.id = $1 AND m.church_id = $2
+       WHERE m.id = $1 AND m.church_id = $2${branchCond}
        GROUP BY m.id, b.name, fc.name, fc.meeting_day, fc.meeting_time, fc.host_address, ap.first_name, ap.last_name, sp.id, sp.first_name, sp.last_name, sp.phone, sp.member_number`,
-      [id, req.churchId]
+      params
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Member not found' });
     const member = rows[0];
@@ -131,7 +142,9 @@ const getMember = async (req, res) => {
 // POST /api/members
 const createMember = async (req, res) => {
   try {
-    const record = await createMemberRecord({ churchId: req.churchId, data: req.body, user: req.user });
+    const resolvedBranch = resolveWriteBranchId(req, req.body?.branchId);
+    const payload = resolvedBranch !== null ? { ...req.body, branchId: resolvedBranch } : req.body;
+    const record = await createMemberRecord({ churchId: req.churchId, data: payload, user: req.user });
     return res.status(201).json({ success: true, data: record });
   } catch (err) {
     logger.error(err.message, { error: err.message });
@@ -334,9 +347,15 @@ const getFamily = async (req, res) => {
 const deleteMember = async (req, res) => {
   const { id } = req.params;
   try {
+    const params = [id, req.churchId];
+    let branchCond = '';
+    if (req.branchId) {
+      params.push(req.branchId);
+      branchCond = ' AND branch_id = $3';
+    }
     const { rows } = await query(
-      `UPDATE members SET membership_status = 'inactive' WHERE id = $1 AND church_id = $2 RETURNING id`,
-      [id, req.churchId]
+      `UPDATE members SET membership_status = 'inactive' WHERE id = $1 AND church_id = $2${branchCond} RETURNING id`,
+      params
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Member not found' });
     return res.json({ success: true, message: 'Member deactivated' });
@@ -348,6 +367,12 @@ const deleteMember = async (req, res) => {
 // GET /api/members/stats
 const getMemberStats = async (req, res) => {
   try {
+    const params = [req.churchId];
+    let branchCond = '';
+    if (req.branchId) {
+      params.push(req.branchId);
+      branchCond = ' AND branch_id = $2';
+    }
     const { rows } = await query(
       `SELECT
         COUNT(*) FILTER (WHERE membership_status = 'active') as active,
@@ -373,8 +398,8 @@ const getMemberStats = async (req, res) => {
         COUNT(*) FILTER (WHERE gender = 'male') as male,
         COUNT(*) FILTER (WHERE gender = 'female') as female,
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') as new_this_month
-       FROM members WHERE church_id = $1`,
-      [req.churchId]
+       FROM members WHERE church_id = $1${branchCond}`,
+      params
     );
     return res.json({ success: true, data: rows[0] });
   } catch (err) {

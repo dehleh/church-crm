@@ -1,19 +1,24 @@
 const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
+const { applyBranchFilter, resolveWriteBranchId } = require('../utils/branchScope');
 
 // --- Welfare Packages ---
 const getPackages = async (req, res) => {
   try {
+    const conditions = ['wp.church_id = $1'];
+    const params = [req.churchId];
+    applyBranchFilter(req, 'wp.branch_id', conditions, params, 2, { allowNullBranch: true });
+
     const { rows } = await query(
       `SELECT wp.*, 
         COUNT(wa.id) FILTER (WHERE wa.status = 'pending') as pending_applications,
         COUNT(wa.id) as total_applications
        FROM welfare_packages wp
        LEFT JOIN welfare_applications wa ON wa.package_id = wp.id
-       WHERE wp.church_id = $1
+       WHERE ${conditions.join(' AND ')}
        GROUP BY wp.id
        ORDER BY wp.created_at DESC`,
-      [req.churchId]
+      params
     );
     return res.json({ success: true, data: rows });
   } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
@@ -22,10 +27,11 @@ const getPackages = async (req, res) => {
 const createPackage = async (req, res) => {
   const { name, description, packageType, branchId } = req.body;
   try {
+    const effectiveBranchId = resolveWriteBranchId(req, branchId);
     const { rows } = await query(
       `INSERT INTO welfare_packages (id, church_id, branch_id, name, description, package_type)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [uuidv4(), req.churchId, branchId||null, name, description||null, packageType||'financial']
+      [uuidv4(), req.churchId, effectiveBranchId, name, description||null, packageType||'financial']
     );
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
@@ -39,10 +45,22 @@ const getApplications = async (req, res) => {
     let conditions = ['wa.church_id = $1'];
     let params = [req.churchId];
     let idx = 2;
+    if (req.branchId) {
+      conditions.push(`(wp.branch_id = $${idx} OR m.branch_id = $${idx} OR ft.branch_id = $${idx})`);
+      params.push(req.branchId);
+      idx++;
+    }
     if (status) { conditions.push(`wa.status = $${idx++}`); params.push(status); }
     if (packageId) { conditions.push(`wa.package_id = $${idx++}`); params.push(packageId); }
     const where = conditions.join(' AND ');
-    const countRes = await query(`SELECT COUNT(*) FROM welfare_applications wa WHERE ${where}`, params);
+    const countRes = await query(
+      `SELECT COUNT(*) FROM welfare_applications wa
+       LEFT JOIN welfare_packages wp ON wp.id = wa.package_id
+       LEFT JOIN members m ON m.id = wa.member_id
+       LEFT JOIN first_timers ft ON ft.id = wa.first_timer_id
+       WHERE ${where}`,
+      params
+    );
     params.push(parseInt(limit), offset);
     const { rows } = await query(
       `SELECT wa.*,
@@ -98,14 +116,32 @@ const reviewApplication = async (req, res) => {
 
 const getWelfareStats = async (req, res) => {
   try {
+    const branchId = req.branchId || null;
+    if (!branchId) {
+      const { rows } = await query(
+        `SELECT
+          (SELECT COUNT(*) FROM welfare_packages WHERE church_id = $1 AND is_active = true) as active_packages,
+          COUNT(*) as total_applications,
+          COUNT(*) FILTER (WHERE status = 'pending') as pending,
+          COUNT(*) FILTER (WHERE status = 'approved' OR status = 'disbursed') as approved,
+          COALESCE(SUM(amount_approved) FILTER (WHERE status = 'disbursed'), 0) as total_disbursed
+         FROM welfare_applications WHERE church_id = $1`, [req.churchId]
+      );
+      return res.json({ success: true, data: rows[0] });
+    }
     const { rows } = await query(
       `SELECT
-        (SELECT COUNT(*) FROM welfare_packages WHERE church_id = $1 AND is_active = true) as active_packages,
+        (SELECT COUNT(*) FROM welfare_packages WHERE church_id = $1 AND is_active = true AND (branch_id = $2 OR branch_id IS NULL)) as active_packages,
         COUNT(*) as total_applications,
-        COUNT(*) FILTER (WHERE status = 'pending') as pending,
-        COUNT(*) FILTER (WHERE status = 'approved' OR status = 'disbursed') as approved,
-        COALESCE(SUM(amount_approved) FILTER (WHERE status = 'disbursed'), 0) as total_disbursed
-       FROM welfare_applications WHERE church_id = $1`, [req.churchId]
+        COUNT(*) FILTER (WHERE wa.status = 'pending') as pending,
+        COUNT(*) FILTER (WHERE wa.status = 'approved' OR wa.status = 'disbursed') as approved,
+        COALESCE(SUM(wa.amount_approved) FILTER (WHERE wa.status = 'disbursed'), 0) as total_disbursed
+       FROM welfare_applications wa
+       LEFT JOIN welfare_packages wp ON wp.id = wa.package_id
+       LEFT JOIN members m ON m.id = wa.member_id
+       LEFT JOIN first_timers ft ON ft.id = wa.first_timer_id
+       WHERE wa.church_id = $1 AND (wp.branch_id = $2 OR m.branch_id = $2 OR ft.branch_id = $2)`,
+      [req.churchId, branchId]
     );
     return res.json({ success: true, data: rows[0] });
   } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }

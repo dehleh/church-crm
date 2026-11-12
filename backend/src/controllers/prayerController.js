@@ -1,5 +1,6 @@
 const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
+const { resolveWriteBranchId, applyBranchFilter } = require('../utils/branchScope');
 
 const getPrayerRequests = async (req, res) => {
   const { page = 1, limit = 20, status, category } = req.query;
@@ -10,6 +11,7 @@ const getPrayerRequests = async (req, res) => {
     let params = [req.churchId];
     let idx = 2;
 
+    idx = applyBranchFilter(req, 'pr.branch_id', conditions, params, idx);
     if (status) { conditions.push(`pr.status = $${idx++}`); params.push(status); }
     if (category) { conditions.push(`pr.category = $${idx++}`); params.push(category); }
 
@@ -43,10 +45,11 @@ const getPrayerRequests = async (req, res) => {
 const createPrayerRequest = async (req, res) => {
   const { request, category, isAnonymous, memberId, requesterName, branchId } = req.body;
   try {
+    const finalBranchId = resolveWriteBranchId(req, branchId);
     const { rows } = await query(
       `INSERT INTO prayer_requests (id, church_id, branch_id, member_id, requester_name, request, category, is_anonymous)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [uuidv4(), req.churchId, branchId || null, memberId || null, requesterName || null, request, category || null, isAnonymous || false]
+      [uuidv4(), req.churchId, finalBranchId, memberId || null, requesterName || null, request, category || null, isAnonymous || false]
     );
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {

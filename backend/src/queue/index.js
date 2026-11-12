@@ -97,6 +97,8 @@ const enqueue = async (name, payload, opts = {}) => {
   const id = uuidv4();
   memoryJobs.set(id, {
     name, status: 'queued', progress: 0,
+    churchId: payload?.churchId || null,
+    userId: payload?.userId || null,
     result: null, error: null,
     createdAt: Date.now(), completedAt: null,
   });
@@ -130,6 +132,7 @@ const getJob = async (id) => {
     return {
       id: String(job.id),
       name: job.name,
+      churchId: job.data?.churchId || null,
       status: state,
       progress: typeof job.progress === 'number' ? job.progress : 0,
       result: job.returnvalue || null,
@@ -139,7 +142,7 @@ const getJob = async (id) => {
   const j = memoryJobs.get(id);
   if (!j) return null;
   return {
-    id, name: j.name, status: j.status, progress: j.progress,
+    id, name: j.name, churchId: j.churchId || null, status: j.status, progress: j.progress,
     result: j.result, error: j.error,
   };
 };

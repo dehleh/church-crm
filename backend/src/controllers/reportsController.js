@@ -6,7 +6,8 @@ const getMemberReport = async (req, res) => {
     let conditions = ['m.church_id=$1'];
     let params = [req.churchId];
     let idx = 2;
-    if (branchId) { conditions.push(`m.branch_id=$${idx++}`); params.push(branchId); }
+    const effectiveBranchId = req.branchId || branchId;
+    if (effectiveBranchId) { conditions.push(`m.branch_id=$${idx++}`); params.push(effectiveBranchId); }
     if (status)   { conditions.push(`m.membership_status=$${idx++}`); params.push(status); }
     if (startDate){ conditions.push(`m.created_at>=$${idx++}`); params.push(startDate); }
     if (endDate)  { conditions.push(`m.created_at<=$${idx++}`); params.push(endDate); }
@@ -34,11 +35,12 @@ const getFinanceReport = async (req, res) => {
     let conditions = ['t.church_id=$1'];
     let params = [req.churchId];
     let idx = 2;
+    const effectiveBranchId = req.branchId || branchId;
     if (startDate)  { conditions.push(`t.transaction_date>=$${idx++}`); params.push(startDate); }
     if (endDate)    { conditions.push(`t.transaction_date<=$${idx++}`); params.push(endDate); }
     if (type)       { conditions.push(`t.transaction_type=$${idx++}`); params.push(type); }
     if (categoryId) { conditions.push(`t.category_id=$${idx++}`); params.push(categoryId); }
-    if (branchId)   { conditions.push(`t.branch_id=$${idx++}`); params.push(branchId); }
+    if (effectiveBranchId) { conditions.push(`t.branch_id=$${idx++}`); params.push(effectiveBranchId); }
     const where = conditions.join(' AND ');
     const [txRows, summaryRows, catRows] = await Promise.all([
       query(`SELECT t.*, gc.name as category_name, m.first_name||' '||m.last_name as member_name,
@@ -73,9 +75,10 @@ const getAttendanceReport = async (req, res) => {
     let conditions = ['e.church_id=$1'];
     let params = [req.churchId];
     let idx = 2;
+    const effectiveBranchId = req.branchId || branchId;
     if (startDate) { conditions.push(`e.start_datetime>=$${idx++}`); params.push(startDate); }
     if (endDate)   { conditions.push(`e.start_datetime<=$${idx++}`); params.push(endDate); }
-    if (branchId)  { conditions.push(`e.branch_id=$${idx++}`); params.push(branchId); }
+    if (effectiveBranchId) { conditions.push(`e.branch_id=$${idx++}`); params.push(effectiveBranchId); }
     if (eventType) { conditions.push(`e.event_type=$${idx++}`); params.push(eventType); }
     const where = conditions.join(' AND ');
     const { rows } = await query(
@@ -98,9 +101,11 @@ const getFirstTimerReport = async (req, res) => {
     let conditions = ['ft.church_id=$1'];
     let params = [req.churchId];
     let idx = 2;
+    const effectiveBranchId = req.branchId || req.query.branchId;
     if (startDate) { conditions.push(`ft.visit_date>=$${idx++}`); params.push(startDate); }
     if (endDate)   { conditions.push(`ft.visit_date<=$${idx++}`); params.push(endDate); }
     if (status)    { conditions.push(`ft.follow_up_status=$${idx++}`); params.push(status); }
+    if (effectiveBranchId) { conditions.push(`ft.branch_id=$${idx++}`); params.push(effectiveBranchId); }
     const where = conditions.join(' AND ');
     const [rows, summaryRows] = await Promise.all([
       query(`SELECT ft.*, b.name as branch_name, u.first_name||' '||u.last_name as assigned_to_name

@@ -1,8 +1,13 @@
 const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
+const { resolveWriteBranchId, applyBranchFilter } = require('../utils/branchScope');
 
 const getDepartments = async (req, res) => {
   try {
+    let conditions = ['d.church_id = $1', 'd.is_active = true'];
+    let params = [req.churchId];
+    applyBranchFilter(req, 'd.branch_id', conditions, params, 2, { allowNullBranch: true });
+
     const { rows } = await query(
       `SELECT d.*,
               b.name as branch_name,
@@ -11,9 +16,9 @@ const getDepartments = async (req, res) => {
        FROM departments d
        LEFT JOIN branches b ON b.id = d.branch_id
        LEFT JOIN members m ON m.id = d.head_member_id
-       WHERE d.church_id = $1 AND d.is_active = true
+       WHERE ${conditions.join(' AND ')}
        ORDER BY d.category, d.name`,
-      [req.churchId]
+      params
     );
     return res.json({ success: true, data: rows });
   } catch (err) {
@@ -24,10 +29,11 @@ const getDepartments = async (req, res) => {
 const createDepartment = async (req, res) => {
   const { name, description, category, headMemberId, meetingSchedule, branchId } = req.body;
   try {
+    const finalBranchId = resolveWriteBranchId(req, branchId);
     const { rows } = await query(
       `INSERT INTO departments (id, church_id, branch_id, name, description, category, head_member_id, meeting_schedule)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [uuidv4(), req.churchId, branchId || null, name, description || null, category || null, headMemberId || null, meetingSchedule || null]
+      [uuidv4(), req.churchId, finalBranchId, name, description || null, category || null, headMemberId || null, meetingSchedule || null]
     );
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {

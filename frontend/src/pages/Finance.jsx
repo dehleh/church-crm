@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { DollarSign, Plus, TrendingUp, TrendingDown, Wallet, Loader2, ArrowUpRight, ArrowDownRight, FileSpreadsheet, HeartHandshake, ClipboardList } from 'lucide-react';
 import { financeAPI } from '../api/services';
+import { useAuth } from '../context/AuthContext';
+import { formatCurrency } from '../utils/currency';
 import Modal from '../components/ui/Modal';
 import CsvImportModal from '../components/ui/CsvImportModal';
 import toast from 'react-hot-toast';
@@ -10,9 +12,9 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 
 const PIE_COLORS = ['#3b6ef6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4'];
 
-const currency = (n) => `₦${Number(n || 0).toLocaleString()}`;
-
 export default function Finance() {
+  const { user } = useAuth();
+  const currency = (n) => formatCurrency(n, user?.currency);
   const [summary, setSummary] = useState({});
   const [transactions, setTransactions] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -107,7 +109,7 @@ export default function Finance() {
     return (
       <div className="bg-white border border-gray-100 rounded-xl shadow-lg px-4 py-3 text-sm">
         <p className="font-semibold text-gray-700 mb-1">{label}</p>
-        {payload.map(p => <p key={p.name} style={{ color: p.color }}>₦{Number(p.value).toLocaleString()}</p>)}
+        {payload.map(p => <p key={p.name} style={{ color: p.color }}>{currency(p.value)}</p>)}
       </div>
     );
   };

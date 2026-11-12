@@ -2,13 +2,16 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PiggyBank, Plus, Loader2, TrendingUp, ClipboardList } from 'lucide-react';
 import { budgetsAPI } from '../api/services';
+import { useAuth } from '../context/AuthContext';
+import { formatCurrency, getCurrencySymbol } from '../utils/currency';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
-const currency = n => `₦${Number(n||0).toLocaleString()}`;
-
 export default function Budgets() {
+  const { user } = useAuth();
+  const currency = (n) => formatCurrency(n, user?.currency);
+  const currencySymbol = getCurrencySymbol(user?.currency);
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
@@ -121,7 +124,7 @@ export default function Budgets() {
                 <option value="annual">Annual</option>
               </select>
             </div>
-            <div><label className="label">Total Amount (₦) *</label><input type="number" className="input" placeholder="1000000" value={form.totalAmount||''} onChange={set('totalAmount')} /></div>
+            <div><label className="label">Total Amount ({currencySymbol.trim()}) *</label><input type="number" className="input" placeholder="1000000" value={form.totalAmount||''} onChange={set('totalAmount')} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">Start Date *</label><input type="date" className="input" value={form.startDate||''} onChange={set('startDate')} /></div>

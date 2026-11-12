@@ -51,6 +51,9 @@ const updateFellowshipSettings = async (req, res) => {
 const getFellowshipStats = async (req, res) => {
   try {
     const churchId = req.churchId;
+    const branchId = req.branchId || null;
+    const baseParams = branchId ? [churchId, branchId] : [churchId];
+    const centerBranchCond = branchId ? ' AND branch_id = $2' : '';
 
     // Total centers & status breakdown
     const centersRes = await query(
@@ -58,46 +61,65 @@ const getFellowshipStats = async (req, res) => {
         COUNT(*) as total_centers,
         COUNT(*) FILTER (WHERE status = 'active') as active_centers,
         COUNT(*) FILTER (WHERE status = 'multiplying') as multiplying_centers
-       FROM fellowship_centers WHERE church_id = $1`,
-      [churchId]
+       FROM fellowship_centers WHERE church_id = $1${centerBranchCond}`,
+      baseParams
     );
 
     // Enrolled members
     const membersRes = await query(
-      `SELECT COUNT(DISTINCT member_id) as enrolled_members
-       FROM fellowship_members WHERE church_id = $1 AND status = 'active'`,
-      [churchId]
+      branchId
+        ? `SELECT COUNT(DISTINCT fm.member_id) as enrolled_members
+           FROM fellowship_members fm
+           JOIN fellowship_centers fc ON fc.id = fm.center_id
+           WHERE fm.church_id = $1 AND fm.status = 'active' AND fc.branch_id = $2`
+        : `SELECT COUNT(DISTINCT member_id) as enrolled_members
+           FROM fellowship_members WHERE church_id = $1 AND status = 'active'`,
+      baseParams
     );
 
     // Unassigned members in church
     const unassignedRes = await query(
       `SELECT COUNT(*) as unassigned_members
        FROM members m
-       WHERE m.church_id = $1 AND m.membership_status = 'active'
+       WHERE m.church_id = $1 AND m.membership_status = 'active'${branchId ? ' AND m.branch_id = $2' : ''}
          AND NOT EXISTS (
            SELECT 1 FROM fellowship_members fm
            WHERE fm.member_id = m.id AND fm.church_id = $1 AND fm.status = 'active'
          )`,
-      [churchId]
+      baseParams
     );
 
     // 4-week attendance and offerings from reports
     const reportsRes = await query(
-      `SELECT
-        COALESCE(SUM(total_attendance), 0) as total_attendance,
-        COALESCE(AVG(total_attendance), 0) as avg_attendance,
-        COALESCE(SUM(offering_amount), 0) as total_offering,
-        COUNT(*) as total_reports
-       FROM fellowship_meeting_reports
-       WHERE church_id = $1 AND meeting_date >= CURRENT_DATE - INTERVAL '30 days'`,
-      [churchId]
+      branchId
+        ? `SELECT
+            COALESCE(SUM(mr.total_attendance), 0) as total_attendance,
+            COALESCE(AVG(mr.total_attendance), 0) as avg_attendance,
+            COALESCE(SUM(mr.offering_amount), 0) as total_offering,
+            COUNT(*) as total_reports
+           FROM fellowship_meeting_reports mr
+           JOIN fellowship_centers fc ON fc.id = mr.center_id
+           WHERE mr.church_id = $1 AND mr.meeting_date >= CURRENT_DATE - INTERVAL '30 days' AND fc.branch_id = $2`
+        : `SELECT
+            COALESCE(SUM(total_attendance), 0) as total_attendance,
+            COALESCE(AVG(total_attendance), 0) as avg_attendance,
+            COALESCE(SUM(offering_amount), 0) as total_offering,
+            COUNT(*) as total_reports
+           FROM fellowship_meeting_reports
+           WHERE church_id = $1 AND meeting_date >= CURRENT_DATE - INTERVAL '30 days'`,
+      baseParams
     );
 
     // Pending join requests
     const pendingRes = await query(
-      `SELECT COUNT(*) as pending_requests
-       FROM fellowship_join_requests WHERE church_id = $1 AND status = 'pending'`,
-      [churchId]
+      branchId
+        ? `SELECT COUNT(*) as pending_requests
+           FROM fellowship_join_requests jr
+           JOIN fellowship_centers fc ON fc.id = jr.center_id
+           WHERE jr.church_id = $1 AND jr.status = 'pending' AND fc.branch_id = $2`
+        : `SELECT COUNT(*) as pending_requests
+           FROM fellowship_join_requests WHERE church_id = $1 AND status = 'pending'`,
+      baseParams
     );
 
     return res.json({
@@ -123,6 +145,12 @@ const getFellowshipStats = async (req, res) => {
 // ── 3. Zones / Districts ─────────────────────────────────────
 const getZones = async (req, res) => {
   try {
+    const params = [req.churchId];
+    let branchCond = '';
+    if (req.branchId) {
+      params.push(req.branchId);
+      branchCond = ' AND (z.branch_id = $2 OR z.branch_id IS NULL)';
+    }
     const { rows } = await query(
       `SELECT z.*,
               m.first_name || ' ' || m.last_name as coordinator_name,
@@ -130,9 +158,9 @@ const getZones = async (req, res) => {
               (SELECT COUNT(*) FROM fellowship_centers fc WHERE fc.zone_id = z.id AND fc.status != 'inactive') as centers_count
        FROM fellowship_zones z
        LEFT JOIN members m ON m.id = z.coordinator_member_id
-       WHERE z.church_id = $1 AND z.is_active = true
+       WHERE z.church_id = $1 AND z.is_active = true${branchCond}
        ORDER BY z.name`,
-      [req.churchId]
+      params
     );
     return res.json({ success: true, data: rows });
   } catch (err) {
@@ -215,6 +243,14 @@ const getCenters = async (req, res) => {
     let params = [req.churchId];
     let idx = 2;
 
+    if (req.branchId) {
+      conditions.push(`fc.branch_id = $${idx++}`);
+      params.push(req.branchId);
+    } else if (req.query.branchId) {
+      conditions.push(`fc.branch_id = $${idx++}`);
+      params.push(req.query.branchId);
+    }
+
     if (zoneId) {
       conditions.push(`fc.zone_id = $${idx++}`);
       params.push(zoneId);
@@ -255,6 +291,12 @@ const getCenters = async (req, res) => {
 const getCenter = async (req, res) => {
   const { id } = req.params;
   try {
+    const params = [id, req.churchId];
+    let branchCond = '';
+    if (req.branchId) {
+      params.push(req.branchId);
+      branchCond = ' AND fc.branch_id = $3';
+    }
     const { rows } = await query(
       `SELECT fc.*,
               fz.name as zone_name,
@@ -270,8 +312,8 @@ const getCenter = async (req, res) => {
        LEFT JOIN members lm ON lm.id = fc.leader_member_id
        LEFT JOIN members alm ON alm.id = fc.assistant_leader_member_id
        LEFT JOIN members hm ON hm.id = fc.host_member_id
-       WHERE fc.id = $1 AND fc.church_id = $2`,
-      [id, req.churchId]
+       WHERE fc.id = $1 AND fc.church_id = $2${branchCond}`,
+      params
     );
 
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Center not found' });

@@ -8,8 +8,22 @@ on:
 
 jobs:
   backend:
-    name: Backend (lint + test)
+    name: Backend (lint + test + migrations)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: churchcrm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: backend
@@ -22,13 +36,20 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - name: Install
         run: npm ci || npm install
+      - name: Migration Smoke Test
+        run: node src/migrations/run.js
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-secret-not-real
+          JWT_REFRESH_SECRET: test-refresh-secret-not-real
+          DATABASE_URL: postgres://postgres:testpassword@localhost:5432/churchcrm_test
       - name: Test
         run: npm test --if-present
         env:
           NODE_ENV: test
           JWT_SECRET: test-secret-not-real
           JWT_REFRESH_SECRET: test-refresh-secret-not-real
-          DATABASE_URL: postgres://localhost/test
+          DATABASE_URL: postgres://postgres:testpassword@localhost:5432/churchcrm_test
 
   frontend:
     name: Frontend (build + test)

@@ -13,7 +13,7 @@ const authenticate = async (req, res, next) => {
 
     const { rows } = await query(
       `SELECT u.*,
-         c.name as church_name, c.slug as church_slug, c.is_active as church_active,
+         c.name as church_name, c.slug as church_slug, c.is_active as church_active, c.currency as church_currency,
          c.multi_branch_enabled, c.is_whitelisted, c.subscription_plan, c.subscription_expires_at,
          c.branch_limit, c.member_limit
        FROM users u
@@ -32,7 +32,12 @@ const authenticate = async (req, res, next) => {
     }
 
     req.user = rows[0];
-    req.churchId = rows[0].church_id;
+    if (rows[0].is_super_admin && decoded.isImpersonating && decoded.churchId) {
+      req.churchId = decoded.churchId;
+      req.user.role = 'head_pastor';
+    } else {
+      req.churchId = rows[0].church_id;
+    }
 
     // License enforcement — block product use if no active license.
     // Exempt paths: auth, license intake, platform admin, public, contact,

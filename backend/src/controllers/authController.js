@@ -170,32 +170,15 @@ const LOCKOUT_MINUTES = 15;
 const login = async (req, res) => {
   const { email, password } = req.body;
   try {
-    let { rows } = await query(
+    const { rows } = await query(
       `SELECT u.*,
-         c.name as church_name, c.slug as church_slug, c.is_active as church_active,
+         c.name as church_name, c.slug as church_slug, c.is_active as church_active, c.currency as church_currency,
          c.multi_branch_enabled, c.is_whitelisted, c.subscription_plan, c.subscription_expires_at,
          c.branch_limit, c.member_limit
        FROM users u LEFT JOIN churches c ON c.id = u.church_id
        WHERE LOWER(u.email) = LOWER($1)`,
       [(email || '').trim()]
     );
-
-    const platformAdminEmail = (process.env.PLATFORM_ADMIN_EMAIL || 'superadmin@churchos.platform').toLowerCase().trim();
-    if (!rows[0] && (email || '').toLowerCase().trim() === platformAdminEmail) {
-      logger.info('Platform Super Admin user missing during login attempt — auto-recovering now...', { email });
-      const { ensureSuperAdmin } = require('../scripts/initSuperAdmin');
-      await ensureSuperAdmin();
-      const retry = await query(
-        `SELECT u.*,
-           c.name as church_name, c.slug as church_slug, c.is_active as church_active,
-           c.multi_branch_enabled, c.is_whitelisted, c.subscription_plan, c.subscription_expires_at,
-           c.branch_limit, c.member_limit
-         FROM users u LEFT JOIN churches c ON c.id = u.church_id
-         WHERE LOWER(u.email) = LOWER($1)`,
-        [(email || '').trim()]
-      );
-      rows = retry.rows;
-    }
 
     if (!rows[0]) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -278,6 +261,7 @@ const login = async (req, res) => {
           churchId: user.church_id,
           churchName: user.church_name,
           churchSlug: user.church_slug,
+          currency: user.church_currency || 'NGN',
           avatarUrl: user.avatar_url,
           branchId: user.branch_id,
           multiBranchEnabled: user.multi_branch_enabled || false,
@@ -301,14 +285,37 @@ const refreshToken = async (req, res) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
     const { rows } = await query(
-      'SELECT * FROM users WHERE id = $1 AND refresh_token = $2 AND is_active = true',
+      `SELECT u.*, c.is_active as church_active
+       FROM users u
+       LEFT JOIN churches c ON c.id = u.church_id
+       WHERE u.id = $1 AND u.refresh_token = $2 AND u.is_active = true`,
       [decoded.userId, token]
     );
     if (!rows[0]) {
       return res.status(401).json({ success: false, message: 'Invalid refresh token' });
     }
     const user = rows[0];
-    const tokens = generateTokens(user.id, user.church_id, user.role);
+    if (user.church_id && !user.church_active && !user.is_super_admin) {
+      return res.status(403).json({ success: false, message: 'Church account suspended' });
+    }
+
+    let tokens;
+    if (decoded.isImpersonating && user.is_super_admin && decoded.churchId) {
+      const accessToken = jwt.sign(
+        { userId: user.id, churchId: decoded.churchId, role: 'head_pastor', isImpersonating: true },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
+      );
+      const nextRefresh = jwt.sign(
+        { userId: user.id, churchId: decoded.churchId, isImpersonating: true },
+        process.env.JWT_REFRESH_SECRET,
+        { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+      );
+      tokens = { accessToken, refreshToken: nextRefresh };
+    } else {
+      tokens = generateTokens(user.id, user.church_id, user.role);
+    }
+
     await query('UPDATE users SET refresh_token = $1 WHERE id = $2', [tokens.refreshToken, user.id]);
     return res.json({ success: true, data: tokens });
   } catch (err) {
@@ -337,6 +344,7 @@ const getMe = async (req, res) => {
     churchId: u.church_id,
     churchName: u.church_name,
     churchSlug: u.church_slug,
+    currency: u.church_currency || 'NGN',
     branchId: u.branch_id,
     avatarUrl: u.avatar_url,
     firstName: u.first_name,

@@ -1,6 +1,19 @@
-const { query } = require('../config/database');
+const { query, getClient } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
+const { resolveWriteBranchId, applyBranchFilter } = require('../utils/branchScope');
+const { syncBudgetSpend } = require('../utils/budgetSync');
+
+const REVIEW_STATUSES = ['approved', 'disputed', 'correction', 'rejected'];
+const ALLOWED_TRANSITIONS = {
+  draft: ['draft', 'submitted'],
+  submitted: ['submitted', 'approved', 'disputed', 'correction', 'rejected'],
+  correction: ['correction', 'submitted', 'approved', 'disputed', 'rejected'],
+  disputed: ['disputed', 'submitted', 'correction', 'approved', 'rejected'],
+  approved: ['approved'],
+  rejected: ['rejected'],
+  disbursed: [],
+};
 
 // ── REQUISITIONS ────────────────────────────────────────────
 
@@ -11,6 +24,7 @@ const getRequisitions = async (req, res) => {
     let conditions = ['r.church_id = $1'];
     let params = [req.churchId];
     let idx = 2;
+    idx = applyBranchFilter(req, 'r.branch_id', conditions, params, idx);
     if (status) { conditions.push(`r.status = $${idx++}`); params.push(status); }
     if (month) { conditions.push(`r.requisition_month = $${idx++}`); params.push(month); }
     const where = conditions.join(' AND ');
@@ -48,10 +62,11 @@ const getRequisitions = async (req, res) => {
 const createRequisition = async (req, res) => {
   const { title, description, requisitionMonth, departmentId, items, totalAmount, branchId, notes } = req.body;
   try {
+    const finalBranchId = resolveWriteBranchId(req, branchId);
     const { rows } = await query(
       `INSERT INTO requisitions (id, church_id, branch_id, title, description, requisition_month, department_id, items, total_amount, raised_by, notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [uuidv4(), req.churchId, branchId || null, title, description || null, requisitionMonth, departmentId || null, JSON.stringify(items || []), totalAmount || 0, req.user.id, notes || null]
+      [uuidv4(), req.churchId, finalBranchId, title, description || null, requisitionMonth, departmentId || null, JSON.stringify(items || []), totalAmount || 0, req.user.id, notes || null]
     );
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
@@ -67,6 +82,43 @@ const updateRequisition = async (req, res) => {
     requisitionMonth, departmentId, disputeReason, correctionNotes, approvalNotes
   } = req.body;
   try {
+    let checkConditions = ['id = $1', 'church_id = $2'];
+    let checkParams = [id, req.churchId];
+    applyBranchFilter(req, 'branch_id', checkConditions, checkParams, 3);
+
+    const { rows: existingRows } = await query(
+      `SELECT * FROM requisitions WHERE ${checkConditions.join(' AND ')}`,
+      checkParams
+    );
+    const existing = existingRows[0];
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Requisition not found' });
+    }
+
+    if (existing.status === 'disbursed') {
+      return res.status(400).json({ success: false, message: 'Disbursed requisitions are locked and cannot be modified' });
+    }
+
+    if (status) {
+      if (status === 'disbursed') {
+        return res.status(400).json({ success: false, message: 'Use the disbursement endpoint to disburse funds' });
+      }
+      if (REVIEW_STATUSES.includes(status) && req.user?.role === 'hod' && !req.user?.is_super_admin) {
+        return res.status(403).json({ success: false, message: 'HODs cannot approve, reject, dispute, or return requisitions' });
+      }
+      if (status === 'approved' && existing.raised_by === req.user?.id && !['head_pastor', 'admin', 'church_admin'].includes(req.user?.role) && !req.user?.is_super_admin) {
+        return res.status(403).json({ success: false, message: 'You cannot approve your own requisition' });
+      }
+      const allowedNext = ALLOWED_TRANSITIONS[existing.status] || [];
+      if (!allowedNext.includes(status)) {
+        return res.status(400).json({ success: false, message: `Invalid status transition from '${existing.status}' to '${status}'` });
+      }
+    }
+
+    if (existing.status === 'approved' && (items || totalAmount !== undefined || title)) {
+      return res.status(400).json({ success: false, message: 'Approved requisition line items and amounts cannot be edited' });
+    }
+
     const updates = [];
     const params = [id, req.churchId];
     let idx = 3;
@@ -101,7 +153,6 @@ const updateRequisition = async (req, res) => {
     const { rows } = await query(
       `UPDATE requisitions SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $1 AND church_id = $2 RETURNING *`, params
     );
-    if (!rows[0]) return res.status(404).json({ success: false, message: 'Requisition not found' });
     return res.json({ success: true, data: rows[0] });
   } catch (err) {
     logger.error('updateRequisition error:', { error: err.message });
@@ -118,6 +169,7 @@ const getPurchaseRequests = async (req, res) => {
     let conditions = ['pr.church_id = $1'];
     let params = [req.churchId];
     let idx = 2;
+    idx = applyBranchFilter(req, 'pr.branch_id', conditions, params, idx);
     if (status) { conditions.push(`pr.status = $${idx++}`); params.push(status); }
     if (priority) { conditions.push(`pr.priority = $${idx++}`); params.push(priority); }
     const where = conditions.join(' AND ');
@@ -148,10 +200,11 @@ const getPurchaseRequests = async (req, res) => {
 const createPurchaseRequest = async (req, res) => {
   const { title, description, vendorName, items, totalAmount, priority, requisitionId, branchId } = req.body;
   try {
+    const finalBranchId = resolveWriteBranchId(req, branchId);
     const { rows } = await query(
       `INSERT INTO purchase_requests (id, church_id, branch_id, requisition_id, title, description, vendor_name, items, total_amount, priority, raised_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [uuidv4(), req.churchId, branchId || null, requisitionId || null, title, description || null, vendorName || null, JSON.stringify(items || []), totalAmount || 0, priority || 'normal', req.user.id]
+      [uuidv4(), req.churchId, finalBranchId, requisitionId || null, title, description || null, vendorName || null, JSON.stringify(items || []), totalAmount || 0, priority || 'normal', req.user.id]
     );
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
@@ -160,7 +213,14 @@ const createPurchaseRequest = async (req, res) => {
 const reviewPurchaseRequest = async (req, res) => {
   const { id } = req.params;
   const { status, reviewNotes } = req.body;
+  if (req.user?.role === 'hod' && !req.user?.is_super_admin) {
+    return res.status(403).json({ success: false, message: 'HODs cannot review purchase requests' });
+  }
   try {
+    let conditions = ['id = $1', 'church_id = $2'];
+    let params = [id, req.churchId, status, reviewNotes, req.user.id];
+    applyBranchFilter(req, 'branch_id', conditions, params, 6);
+
     const { rows } = await query(
       `UPDATE purchase_requests SET
         status = COALESCE($3, status),
@@ -168,8 +228,8 @@ const reviewPurchaseRequest = async (req, res) => {
         reviewed_by = $5,
         reviewed_at = NOW(),
         updated_at = NOW()
-       WHERE id = $1 AND church_id = $2 RETURNING *`,
-      [id, req.churchId, status, reviewNotes, req.user.id]
+       WHERE ${conditions.join(' AND ')} RETURNING *`,
+      params
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Purchase request not found' });
     return res.json({ success: true, data: rows[0] });
@@ -178,15 +238,19 @@ const reviewPurchaseRequest = async (req, res) => {
 
 const disburseRequisition = async (req, res) => {
   const { id } = req.params;
-  const { paymentMethod = 'paystack', amount, accountId, beneficiary, notes, reference } = req.body;
+  const { paymentMethod = 'paystack', amount, accountId, budgetId, beneficiary, notes, reference } = req.body;
 
   try {
+    let findConditions = ['r.id = $1', 'r.church_id = $2'];
+    let findParams = [id, req.churchId];
+    applyBranchFilter(req, 'r.branch_id', findConditions, findParams, 3);
+
     const { rows: reqRows } = await query(
-      `SELECT r.*, c.payment_settings, c.name as church_name
+      `SELECT r.*, c.payment_settings, c.name as church_name, c.currency as church_currency
        FROM requisitions r
        JOIN churches c ON c.id = r.church_id
-       WHERE r.id = $1 AND r.church_id = $2`,
-      [id, req.churchId]
+       WHERE ${findConditions.join(' AND ')}`,
+      findParams
     );
     const requisition = reqRows[0];
     if (!requisition) {
@@ -223,43 +287,7 @@ const disburseRequisition = async (req, res) => {
       safeRef = paymentResult.reference || safeRef;
     }
 
-    // 1. Record transaction in finance ledger
     const txId = uuidv4();
-    try {
-      await query(
-        `INSERT INTO transactions (
-          id, church_id, branch_id, account_id, transaction_type,
-          amount, currency, description, reference, payment_method,
-          transaction_date, recorded_by, approved_by, status, notes
-        ) VALUES ($1,$2,$3,$4,'expense',$5,'NGN',$6,$7,$8,CURRENT_DATE,$9,$9,'completed',$10)`,
-        [
-          txId,
-          req.churchId,
-          requisition.branch_id || null,
-          accountId || null,
-          disbursementAmount,
-          `Requisition Disbursement: ${requisition.title}`,
-          safeRef,
-          paymentMethod,
-          req.user.id,
-          notes || `Disbursed to ${beneficiary?.accountName || 'beneficiary'}`
-        ]
-      );
-
-      // Deduct from finance account if accountId specified
-      if (accountId) {
-        await query(
-          `UPDATE finance_accounts
-           SET balance = balance - $1, updated_at = NOW()
-           WHERE id = $2 AND church_id = $3`,
-          [disbursementAmount, accountId, req.churchId]
-        );
-      }
-    } catch (ledgerErr) {
-      logger.warn('Could not record linked finance transaction during disbursement:', { error: ledgerErr.message });
-    }
-
-    // 2. Update requisition record
     const details = {
       beneficiary: beneficiary || {},
       notes: notes || '',
@@ -269,33 +297,92 @@ const disburseRequisition = async (req, res) => {
       disbursedBy: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email,
     };
 
-    const { rows: updatedRows } = await query(
-      `UPDATE requisitions SET
-        status = 'disbursed',
-        disbursed_by = $1,
-        disbursed_at = NOW(),
-        disbursement_amount = $2,
-        disbursement_method = $3,
-        disbursement_reference = $4,
-        disbursement_details = $5,
-        transaction_id = $6,
-        updated_at = NOW()
-       WHERE id = $7 AND church_id = $8 RETURNING *`,
-      [
-        req.user.id,
-        disbursementAmount,
-        paymentMethod,
-        safeRef,
-        JSON.stringify(details),
-        txId,
-        id,
-        req.churchId
-      ]
-    );
+    const client = await getClient();
+    let updatedRequisition;
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `INSERT INTO transactions (
+          id, church_id, branch_id, account_id, transaction_type,
+          amount, currency, description, reference, payment_method,
+          transaction_date, recorded_by, approved_by, status, notes
+        ) VALUES ($1,$2,$3,$4,'expense',$5,$6,$7,$8,$9,CURRENT_DATE,$10,$10,'completed',$11)`,
+        [
+          txId,
+          req.churchId,
+          requisition.branch_id || null,
+          accountId || null,
+          disbursementAmount,
+          requisition.church_currency || 'NGN',
+          `Requisition Disbursement: ${requisition.title}`,
+          safeRef,
+          paymentMethod,
+          req.user.id,
+          notes || `Disbursed to ${beneficiary?.accountName || 'beneficiary'}`
+        ]
+      );
+
+      if (accountId) {
+        const accRes = await client.query(
+          `UPDATE finance_accounts
+           SET balance = balance - $1, updated_at = NOW()
+           WHERE id = $2 AND church_id = $3 RETURNING id`,
+          [disbursementAmount, accountId, req.churchId]
+        );
+        if (!accRes.rows[0]) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, message: 'Finance account not found in this church' });
+        }
+      }
+
+      await syncBudgetSpend(client, {
+        churchId: req.churchId,
+        branchId: requisition.branch_id || null,
+        amount: disbursementAmount,
+        transactionDate: new Date(),
+        budgetId: budgetId || null,
+      });
+
+      const { rows: updatedRows } = await client.query(
+        `UPDATE requisitions SET
+          status = 'disbursed',
+          disbursed_by = $1,
+          disbursed_at = NOW(),
+          disbursement_amount = $2,
+          disbursement_method = $3,
+          disbursement_reference = $4,
+          disbursement_details = $5,
+          transaction_id = $6,
+          updated_at = NOW()
+         WHERE id = $7 AND church_id = $8 AND status = 'approved' RETURNING *`,
+        [
+          req.user.id,
+          disbursementAmount,
+          paymentMethod,
+          safeRef,
+          JSON.stringify(details),
+          txId,
+          id,
+          req.churchId
+        ]
+      );
+      if (!updatedRows[0]) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ success: false, message: 'Requisition already processed' });
+      }
+      updatedRequisition = updatedRows[0];
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     return res.json({
       success: true,
-      data: updatedRows[0],
+      data: updatedRequisition,
       transactionId: txId,
       reference: safeRef,
       message: 'Requisition funds disbursed successfully'
@@ -339,17 +426,23 @@ const resolveAccountName = async (req, res) => {
 
 const getProcurementStats = async (req, res) => {
   try {
+    const params = [req.churchId];
+    let branchCond = '';
+    if (req.branchId) {
+      params.push(req.branchId);
+      branchCond = ' AND branch_id = $2';
+    }
     const { rows } = await query(
       `SELECT
-        (SELECT COUNT(*) FROM requisitions WHERE church_id = $1) as total_requisitions,
-        (SELECT COUNT(*) FROM requisitions WHERE church_id = $1 AND status IN ('submitted', 'draft', 'correction', 'disputed')) as pending_requisitions,
-        (SELECT COUNT(*) FROM requisitions WHERE church_id = $1 AND status = 'approved') as approved_requisitions,
-        (SELECT COUNT(*) FROM requisitions WHERE church_id = $1 AND status = 'disbursed') as disbursed_requisitions,
-        (SELECT COALESCE(SUM(disbursement_amount), 0) FROM requisitions WHERE church_id = $1 AND status = 'disbursed') as disbursed_amount,
-        (SELECT COUNT(*) FROM purchase_requests WHERE church_id = $1) as total_purchase_requests,
-        (SELECT COUNT(*) FROM purchase_requests WHERE church_id = $1 AND status = 'pending') as pending_tickets,
-        (SELECT COALESCE(SUM(total_amount), 0) FROM purchase_requests WHERE church_id = $1 AND status = 'approved') as approved_amount
-      `, [req.churchId]
+        (SELECT COUNT(*) FROM requisitions WHERE church_id = $1${branchCond}) as total_requisitions,
+        (SELECT COUNT(*) FROM requisitions WHERE church_id = $1${branchCond} AND status IN ('submitted', 'draft', 'correction', 'disputed')) as pending_requisitions,
+        (SELECT COUNT(*) FROM requisitions WHERE church_id = $1${branchCond} AND status = 'approved') as approved_requisitions,
+        (SELECT COUNT(*) FROM requisitions WHERE church_id = $1${branchCond} AND status = 'disbursed') as disbursed_requisitions,
+        (SELECT COALESCE(SUM(disbursement_amount), 0) FROM requisitions WHERE church_id = $1${branchCond} AND status = 'disbursed') as disbursed_amount,
+        (SELECT COUNT(*) FROM purchase_requests WHERE church_id = $1${branchCond}) as total_purchase_requests,
+        (SELECT COUNT(*) FROM purchase_requests WHERE church_id = $1${branchCond} AND status = 'pending') as pending_tickets,
+        (SELECT COALESCE(SUM(total_amount), 0) FROM purchase_requests WHERE church_id = $1${branchCond} AND status = 'approved') as approved_amount
+      `, params
     );
     return res.json({ success: true, data: rows[0] });
   } catch (err) {

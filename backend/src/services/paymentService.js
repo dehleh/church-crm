@@ -1,8 +1,27 @@
 const https = require('https');
 const crypto = require('crypto');
+const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
 
+const safeCompare = (a, b) => {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+};
+
 class PaymentService {
+  /**
+   * Mock gateways are strictly limited to test environments or explicit non-production opt-in.
+   */
+  isMockAllowed() {
+    return (
+      process.env.NODE_ENV === 'test' ||
+      (process.env.NODE_ENV !== 'production' && process.env.ALLOW_MOCK_PAYMENTS === 'true')
+    );
+  }
+
   /**
    * Helper for HTTP JSON requests
    */
@@ -38,13 +57,16 @@ class PaymentService {
       '';
 
     if (!secretKey) {
-      logger.warn('Paystack secret key not configured, returning mock authorization URL');
-      return {
-        success: true,
-        mock: true,
-        authorizationUrl: `${callbackUrl || '/give/verify'}?reference=${reference}&status=success&mock=true`,
-        reference,
-      };
+      if (this.isMockAllowed()) {
+        logger.warn('Paystack secret key not configured; using mock authorization URL in non-production test mode');
+        return {
+          success: true,
+          mock: true,
+          authorizationUrl: `${callbackUrl || '/give/verify'}?reference=${reference}&status=success&mock=true`,
+          reference,
+        };
+      }
+      throw new Error('Paystack payment gateway is not configured');
     }
 
     const payload = {
@@ -93,16 +115,18 @@ class PaymentService {
       '';
 
     if (!secretKey) {
-      // Mock mode
-      return {
-        success: true,
-        mock: true,
-        status: 'success',
-        amount: 1000,
-        currency: 'NGN',
-        reference,
-        paidAt: new Date().toISOString(),
-      };
+      if (this.isMockAllowed()) {
+        return {
+          success: true,
+          mock: true,
+          status: 'success',
+          amount: 1000,
+          currency: 'NGN',
+          reference,
+          paidAt: new Date().toISOString(),
+        };
+      }
+      return { success: false, status: 'failed', message: 'Paystack payment gateway is not configured' };
     }
 
     const options = {
@@ -145,7 +169,7 @@ class PaymentService {
     const key = secretKey || process.env.PAYSTACK_SECRET_KEY;
     if (!key || !signature) return false;
     const hash = crypto.createHmac('sha512', key).update(rawBody).digest('hex');
-    return hash === signature;
+    return safeCompare(hash, String(signature));
   }
 
   /**
@@ -158,13 +182,16 @@ class PaymentService {
       '';
 
     if (!secretKey) {
-      logger.warn('Flutterwave secret key not configured, returning mock authorization URL');
-      return {
-        success: true,
-        mock: true,
-        authorizationUrl: `${callbackUrl || '/give/verify'}?reference=${reference}&status=successful&mock=true&gateway=flutterwave`,
-        reference,
-      };
+      if (this.isMockAllowed()) {
+        logger.warn('Flutterwave secret key not configured; using mock authorization URL in non-production test mode');
+        return {
+          success: true,
+          mock: true,
+          authorizationUrl: `${callbackUrl || '/give/verify'}?reference=${reference}&status=successful&mock=true&gateway=flutterwave`,
+          reference,
+        };
+      }
+      throw new Error('Flutterwave payment gateway is not configured');
     }
 
     const payload = {
@@ -222,17 +249,19 @@ class PaymentService {
       '';
 
     if (!secretKey) {
-      // Mock verification mode
-      return {
-        success: true,
-        mock: true,
-        status: 'successful',
-        amount: 1000,
-        currency: 'NGN',
-        reference,
-        gatewayReference: `FLW-MOCK-${Date.now()}`,
-        paidAt: new Date().toISOString(),
-      };
+      if (this.isMockAllowed()) {
+        return {
+          success: true,
+          mock: true,
+          status: 'successful',
+          amount: 1000,
+          currency: 'NGN',
+          reference,
+          gatewayReference: `FLW-MOCK-${Date.now()}`,
+          paidAt: new Date().toISOString(),
+        };
+      }
+      return { success: false, status: 'failed', message: 'Flutterwave payment gateway is not configured' };
     }
 
     const verifyPath = transactionId
@@ -283,7 +312,7 @@ class PaymentService {
       churchSettings?.flutterwaveSecretKey ||
       process.env.FLUTTERWAVE_SECRET_KEY;
     if (!secretHash || !reqSecretHash) return false;
-    return reqSecretHash === secretHash;
+    return safeCompare(String(reqSecretHash), String(secretHash));
   }
 
   /**
@@ -481,17 +510,20 @@ class PaymentService {
     const safeRef = reference || `PSTK-TRF-${Date.now()}-${uuidv4().substring(0, 6).toUpperCase()}`;
 
     if (!secretKey) {
-      return {
-        success: true,
-        mock: true,
-        status: 'success',
-        reference: safeRef,
-        transferCode: `TRF_MOCK_${Date.now()}`,
-        amount,
-        accountName,
-        accountNumber,
-        message: 'Disbursement recorded and simulated successfully (No Paystack secret key configured)',
-      };
+      if (this.isMockAllowed()) {
+        return {
+          success: true,
+          mock: true,
+          status: 'success',
+          reference: safeRef,
+          transferCode: `TRF_MOCK_${Date.now()}`,
+          amount,
+          accountName,
+          accountNumber,
+          message: 'Disbursement recorded and simulated (Non-production mock mode)',
+        };
+      }
+      throw new Error('Paystack secret key is not configured for automated transfer');
     }
 
     try {

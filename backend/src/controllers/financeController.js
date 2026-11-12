@@ -1,6 +1,8 @@
 const { query, getClient } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
+const { resolveWriteBranchId, applyBranchFilter } = require('../utils/branchScope');
+const { syncBudgetSpend } = require('../utils/budgetSync');
 
 // GET /api/finance/transactions
 const getTransactions = async (req, res) => {
@@ -12,10 +14,14 @@ const getTransactions = async (req, res) => {
     let params = [req.churchId];
     let idx = 2;
 
+    if (req.branchId) {
+      idx = applyBranchFilter(req, 't.branch_id', conditions, params, idx);
+    } else if (branchId) {
+      conditions.push(`t.branch_id = $${idx++}`); params.push(branchId);
+    }
     if (type) { conditions.push(`t.transaction_type = $${idx++}`); params.push(type); }
     if (categoryId) { conditions.push(`t.category_id = $${idx++}`); params.push(categoryId); }
     if (memberId) { conditions.push(`t.member_id = $${idx++}`); params.push(memberId); }
-    if (branchId) { conditions.push(`t.branch_id = $${idx++}`); params.push(branchId); }
     if (startDate) { conditions.push(`t.transaction_date >= $${idx++}`); params.push(startDate); }
     if (endDate) { conditions.push(`t.transaction_date <= $${idx++}`); params.push(endDate); }
 
@@ -60,8 +66,11 @@ const getTransactions = async (req, res) => {
 const createTransaction = async (req, res) => {
   const {
     accountId, categoryId, memberId, transactionType, amount,
-    description, paymentMethod, transactionDate, eventId, notes, branchId
+    description, paymentMethod, transactionDate, eventId, notes, branchId, budgetId
   } = req.body;
+
+  const finalBranchId = resolveWriteBranchId(req, branchId);
+  const effectiveDate = transactionDate || new Date();
 
   const client = await getClient();
   try {
@@ -76,9 +85,9 @@ const createTransaction = async (req, res) => {
         transaction_date, event_id, recorded_by, notes
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
       [
-        id, req.churchId, branchId || null, accountId || null, categoryId || null, memberId || null,
+        id, req.churchId, finalBranchId, accountId || null, categoryId || null, memberId || null,
         transactionType, amount, description || null, reference, paymentMethod || null,
-        transactionDate || new Date(), eventId || null, req.user.id, notes || null
+        effectiveDate, eventId || null, req.user.id, notes || null
       ]
     );
 
@@ -96,6 +105,15 @@ const createTransaction = async (req, res) => {
       }
     }
 
+    if (transactionType === 'expense') {
+      await syncBudgetSpend(client, {
+        churchId: req.churchId,
+        branchId: finalBranchId,
+        amount,
+        transactionDate: effectiveDate,
+        budgetId: budgetId || null,
+      });
+    }
 
     await client.query('COMMIT');
     return res.status(201).json({ success: true, data: rows[0] });
@@ -112,39 +130,50 @@ const createTransaction = async (req, res) => {
 const getFinanceSummary = async (req, res) => {
   const { period = 'month' } = req.query;
   const interval = period === 'year' ? '1 year' : period === 'week' ? '7 days' : '30 days';
+  const branchParams = [req.churchId];
+  let txBranchCond = '';
+  let accBranchCond = '';
+  if (req.branchId) {
+    branchParams.push(req.branchId);
+    txBranchCond = ' AND branch_id = $2';
+    accBranchCond = ' AND (branch_id = $2 OR branch_id IS NULL)';
+  }
 
   try {
+    const intervalParamIdx = branchParams.length + 1;
+    const summaryParams = [...branchParams, interval];
+
     const [summary, byCategory, monthlyTrend, accounts] = await Promise.all([
       query(
         `SELECT
           SUM(amount) FILTER (WHERE transaction_type = 'income') as total_income,
           SUM(amount) FILTER (WHERE transaction_type = 'expense') as total_expense,
-          SUM(amount) FILTER (WHERE transaction_type = 'income' AND transaction_date >= NOW() - INTERVAL '${interval}') as period_income,
-          SUM(amount) FILTER (WHERE transaction_type = 'expense' AND transaction_date >= NOW() - INTERVAL '${interval}') as period_expense
-         FROM transactions WHERE church_id = $1 AND status = 'completed'`,
-        [req.churchId]
+          SUM(amount) FILTER (WHERE transaction_type = 'income' AND transaction_date >= NOW() - $${intervalParamIdx}::interval) as period_income,
+          SUM(amount) FILTER (WHERE transaction_type = 'expense' AND transaction_date >= NOW() - $${intervalParamIdx}::interval) as period_expense
+         FROM transactions WHERE church_id = $1${txBranchCond} AND status = 'completed'`,
+        summaryParams
       ),
       query(
         `SELECT gc.name, SUM(t.amount) as total, COUNT(*) as count
          FROM transactions t
          JOIN giving_categories gc ON gc.id = t.category_id
-         WHERE t.church_id = $1 AND t.transaction_type = 'income'
-           AND t.transaction_date >= NOW() - INTERVAL '${interval}'
+         WHERE t.church_id = $1${req.branchId ? ' AND t.branch_id = $2' : ''} AND t.transaction_type = 'income'
+           AND t.transaction_date >= NOW() - $${intervalParamIdx}::interval
          GROUP BY gc.name ORDER BY total DESC`,
-        [req.churchId]
+        summaryParams
       ),
       query(
         `SELECT DATE_TRUNC('month', transaction_date) as month,
                 SUM(amount) FILTER (WHERE transaction_type = 'income') as income,
                 SUM(amount) FILTER (WHERE transaction_type = 'expense') as expense
-         FROM transactions WHERE church_id = $1 AND transaction_date >= NOW() - INTERVAL '12 months'
+         FROM transactions WHERE church_id = $1${txBranchCond} AND transaction_date >= NOW() - INTERVAL '12 months'
          GROUP BY month ORDER BY month ASC`,
-        [req.churchId]
+        branchParams
       ),
       query(
         `SELECT name, account_type, balance, currency FROM finance_accounts
-         WHERE church_id = $1 AND is_active = true ORDER BY balance DESC`,
-        [req.churchId]
+         WHERE church_id = $1${accBranchCond} AND is_active = true ORDER BY balance DESC`,
+        branchParams
       )
     ]);
 
@@ -166,9 +195,12 @@ const getFinanceSummary = async (req, res) => {
 // GET /api/finance/accounts
 const getAccounts = async (req, res) => {
   try {
+    let conditions = ['church_id = $1', 'is_active = true'];
+    let params = [req.churchId];
+    applyBranchFilter(req, 'branch_id', conditions, params, 2, { allowNullBranch: true });
     const { rows } = await query(
-      `SELECT * FROM finance_accounts WHERE church_id = $1 AND is_active = true ORDER BY name`,
-      [req.churchId]
+      `SELECT * FROM finance_accounts WHERE ${conditions.join(' AND ')} ORDER BY name`,
+      params
     );
     return res.json({ success: true, data: rows });
   } catch (err) {
@@ -180,10 +212,11 @@ const getAccounts = async (req, res) => {
 const createAccount = async (req, res) => {
   const { name, accountType, bankName, accountNumber, currency, branchId } = req.body;
   try {
+    const finalBranchId = resolveWriteBranchId(req, branchId);
     const { rows } = await query(
       `INSERT INTO finance_accounts (id, church_id, branch_id, name, account_type, bank_name, account_number, currency)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [uuidv4(), req.churchId, branchId || null, name, accountType, bankName || null, accountNumber || null, currency || 'NGN']
+      [uuidv4(), req.churchId, finalBranchId, name, accountType, bankName || null, accountNumber || null, currency || 'NGN']
     );
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {

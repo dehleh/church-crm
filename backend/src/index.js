@@ -68,19 +68,34 @@ if (isProduction) {
   });
 }
 
-// CORS — allow multiple origins (comma-separated APP_URL) + railway / custom domains
+// CORS — allow multiple origins (comma-separated APP_URL) + trusted hostnames
 const allowedOrigins = (process.env.APP_URL || 'http://localhost:3000,http://localhost:5173,https://cos.themobilemissionary.org')
   .split(',')
-  .map(o => o.trim());
+  .map(o => o.trim())
+  .filter(Boolean);
+
+const isAllowedCorsOrigin = (origin) => {
+  if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) return true;
+  try {
+    const parsed = new URL(origin);
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    }
+    if (parsed.protocol === 'https:') {
+      if (host === 'themobilemissionary.org' || host.endsWith('.themobilemissionary.org')) return true;
+      if (host.endsWith('.railway.app')) return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+};
+
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
-    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) return cb(null, true);
-    if (
-      origin.includes('railway.app') ||
-      origin.includes('themobilemissionary.org') ||
-      origin.includes('localhost')
-    ) {
+    if (isAllowedCorsOrigin(origin)) {
       return cb(null, true);
     }
     logger.warn(`Blocked by CORS: ${origin}`);
@@ -107,6 +122,8 @@ app.use(
   (req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
     next();
   },
   express.static(persistentUploadDir, {
@@ -129,6 +146,7 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/2fa/verify-login', authLimiter);
 
 // Sanitize pagination query params globally
 app.use('/api/', (req, res, next) => {

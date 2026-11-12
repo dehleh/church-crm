@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { assetsAPI, membersAPI, branchesAPI } from '../api/services';
 import { useAuth } from '../context/AuthContext';
+import { formatCurrency, getCurrencySymbol } from '../utils/currency';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 
@@ -42,11 +43,12 @@ const canDelete = (role) => ['head_pastor', 'pastor'].includes(role);
 const getCatIcon = (cat) => CATEGORIES.find(c => c.value === cat)?.icon || '📦';
 const getCondBadge = (cond) => CONDITIONS.find(c => c.value === cond) || CONDITIONS[0];
 const getStatusBadge = (st) => STATUSES.find(s => s.value === st) || STATUSES[0];
-const fmt = (n) => n != null ? `₦${Number(n).toLocaleString()}` : '—';
+const fmt = (n, currencyCode = 'NGN') => n != null ? formatCurrency(n, currencyCode) : '—';
 
 // ── Asset Detail ────────────────────────────────────────────
 function AssetDetail({ asset, onBack, onEdit, onDelete }) {
   const { user } = useAuth();
+  const fmtMoney = (n) => fmt(n, user?.currency);
   const cond = getCondBadge(asset.condition);
   const stat = getStatusBadge(asset.status);
 
@@ -106,11 +108,11 @@ function AssetDetail({ asset, onBack, onEdit, onDelete }) {
           </div>
           <div>
             <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Purchase Price</p>
-            <p className="text-sm font-medium text-gray-900">{fmt(asset.purchase_price)}</p>
+            <p className="text-sm font-medium text-gray-900">{fmtMoney(asset.purchase_price)}</p>
           </div>
           <div>
             <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Current Value</p>
-            <p className="text-sm font-medium text-gray-900">{fmt(asset.current_value)}</p>
+            <p className="text-sm font-medium text-gray-900">{fmtMoney(asset.current_value)}</p>
           </div>
           <div>
             <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Branch</p>
@@ -143,6 +145,8 @@ function AssetDetail({ asset, onBack, onEdit, onDelete }) {
 // ── Main Assets Page ────────────────────────────────────────
 export default function Assets() {
   const { user } = useAuth();
+  const fmtMoney = (n) => fmt(n, user?.currency);
+  const currencySymbol = getCurrencySymbol(user?.currency).trim();
   const [assets, setAssets] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -271,7 +275,7 @@ export default function Assets() {
             { label: 'Total Assets', value: stats.total, icon: Package, color: 'text-brand-600 bg-brand-50' },
             { label: 'Active', value: stats.active, icon: CheckCircle, color: 'text-emerald-600 bg-emerald-50' },
             { label: 'Needs Repair', value: stats.needs_repair, icon: Wrench, color: 'text-amber-600 bg-amber-50' },
-            { label: 'Total Value', value: fmt(stats.total_value), icon: DollarSign, color: 'text-blue-600 bg-blue-50' },
+            { label: 'Total Value', value: fmtMoney(stats.total_value), icon: DollarSign, color: 'text-blue-600 bg-blue-50' },
           ].map((s, i) => (
             <div key={i} className="card flex items-center gap-3">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.color}`}>
@@ -429,11 +433,11 @@ export default function Assets() {
               <input className="input" type="date" value={form.purchaseDate || ''} onChange={set('purchaseDate')} />
             </div>
             <div>
-              <label className="label">Purchase Price (₦)</label>
+              <label className="label">Purchase Price ({currencySymbol})</label>
               <input className="input" type="number" min="0" step="0.01" placeholder="0.00" value={form.purchasePrice || ''} onChange={set('purchasePrice')} />
             </div>
             <div>
-              <label className="label">Current Value (₦)</label>
+              <label className="label">Current Value ({currencySymbol})</label>
               <input className="input" type="number" min="0" step="0.01" placeholder="0.00" value={form.currentValue || ''} onChange={set('currentValue')} />
             </div>
             <div>
