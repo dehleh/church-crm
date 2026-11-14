@@ -77,12 +77,20 @@ export const memberPortalAPI = {
   initiateGiving: (data) => memberApi.post('/me/giving/initiate', data),
   getVirtualAccount: () => memberApi.get('/me/giving/virtual-account'),
   generateVirtualAccount: () => memberApi.post('/me/giving/virtual-account'),
+  givingStatement: (params) => memberApi.get('/me/giving/statement', { params }),
+  pledges: () => memberApi.get('/pledges/my'),
+  createPledge: (data) => memberApi.post('/pledges/portal', data),
+  listBlockouts: () => memberApi.get('/me/volunteer/blockouts'),
+  addBlockout: (data) => memberApi.post('/me/volunteer/blockouts', data),
+  deleteBlockout: (id) => memberApi.delete(`/me/volunteer/blockouts/${id}`),
   getPushVapidKey: () => memberApi.get('/me/push/vapid-key'),
   subscribePush: (data) => memberApi.post('/me/push/subscribe', data),
   unsubscribePush: (data) => memberApi.post('/me/push/unsubscribe', data),
   sendTestPush: () => memberApi.post('/me/push/test'),
   getPreferences: () => memberApi.get('/me/notifications/preferences'),
   updatePreferences: (data) => memberApi.put('/me/notifications/preferences', data),
+  myPastoralAppointments: () => memberApi.get('/me/pastoral-appointments'),
+  acknowledgePastoralAppointment: (id) => memberApi.post(`/me/pastoral-appointments/${id}/acknowledge`),
 };
 
 

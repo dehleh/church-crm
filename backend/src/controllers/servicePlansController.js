@@ -326,8 +326,24 @@ const addVolunteer = async (req, res) => {
   }
 
   try {
-    const check = await query('SELECT id FROM service_plans WHERE id = $1 AND church_id = $2', [id, req.churchId]);
+    const check = await query('SELECT id, service_date FROM service_plans WHERE id = $1 AND church_id = $2', [id, req.churchId]);
     if (!check.rows[0]) return res.status(404).json({ success: false, message: 'Service plan not found' });
+
+    // Verify volunteer blockout dates
+    if (check.rows[0].service_date) {
+      const { rows: blockouts } = await query(
+        `SELECT * FROM volunteer_blockouts
+         WHERE church_id = $1 AND member_id = $2
+           AND start_date <= $3 AND end_date >= $3`,
+        [req.churchId, memberId, check.rows[0].service_date]
+      );
+      if (blockouts.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `Member is unavailable due to a scheduled blockout date (${blockouts[0].reason || 'Personal unavailability'}).`,
+        });
+      }
+    }
 
     const volunteerId = uuidv4();
     await query(
@@ -463,6 +479,302 @@ const sendVolunteerReminders = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/service-plans/:id/live
+ * Fetch live cue runner state, order items, and volunteers
+ */
+const getLiveCueState = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows: planRows } = await query(
+      `SELECT sp.id, sp.title, sp.service_date, sp.start_time, sp.end_time, sp.theme, sp.series_title, sp.live_state
+       FROM service_plans sp
+       WHERE sp.id = $1 AND sp.church_id = $2`,
+      [id, req.churchId]
+    );
+    if (!planRows[0]) {
+      return res.status(404).json({ success: false, message: 'Service plan not found' });
+    }
+
+    const { rows: items } = await query(
+      `SELECT * FROM service_order_items WHERE plan_id = $1 ORDER BY sort_order ASC, created_at ASC`,
+      [id]
+    );
+
+    const { rows: volunteers } = await query(
+      `SELECT sv.*, m.first_name, m.last_name, m.phone, m.avatar_url
+       FROM service_volunteers sv
+       JOIN members m ON m.id = sv.member_id
+       WHERE sv.plan_id = $1`,
+      [id]
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        plan: planRows[0],
+        liveState: planRows[0].live_state || { activeItemIndex: -1, status: 'idle', startedAt: null },
+        items,
+        volunteers,
+      },
+    });
+  } catch (err) {
+    logger.error('getLiveCueState failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+/**
+ * POST /api/service-plans/:id/live
+ * Update live cue runner state (active item, elapsed time, status)
+ */
+const updateLiveCueState = async (req, res) => {
+  const { id } = req.params;
+  const { liveState } = req.body;
+
+  if (!liveState || typeof liveState !== 'object') {
+    return res.status(400).json({ success: false, message: 'Valid liveState object is required' });
+  }
+
+  try {
+    const { rows } = await query(
+      `UPDATE service_plans
+       SET live_state = $1, updated_at = NOW()
+       WHERE id = $2 AND church_id = $3
+       RETURNING id, live_state`,
+      [JSON.stringify(liveState), id, req.churchId]
+    );
+
+    if (!rows[0]) {
+      return res.status(404).json({ success: false, message: 'Service plan not found' });
+    }
+
+    return res.json({
+      success: true,
+      data: rows[0].live_state,
+      message: 'Live cue state updated',
+    });
+  } catch (err) {
+    logger.error('updateLiveCueState failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+/**
+ * POST /api/service-plans/blockouts
+ * Member or admin records volunteer blockout unavailable date range
+ */
+const addBlockoutDate = async (req, res) => {
+  const memberId = req.member?.id || req.body.memberId;
+  const { startDate, endDate, reason } = req.body;
+
+  if (!memberId || !startDate || !endDate) {
+    return res.status(400).json({ success: false, message: 'Member, start date, and end date are required' });
+  }
+
+  if (new Date(startDate) > new Date(endDate)) {
+    return res.status(400).json({ success: false, message: 'Start date cannot be after end date' });
+  }
+
+  try {
+    const id = uuidv4();
+    const { rows } = await query(
+      `INSERT INTO volunteer_blockouts (id, church_id, member_id, start_date, end_date, reason)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [id, req.churchId, memberId, startDate, endDate, reason || 'Unavailable']
+    );
+
+    return res.status(201).json({
+      success: true,
+      data: rows[0],
+      message: 'Blockout date saved successfully',
+    });
+  } catch (err) {
+    logger.error('addBlockoutDate failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+/**
+ * GET /api/service-plans/blockouts
+ * Fetch blockouts for a member or all for the church
+ */
+const getBlockoutDates = async (req, res) => {
+  const memberId = req.member?.id || req.query.memberId;
+  try {
+    const conditions = ['b.church_id = $1'];
+    const params = [req.churchId];
+    let idx = 2;
+
+    if (memberId) {
+      conditions.push(`b.member_id = $${idx++}`);
+      params.push(memberId);
+    }
+
+    const { rows } = await query(
+      `SELECT b.*, m.first_name, m.last_name, m.avatar_url
+       FROM volunteer_blockouts b
+       JOIN members m ON m.id = b.member_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY b.start_date DESC`,
+      params
+    );
+
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    logger.error('getBlockoutDates failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+/**
+ * DELETE /api/service-plans/blockouts/:id
+ */
+const deleteBlockoutDate = async (req, res) => {
+  const { id } = req.params;
+  const memberId = req.member?.id;
+
+  try {
+    const conditions = ['id = $1', 'church_id = $2'];
+    const params = [id, req.churchId];
+
+    if (memberId) {
+      conditions.push('member_id = $3');
+      params.push(memberId);
+    }
+
+    const { rows } = await query(
+      `DELETE FROM volunteer_blockouts WHERE ${conditions.join(' AND ')} RETURNING id`,
+      params
+    );
+
+    if (!rows[0]) {
+      return res.status(404).json({ success: false, message: 'Blockout record not found' });
+    }
+
+    return res.json({ success: true, message: 'Blockout date removed' });
+  } catch (err) {
+    logger.error('deleteBlockoutDate failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+/**
+ * POST /api/service-plans/:id/swap-request
+ * Submit a request to swap roster assignment
+ */
+const requestVolunteerSwap = async (req, res) => {
+  const { id } = req.params;
+  const requesterMemberId = req.member?.id || req.body.requesterMemberId;
+  const { rosterId, targetMemberId, reason } = req.body;
+
+  if (!rosterId || !requesterMemberId) {
+    return res.status(400).json({ success: false, message: 'Roster entry and requester are required' });
+  }
+
+  try {
+    const swapId = uuidv4();
+    const { rows } = await query(
+      `INSERT INTO volunteer_swap_requests (
+        id, church_id, service_plan_id, roster_id, requester_member_id, target_member_id, status, reason
+      ) VALUES ($1,$2,$3,$4,$5,$6,'pending',$7)
+      RETURNING *`,
+      [swapId, req.churchId, id, rosterId, requesterMemberId, targetMemberId || null, reason || null]
+    );
+
+    return res.status(201).json({
+      success: true,
+      data: rows[0],
+      message: 'Volunteer roster swap request submitted',
+    });
+  } catch (err) {
+    logger.error('requestVolunteerSwap failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+/**
+ * GET /api/service-plans/:id/swap-requests
+ */
+const listVolunteerSwapRequests = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await query(
+      `SELECT sr.*,
+              req_m.first_name as requester_first_name, req_m.last_name as requester_last_name,
+              tar_m.first_name as target_first_name, tar_m.last_name as target_last_name,
+              sv.role_title, sp.title as service_title, sp.service_date
+       FROM volunteer_swap_requests sr
+       JOIN service_plans sp ON sp.id = sr.service_plan_id
+       JOIN service_volunteers sv ON sv.id = sr.roster_id
+       JOIN members req_m ON req_m.id = sr.requester_member_id
+       LEFT JOIN members tar_m ON tar_m.id = sr.target_member_id
+       WHERE sr.church_id = $1 AND sr.service_plan_id = $2
+       ORDER BY sr.created_at DESC`,
+      [req.churchId, id]
+    );
+
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    logger.error('listVolunteerSwapRequests failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+/**
+ * POST /api/service-plans/swap-requests/:swapId/respond
+ */
+const respondToVolunteerSwap = async (req, res) => {
+  const { swapId } = req.params;
+  const { action } = req.body;
+
+  if (!['accept', 'reject'].includes(action)) {
+    return res.status(400).json({ success: false, message: 'Action must be accept or reject' });
+  }
+
+  try {
+    const { rows: swapRows } = await query(
+      `SELECT * FROM volunteer_swap_requests WHERE id = $1 AND church_id = $2`,
+      [swapId, req.churchId]
+    );
+    const swap = swapRows[0];
+    if (!swap) {
+      return res.status(404).json({ success: false, message: 'Swap request not found' });
+    }
+
+    if (swap.status !== 'pending') {
+      return res.status(400).json({ success: false, message: `Swap request is already ${swap.status}` });
+    }
+
+    const newStatus = action === 'accept' ? 'accepted' : 'rejected';
+
+    if (action === 'accept' && swap.target_member_id) {
+      await query(
+        `UPDATE service_volunteers SET member_id = $1, status = 'confirmed' WHERE id = $2`,
+        [swap.target_member_id, swap.roster_id]
+      );
+    }
+
+    const { rows: updatedSwap } = await query(
+      `UPDATE volunteer_swap_requests
+       SET status = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [newStatus, swapId]
+    );
+
+    return res.json({
+      success: true,
+      data: updatedSwap[0],
+      message: `Swap request ${newStatus}`,
+    });
+  } catch (err) {
+    logger.error('respondToVolunteerSwap failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   listServicePlans,
   getServicePlan,
@@ -474,4 +786,12 @@ module.exports = {
   removeVolunteer,
   updateVolunteerStatus,
   sendVolunteerReminders,
+  getLiveCueState,
+  updateLiveCueState,
+  addBlockoutDate,
+  getBlockoutDates,
+  deleteBlockoutDate,
+  requestVolunteerSwap,
+  listVolunteerSwapRequests,
+  respondToVolunteerSwap,
 };

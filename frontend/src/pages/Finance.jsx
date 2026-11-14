@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { DollarSign, Plus, TrendingUp, TrendingDown, Wallet, Loader2, ArrowUpRight, ArrowDownRight, FileSpreadsheet, HeartHandshake, ClipboardList } from 'lucide-react';
-import { financeAPI } from '../api/services';
+import {
+  DollarSign, Plus, TrendingUp, TrendingDown, Wallet, Loader2, ArrowUpRight,
+  ArrowDownRight, FileSpreadsheet, HeartHandshake, ClipboardList, FileText, Printer, Check
+} from 'lucide-react';
+import { financeAPI, givingAPI, membersAPI } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../utils/currency';
 import Modal from '../components/ui/Modal';
@@ -34,6 +37,39 @@ export default function Finance() {
   const [creatingCat, setCreatingCat] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const catRef = useRef(null);
+
+  // Annual Giving Statement State
+  const [showStatementModal, setShowStatementModal] = useState(false);
+  const [membersList, setMembersList] = useState([]);
+  const [selectedMemberId, setSelectedMemberId] = useState('');
+  const [statementYear, setStatementYear] = useState(new Date().getFullYear());
+  const [statementData, setStatementData] = useState(null);
+  const [loadingStatement, setLoadingStatement] = useState(false);
+
+  const fetchMembersList = async () => {
+    try {
+      const res = await membersAPI.list({ limit: 300, status: 'active' });
+      const mems = res.data.data || [];
+      setMembersList(mems);
+      if (mems.length > 0 && !selectedMemberId) {
+        setSelectedMemberId(mems[0].id);
+        fetchStatementForMember(mems[0].id, statementYear);
+      }
+    } catch {}
+  };
+
+  const fetchStatementForMember = async (memberId, yr) => {
+    if (!memberId) return;
+    setLoadingStatement(true);
+    try {
+      const res = await givingAPI.getStatement(memberId, { year: yr });
+      setStatementData(res.data.data);
+    } catch {
+      toast.error('Failed to generate statement for member');
+    } finally {
+      setLoadingStatement(false);
+    }
+  };
 
   useEffect(() => {
     const handler = (e) => { if (catRef.current && !catRef.current.contains(e.target)) setCatDropdownOpen(false); };
@@ -145,6 +181,16 @@ export default function Finance() {
             <option value="month">This Month</option>
             <option value="year">This Year</option>
           </select>
+          <button
+            onClick={() => {
+              setShowStatementModal(true);
+              fetchMembersList();
+            }}
+            className="h-9 px-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+          >
+            <FileText size={15} className="text-gray-500" />
+            <span>Giving Statement</span>
+          </button>
           <button onClick={() => setShowImport(true)} className="btn-secondary flex items-center gap-1.5">
             <FileSpreadsheet size={16} /> Import CSV
           </button>
@@ -400,6 +446,200 @@ export default function Finance() {
         entityType="transactions"
         importFn={financeAPI.importTransactions}
       />
+
+      {/* ── ANNUAL GIVING & TAX STATEMENT MODAL (STAFF VIEW) ── */}
+      <Modal
+        open={showStatementModal}
+        onClose={() => setShowStatementModal(false)}
+        title="Annual Giving & Tax Contribution Statement"
+        size="xl"
+        footer={<>
+          <button onClick={() => setShowStatementModal(false)} className="btn-secondary">Close</button>
+          {statementData && (
+            <button onClick={() => window.print()} className="btn-primary">
+              <Printer size={15} /> Print / Save Statement PDF
+            </button>
+          )}
+        </>}
+      >
+        <div className="space-y-6">
+          {/* Controls: Member & Year Selector */}
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl flex flex-wrap items-center justify-between gap-3 print:hidden">
+            <div className="flex-1 min-w-[220px]">
+              <label className="label">Select Member / Donor *</label>
+              <select
+                className="input text-xs"
+                value={selectedMemberId}
+                onChange={e => {
+                  setSelectedMemberId(e.target.value);
+                  fetchStatementForMember(e.target.value, statementYear);
+                }}
+              >
+                <option value="">Select a member...</option>
+                {membersList.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.first_name} {m.last_name} ({m.member_number || m.phone || 'Member'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="label">Tax Year</label>
+              <select
+                className="input text-xs"
+                value={statementYear}
+                onChange={e => {
+                  const yr = parseInt(e.target.value, 10);
+                  setStatementYear(yr);
+                  fetchStatementForMember(selectedMemberId, yr);
+                }}
+              >
+                {[0, 1, 2, 3].map(offset => {
+                  const y = new Date().getFullYear() - offset;
+                  return <option key={y} value={y}>Tax Year {y}</option>;
+                })}
+              </select>
+            </div>
+          </div>
+
+          {/* Statement Content */}
+          {loadingStatement ? (
+            <div className="flex flex-col items-center justify-center py-16 space-y-3">
+              <Loader2 size={32} className="animate-spin text-brand-600" />
+              <p className="text-xs text-gray-500">Generating member contribution statement…</p>
+            </div>
+          ) : statementData ? (
+            <div className="border border-gray-200 rounded-2xl p-6 sm:p-8 space-y-6 print:border-none print:p-0">
+              {/* Church Letterhead */}
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b border-gray-100 pb-5">
+                <div>
+                  <h2 className="text-2xl font-bold font-display text-gray-900">{statementData.church?.name}</h2>
+                  {statementData.church?.denomination && (
+                    <p className="text-xs text-brand-600 font-semibold">{statementData.church.denomination}</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1 max-w-sm">{statementData.church?.address || 'Church Headquarters'}</p>
+                  <p className="text-xs text-gray-400">{statementData.church?.phone} • {statementData.church?.email}</p>
+                </div>
+
+                <div className="text-left sm:text-right">
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-brand-50 text-brand-700 border border-brand-200">
+                    Official Tax Statement
+                  </span>
+                  <p className="text-sm font-bold text-gray-900 mt-2 font-mono">{statementData.statementNumber}</p>
+                  <p className="text-xs text-gray-500">Tax Year: <strong>{statementData.year}</strong></p>
+                  <p className="text-[11px] text-gray-400">Nonprofit Tax ID: <strong>{statementData.church?.taxId || 'EXEMPT-NONPROFIT'}</strong></p>
+                </div>
+              </div>
+
+              {/* Donor Information */}
+              <div className="p-4 bg-slate-50/70 rounded-xl border border-gray-100 text-xs flex flex-col sm:flex-row justify-between gap-3">
+                <div>
+                  <p className="text-gray-400 uppercase font-semibold text-[10px]">Donor Information</p>
+                  <p className="font-bold text-gray-900 text-sm mt-0.5">{statementData.member?.name}</p>
+                  <p className="text-gray-500">{statementData.member?.email} • {statementData.member?.phone}</p>
+                  {statementData.member?.address && <p className="text-gray-500 mt-0.5">{statementData.member.address}</p>}
+                </div>
+
+                <div className="sm:text-right">
+                  <p className="text-gray-400 uppercase font-semibold text-[10px]">Member Number</p>
+                  <p className="font-bold text-gray-800 text-sm mt-0.5 font-mono">{statementData.member?.memberNumber || 'MBR-001'}</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Generated: {format(new Date(statementData.generatedAt), 'MMMM d, yyyy')}</p>
+                </div>
+              </div>
+
+              {/* Categorized Giving Summary */}
+              <div>
+                <h4 className="text-xs uppercase font-bold text-gray-500 tracking-wider mb-2">Category Summary</h4>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-gray-400 text-left">
+                      <th className="py-2">Category</th>
+                      <th className="py-2 text-center">Gifts</th>
+                      <th className="py-2 text-right">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {statementData.summary?.map((s, idx) => (
+                      <tr key={idx} className="text-gray-700">
+                        <td className="py-2 font-medium">{s.category}</td>
+                        <td className="py-2 text-center text-gray-500">{s.count}</td>
+                        <td className="py-2 text-right font-semibold">{statementData.currency} {Number(s.total).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Total Giving Box */}
+              <div className="p-4 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl text-white flex items-center justify-between shadow-xs">
+                <div>
+                  <p className="text-xs uppercase tracking-wider font-semibold text-emerald-100">Total Tax-Deductible Contribution</p>
+                  <p className="text-xs text-white/80">Jan 1, {statementData.year} – Dec 31, {statementData.year}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-black font-display tracking-tight">
+                    {statementData.currency} {Number(statementData.totalAmount || 0).toLocaleString()}
+                  </p>
+                  <p className="text-[10px] text-emerald-100">Official Non-Profit Record</p>
+                </div>
+              </div>
+
+              {/* Itemized Table */}
+              {statementData.items?.length > 0 && (
+                <div>
+                  <h4 className="text-xs uppercase font-bold text-gray-500 tracking-wider mb-2">Itemized Donations</h4>
+                  <div className="max-h-56 overflow-y-auto border border-gray-100 rounded-xl print:max-h-none print:border-0">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 text-gray-500 sticky top-0 print:static">
+                        <tr className="border-b border-gray-200 text-left">
+                          <th className="py-2 px-3">Date</th>
+                          <th className="py-2 px-3">Category</th>
+                          <th className="py-2 px-3">Reference</th>
+                          <th className="py-2 px-3 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {statementData.items.map(it => (
+                          <tr key={it.id} className="text-gray-700">
+                            <td className="py-2 px-3 whitespace-nowrap">{format(new Date(it.date), 'MMM d, yyyy')}</td>
+                            <td className="py-2 px-3 font-medium">{it.category}</td>
+                            <td className="py-2 px-3 text-gray-400 font-mono text-[10px]">{it.reference || it.paymentMethod || 'Direct'}</td>
+                            <td className="py-2 px-3 text-right font-semibold">{statementData.currency} {Number(it.amount).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Legal Disclaimer & Signatory */}
+              <div className="pt-4 border-t border-gray-100 space-y-4 text-xs">
+                <p className="text-gray-500 italic text-[11px] leading-relaxed">
+                  "{statementData.disclaimer}"
+                </p>
+
+                <div className="flex justify-between items-end pt-3">
+                  <div>
+                    <p className="text-[10px] text-gray-400">Electronic verification ID: {statementData.statementNumber}</p>
+                    <p className="text-[10px] text-gray-400">Issued by Church Operating System (ChurchOS)</p>
+                  </div>
+
+                  <div className="text-right border-t border-gray-300 pt-2 min-w-[180px]">
+                    <p className="font-bold text-gray-900 text-xs">{statementData.signatory?.name}</p>
+                    <p className="text-[10px] text-gray-500">{statementData.signatory?.title}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-12 text-gray-400 text-sm">
+              Please select a member to generate their annual giving statement.
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

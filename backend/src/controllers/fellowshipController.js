@@ -328,13 +328,21 @@ const createCenter = async (req, res) => {
   const {
     zoneId, name, code, leaderMemberId, assistantLeaderMemberId, hostMemberId,
     hostName, hostPhone, hostAddress, landmark, city, state,
-    meetingDay, meetingTime, meetingFrequency, targetAudience, maxCapacity, status, notes
+    meetingDay, meetingTime, meetingFrequency, targetAudience, maxCapacity, status, notes,
+    meetingType, meetingLink
   } = req.body;
 
-  const resolvedAddress = (hostAddress || req.body.host_address || '').trim();
+  const resolvedMeetingType = (meetingType || req.body.meeting_type || 'physical').trim().toLowerCase();
+  const resolvedMeetingLink = (meetingLink || req.body.meeting_link || '').trim() || null;
+  const rawAddress = (hostAddress || req.body.host_address || '').trim();
+  const resolvedAddress = rawAddress || (resolvedMeetingType === 'virtual' ? 'Virtual Gathering' : '');
   const centerName = (name || '').trim();
 
-  if (!centerName || !resolvedAddress) {
+  if (!centerName) {
+    return res.status(400).json({ success: false, message: 'Center name is required' });
+  }
+
+  if (resolvedMeetingType !== 'virtual' && !resolvedAddress) {
     return res.status(400).json({ success: false, message: 'Center name and host address are required' });
   }
 
@@ -366,15 +374,16 @@ const createCenter = async (req, res) => {
         leader_member_id, assistant_leader_member_id, host_member_id,
         host_name, host_phone, host_address, landmark, city, state,
         meeting_day, meeting_time, meeting_frequency, target_audience,
-        max_capacity, status, notes
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+        max_capacity, status, notes, meeting_type, meeting_link
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
       RETURNING *`,
       [
         id, req.churchId, req.branchId || null, resolvedZoneId, centerName, autoCode,
         resolvedLeaderId, resolvedAsstLeaderId, resolvedHostMemberId,
         resolvedHostName, resolvedHostPhone, resolvedAddress, resolvedLandmark, resolvedCity, resolvedState,
         resolvedMeetingDay, resolvedMeetingTime, resolvedFrequency,
-        resolvedAudience, resolvedCapacity, resolvedStatus, resolvedNotes
+        resolvedAudience, resolvedCapacity, resolvedStatus, resolvedNotes,
+        resolvedMeetingType, resolvedMeetingLink
       ]
     );
 
@@ -413,7 +422,7 @@ const updateCenter = async (req, res) => {
     'zone_id', 'name', 'code', 'leader_member_id', 'assistant_leader_member_id',
     'host_member_id', 'host_name', 'host_phone', 'host_address', 'landmark',
     'city', 'state', 'meeting_day', 'meeting_time', 'meeting_frequency',
-    'target_audience', 'max_capacity', 'status', 'notes'
+    'target_audience', 'max_capacity', 'status', 'notes', 'meeting_type', 'meeting_link'
   ];
 
   const sets = [];

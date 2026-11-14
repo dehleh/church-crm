@@ -1,4 +1,5 @@
 const { query } = require('../config/database');
+const { v4: uuidv4 } = require('uuid');
 const { sendEmail } = require('./emailService');
 const { sendSMS, sendWhatsApp } = require('./smsService');
 const pushNotificationService = require('./pushNotificationService');
@@ -689,6 +690,58 @@ async function processSubscriptionTrialReminders() {
 }
 
 /**
+ * Detects active members who have had zero attendance check-ins for 21+ consecutive days
+ * and dispatches pastoral care follow-up tasks to prevent member attrition.
+ */
+async function detectAtRiskInactiveMembers() {
+  try {
+    const { rows: inactiveMembers } = await query(
+      `SELECT m.id, m.church_id, m.first_name, m.last_name, m.phone, m.email
+       FROM members m
+       JOIN churches ch ON ch.id = m.church_id
+       WHERE m.membership_status = 'active'
+         AND m.created_at < NOW() - INTERVAL '21 days'
+         AND (ch.settings->'features'->>'auto_inactivity_triggers' IS NULL OR ch.settings->'features'->>'auto_inactivity_triggers' = 'true')
+         AND NOT EXISTS (
+           SELECT 1 FROM attendance a
+           WHERE a.member_id = m.id
+             AND a.check_in_time > NOW() - INTERVAL '21 days'
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM follow_ups fu
+           WHERE fu.member_id = m.id
+             AND fu.follow_up_type = 'inactivity_check'
+             AND fu.created_at > NOW() - INTERVAL '21 days'
+         )
+       LIMIT 25`
+    );
+
+    for (const mem of inactiveMembers) {
+      const followUpId = uuidv4();
+      await query(
+        `INSERT INTO follow_ups (
+          id, church_id, member_id, follow_up_type, scheduled_at, status, notes
+        ) VALUES ($1, $2, $3, 'inactivity_check', NOW(), 'pending', $4)`,
+        [
+          followUpId,
+          mem.church_id,
+          mem.id,
+          `Automated Pastoral Care Alert: ${mem.first_name} ${mem.last_name} has not attended or checked in for 21+ consecutive days. Pastoral check-in recommended to ensure their well-being.`,
+        ]
+      );
+
+      logger.info('Inactivity pastoral care trigger recorded', {
+        memberId: mem.id,
+        churchId: mem.church_id,
+        followUpId,
+      });
+    }
+  } catch (err) {
+    logger.error('Error in detectAtRiskInactiveMembers job', { error: err.message });
+  }
+}
+
+/**
  * Main scheduler loop.
  */
 async function runSchedulerTick() {
@@ -701,6 +754,7 @@ async function runSchedulerTick() {
     await processAutomatedWeddingAnniversaryGreetings();
     await processAutomatedDevotionalReminders();
     await processSubscriptionTrialReminders();
+    await detectAtRiskInactiveMembers();
     try {
       const { processDueSequenceQueue } = require('./firstTimerSequenceService');
       await processDueSequenceQueue();
@@ -739,6 +793,7 @@ module.exports = {
   processAutomatedWeddingAnniversaryGreetings,
   processAutomatedDevotionalReminders,
   processSubscriptionTrialReminders,
+  detectAtRiskInactiveMembers,
 };
 
 

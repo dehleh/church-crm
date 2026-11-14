@@ -97,6 +97,38 @@ describe('Fellowship & Cell Controller', () => {
         })
       );
     });
+
+    it('should successfully create virtual center without physical address when meetingType is virtual', async () => {
+      const { req, res } = mockReqRes({
+        body: {
+          name: 'Global Online Fellowship',
+          meetingType: 'virtual',
+          meetingLink: 'https://meet.google.com/xyz-abc-def',
+          meetingDay: 'Friday',
+        },
+      });
+
+      db.query.mockResolvedValueOnce({
+        rows: [{
+          id: 'center-virtual-1',
+          name: 'Global Online Fellowship',
+          meeting_type: 'virtual',
+          meeting_link: 'https://meet.google.com/xyz-abc-def',
+        }],
+      });
+
+      await ctrl.createCenter(req, res);
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            name: 'Global Online Fellowship',
+            meeting_type: 'virtual',
+          }),
+        })
+      );
+    });
   });
 
   describe('matchNearestCenters', () => {

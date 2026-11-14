@@ -27,7 +27,8 @@ class PaymentService {
    */
   request(options, postData) {
     return new Promise((resolve, reject) => {
-      const req = https.request(options, (res) => {
+      const timeoutMs = options.timeout || 15000;
+      const req = https.request({ ...options, timeout: timeoutMs }, (res) => {
         let body = '';
         res.on('data', (chunk) => (body += chunk));
         res.on('end', () => {
@@ -38,6 +39,9 @@ class PaymentService {
             resolve({ statusCode: res.statusCode, headers: res.headers, raw: body });
           }
         });
+      });
+      req.on('timeout', () => {
+        req.destroy(new Error(`Payment gateway request timed out after ${timeoutMs}ms`));
       });
       req.on('error', reject);
       if (postData) {

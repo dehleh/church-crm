@@ -199,7 +199,7 @@ const submitPrayerRequest = async (req, res) => {
 // GET /api/me/home — quick dashboard stats
 const getHome = async (req, res) => {
   try {
-    const [giveRes, evtRes, deptRes, grpRes, prayerRes, churchRes, devRes, discRes, annRes, bdayRes, annivRes, mediaRes] = await Promise.all([
+    const [giveRes, evtRes, deptRes, grpRes, prayerRes, churchRes, devRes, discRes, annRes, bdayRes, annivRes, mediaRes, pastoralRes] = await Promise.all([
       query(
         `SELECT COALESCE(SUM(amount), 0) as ytd, COUNT(*) as count
          FROM transactions
@@ -319,7 +319,14 @@ const getHome = async (req, res) => {
          WHERE church_id = $1 AND is_published = true
          ORDER BY created_at DESC LIMIT 3`,
         [req.churchId]
-      )
+      ),
+      query(
+        `SELECT id, pastor_name, title, meeting_time, venue, urgency, notes, status, acknowledged_at, created_at
+         FROM pastoral_appointments
+         WHERE church_id = $1 AND member_id = $2 AND status IN ('pending', 'acknowledged')
+         ORDER BY CASE WHEN status = 'pending' THEN 1 ELSE 2 END, meeting_time ASC LIMIT 5`,
+        [req.churchId, req.member.id]
+      ).catch(() => ({ rows: [] }))
     ]);
     const chRow = churchRes.rows[0] || {};
     const chPay = chRow.payment_settings || {};
@@ -346,6 +353,7 @@ const getHome = async (req, res) => {
         upcomingBirthdays: bdayRes.rows,
         upcomingAnniversaries: annivRes.rows,
         recentMedia: mediaRes.rows,
+        pastoralNotices: pastoralRes.rows || [],
       },
     });
   } catch (err) {
@@ -551,6 +559,7 @@ const getMyFellowship = async (req, res) => {
               fc.id, fc.name, fc.code, fc.host_name, fc.host_phone, fc.host_address,
               fc.landmark, fc.city, fc.state, fc.meeting_day, fc.meeting_time,
               fc.meeting_frequency, fc.target_audience, fc.max_capacity,
+              fc.meeting_type, fc.meeting_link,
               fz.name as zone_name,
               lm.first_name || ' ' || lm.last_name as leader_name,
               lm.phone as leader_phone,
@@ -644,7 +653,7 @@ const browseNearbyFellowships = async (req, res) => {
     const { rows: centers } = await query(
       `SELECT fc.id, fc.name, fc.code, fc.host_address, fc.landmark, fc.city,
               fc.meeting_day, fc.meeting_time, fc.meeting_frequency, fc.target_audience,
-              fc.max_capacity,
+              fc.max_capacity, fc.meeting_type, fc.meeting_link,
               fz.name as zone_name, fz.target_areas,
               lm.first_name || ' ' || lm.last_name as leader_name,
               lm.phone as leader_phone,

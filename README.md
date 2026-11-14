@@ -10,11 +10,30 @@ A full-featured, multi-tenant church management platform built with React, Node.
 |----------|-----------|
 | Frontend | React 18, Vite, Tailwind CSS, Recharts, React Router v6 |
 | Backend  | Node.js, Express, JWT Auth |
-| Database | PostgreSQL (27 SQL migrations, multi-tenant) |
+| Database | PostgreSQL (30 SQL migrations, multi-tenant) |
 
 ---
 
 ## 📦 Features
+
+### Child Safety & KidCheck Safeguarding
+- **Child Check-In & Security Claim Tags** — KidCheck-style child security with randomized 4-character claim code generation (`K724`), classroom routing (Nursery, Toddlers, Primary, Pre-Teens, Teens), medical and allergy alerts.
+- **Tamper-Proof Child Pickup Verification** — Strict security code matching on checkout; pickup denied with 403 on code mismatch.
+- **Parent Emergency Paging** — Instant WhatsApp and SMS parent paging directly to their mobile phones.
+
+### Stewardship & Capital Campaigns
+- **Annual Giving & Official Tax Statements** — Downloadable and printable year-end giving certificates with church tax exemption ID, itemized contributions log, category breakdown, official signatory disclaimer, and browser print layout.
+- **Capital Campaign Pledges ("Pledged vs. Redeemed")** — Faith commitments and pledges tracking for building funds and missions with installment redemptions and automatic status transitions to 'fulfilled'.
+
+### Live Services & Volunteer Management
+- **Live Service Mode & Live Cue Runner** — Full-screen run-of-service console with real-time digital countdown timers, active segment highlight, "Up Next" preview, and AV/media cue notes for production teams.
+- **Volunteer Blockout Dates** — Self-service unavailability windows in Member Portal with scheduling conflict prevention (409 Conflict) when rostered on duty.
+- **Volunteer Swap Requests** — Peer roster substitution workflow with instant staff approval/rejection and automatic roster reassignments.
+
+### Automated Pastoral Care & Scalability
+- **Automated Birthday & Wedding Anniversary Blessings** — Automated morning WhatsApp and SMS blessings dispatched to celebrants.
+- **Pastoral Inactivity Triggers** — Automated detection of active members absent from service check-ins for 21+ consecutive days, dispatching pastoral care follow-up tasks.
+- **Performance Optimizations** — Gzip/Brotli HTTP response compression (`compression`), PostgreSQL composite indexes on transactions, members, attendance, and first-timers, and optimized payload delivery.
 
 ### People Management
 - **Members** — Full CRUD, member profiles with tabs (overview, departments, attendance, giving), auto-generated IDs (MBR-00001)

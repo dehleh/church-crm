@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Home, MapPin, Users, Calendar, Clock, Phone, Mail, Award,
   Sparkles, CheckCircle2, AlertCircle, ArrowRight, ExternalLink,
-  Loader2, FileText, Check, Navigation, Send
+  Loader2, FileText, Check, Navigation, Send, Video, Globe
 } from 'lucide-react';
 import { memberPortalAPI } from '../../api/memberClient';
 import toast from 'react-hot-toast';
@@ -125,10 +125,23 @@ export default function MemberPortalFellowship() {
           </div>
 
           <div className="relative z-10">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="text-[11px] font-mono uppercase bg-white/20 px-2 py-0.5 rounded font-semibold tracking-wider">
                 {center.code || 'CENTER'}
               </span>
+              {center.meeting_type === 'virtual' ? (
+                <span className="text-[11px] font-semibold bg-purple-500/40 text-purple-100 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 border border-purple-300/30">
+                  <Video size={12} /> Virtual Fellowship
+                </span>
+              ) : center.meeting_type === 'hybrid' ? (
+                <span className="text-[11px] font-semibold bg-indigo-500/40 text-indigo-100 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 border border-indigo-300/30">
+                  <Globe size={12} /> Hybrid Meeting
+                </span>
+              ) : (
+                <span className="text-[11px] font-semibold bg-emerald-500/40 text-emerald-100 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 border border-emerald-300/30">
+                  <MapPin size={12} /> Physical Location
+                </span>
+              )}
               {center.zone_name && (
                 <span className="text-xs text-brand-200">{terms.zoneTerm}: {center.zone_name}</span>
               )}
@@ -141,14 +154,27 @@ export default function MemberPortalFellowship() {
 
             {/* Quick Actions */}
             <div className="flex flex-wrap items-center gap-3 mt-5">
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
-                target="_blank"
-                rel="noreferrer"
-                className="px-4 py-2 rounded-xl bg-white text-brand-900 text-xs font-bold hover:bg-brand-50 transition-colors inline-flex items-center gap-1.5 shadow-sm"
-              >
-                <MapPin size={14} className="text-red-500" /> Open Directions in Maps <ExternalLink size={12} />
-              </a>
+              {center.meeting_link && (
+                <a
+                  href={center.meeting_link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 rounded-xl bg-purple-600 text-white text-xs font-bold hover:bg-purple-500 transition-colors inline-flex items-center gap-1.5 shadow-md border border-purple-400/40"
+                >
+                  <Video size={14} /> Join Virtual Meeting <ExternalLink size={12} />
+                </a>
+              )}
+
+              {center.meeting_type !== 'virtual' && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 rounded-xl bg-white text-brand-900 text-xs font-bold hover:bg-brand-50 transition-colors inline-flex items-center gap-1.5 shadow-sm"
+                >
+                  <MapPin size={14} className="text-red-500" /> Open Directions in Maps <ExternalLink size={12} />
+                </a>
+              )}
 
               {center.leader_phone && (
                 <a
@@ -178,17 +204,51 @@ export default function MemberPortalFellowship() {
           {/* Host & Venue */}
           <div className="card p-5 space-y-3">
             <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-              <MapPin size={16} className="text-brand-600" /> Meeting Venue & Host
+              <MapPin size={16} className="text-brand-600" /> Meeting Venue & Mode
             </h3>
-            <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-xl border border-gray-100">
-              <div className="font-semibold text-gray-900">{center.host_address}</div>
-              {center.landmark && (
-                <div className="text-xs text-gray-500 mt-1">Landmark: {center.landmark}</div>
-              )}
-              {center.city && (
-                <div className="text-xs text-gray-400 mt-0.5">{center.city} {center.state ? `, ${center.state}` : ''}</div>
-              )}
-            </div>
+            {center.meeting_type === 'virtual' ? (
+              <div className="text-sm text-purple-900 bg-purple-50 p-3.5 rounded-xl border border-purple-100 space-y-2">
+                <div className="font-bold text-purple-950 flex items-center gap-1.5">
+                  <Video size={16} className="text-purple-600" /> Virtual / Online Fellowship
+                </div>
+                <p className="text-xs text-purple-800">
+                  This center convenes online. Join via video call from the comfort of your home or anywhere you are!
+                </p>
+                {center.meeting_link && (
+                  <a
+                    href={center.meeting_link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 px-3 py-1.5 rounded-lg shadow-sm"
+                  >
+                    <Video size={13} /> Launch Video Meeting <ExternalLink size={12} />
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded-xl border border-gray-100 space-y-2">
+                <div className="font-semibold text-gray-900">{center.host_address}</div>
+                {center.landmark && (
+                  <div className="text-xs text-gray-500 mt-1">Landmark: {center.landmark}</div>
+                )}
+                {center.city && (
+                  <div className="text-xs text-gray-400 mt-0.5">{center.city} {center.state ? `, ${center.state}` : ''}</div>
+                )}
+                {center.meeting_type === 'hybrid' && center.meeting_link && (
+                  <div className="pt-2 border-t border-gray-200 mt-2">
+                    <span className="text-xs text-indigo-700 font-semibold block mb-1">Online Hybrid Link:</span>
+                    <a
+                      href={center.meeting_link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline font-bold"
+                    >
+                      <Video size={13} /> {center.meeting_link} <ExternalLink size={11} />
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="text-xs text-gray-600">
               Host: <strong>{center.host_name || 'Church Host Home'}</strong> {center.host_phone && `(${center.host_phone})`}
             </div>
@@ -472,10 +532,33 @@ export default function MemberPortalFellowship() {
                   </div>
 
                   <div className="mt-3 space-y-1.5 text-xs text-gray-600">
-                    <div className="flex items-start gap-1.5">
-                      <MapPin size={14} className="text-gray-400 shrink-0 mt-0.5" />
-                      <span>{center.host_address} {center.landmark ? `(${center.landmark})` : ''}</span>
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                      {center.meeting_type === 'virtual' ? (
+                        <span className="text-[10px] font-semibold bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200 inline-flex items-center gap-1">
+                          <Video size={11} /> Virtual Meeting
+                        </span>
+                      ) : center.meeting_type === 'hybrid' ? (
+                        <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 inline-flex items-center gap-1">
+                          <Globe size={11} /> Hybrid Meeting
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200 inline-flex items-center gap-1">
+                          <MapPin size={11} /> Physical Location
+                        </span>
+                      )}
                     </div>
+                    {center.meeting_type !== 'virtual' && center.host_address && (
+                      <div className="flex items-start gap-1.5">
+                        <MapPin size={14} className="text-gray-400 shrink-0 mt-0.5" />
+                        <span>{center.host_address} {center.landmark ? `(${center.landmark})` : ''}</span>
+                      </div>
+                    )}
+                    {center.meeting_link && (
+                      <div className="flex items-center gap-1.5">
+                        <Video size={14} className="text-purple-600 shrink-0" />
+                        <span className="text-purple-700 font-medium truncate">Online link provided upon joining</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-1.5">
                       <Clock size={14} className="text-gray-400 shrink-0" />
                       <span>Every {center.meeting_day} at {center.meeting_time}</span>

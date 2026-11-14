@@ -27,4 +27,11 @@ router.get(
   ctrl.listGivingTransactions
 );
 
+router.get(
+  '/statement/:memberId',
+  authenticate,
+  authorize('admin', 'pastor', 'finance'),
+  ctrl.getAnnualGivingStatement
+);
+
 module.exports = router;

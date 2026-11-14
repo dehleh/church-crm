@@ -64,6 +64,7 @@ const createFirstTimerRecord = async ({ churchId, data }) => {
 };
 
 const { autoAssignFellowshipCell } = require('./fellowshipAssignmentService');
+const { getNextMemberNumber } = require('../utils/memberNumber');
 
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
@@ -102,7 +103,7 @@ const createMemberRecord = async ({ churchId, data, user }) => {
     throw limitErr;
   }
 
-  const memberNumber = `MBR-${String(currentMembers + 1).padStart(5, '0')}`;
+  const memberNumber = await getNextMemberNumber({ query }, churchId, 'MBR', currentMembers);
 
   const cCount = parseInt(childrenCount) || 0;
   const tCount = parseInt(teenagersCount) || 0;

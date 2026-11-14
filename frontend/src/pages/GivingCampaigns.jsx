@@ -4,9 +4,9 @@ import {
   TrendingUp, Users, Copy, Check, ExternalLink, Edit3, Trash2,
   Clock, Share2, Sparkles, Building, Filter, CheckCircle2,
   AlertCircle, ChevronRight, X, Loader2, ArrowUpRight, ShieldCheck,
-  Landmark, CreditCard, QrCode
+  Landmark, CreditCard, QrCode, BookmarkCheck
 } from 'lucide-react';
-import { campaignsAPI, eventsAPI, financeAPI } from '../api/services';
+import { campaignsAPI, eventsAPI, financeAPI, pledgesAPI, membersAPI } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
@@ -62,6 +62,18 @@ export default function GivingCampaigns() {
   const [historyModal, setHistoryModal] = useState(null);
   const [contributions, setContributions] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Capital Campaign Pledges State
+  const [pledgesCampaign, setPledgesCampaign] = useState(null);
+  const [campaignPledges, setCampaignPledges] = useState([]);
+  const [pledgeAggregates, setPledgeAggregates] = useState({});
+  const [loadingPledges, setLoadingPledges] = useState(false);
+  const [showPledgesModal, setShowPledgesModal] = useState(false);
+  const [showFulfillModal, setShowFulfillModal] = useState(false);
+  const [targetPledgeForFulfill, setTargetPledgeForFulfill] = useState(null);
+  const [fulfillAmount, setFulfillAmount] = useState('');
+  const [fulfillNotes, setFulfillNotes] = useState('');
+  const [fulfilling, setFulfilling] = useState(false);
 
   // Form state for Create / Edit
   const [form, setForm] = useState({
@@ -186,6 +198,50 @@ export default function GivingCampaigns() {
       toast.error('Failed to load contributions history');
     } finally {
       setLoadingHistory(false);
+    }
+  };
+
+  const fetchCampaignPledges = async (campaignId) => {
+    setLoadingPledges(true);
+    try {
+      const res = await pledgesAPI.list({ campaignId });
+      setCampaignPledges(res.data.data || []);
+      setPledgeAggregates(res.data.aggregates || {});
+    } catch {
+      toast.error('Failed to load campaign pledges');
+    } finally {
+      setLoadingPledges(false);
+    }
+  };
+
+  const handleOpenPledges = (campaign) => {
+    setPledgesCampaign(campaign);
+    setShowPledgesModal(true);
+    fetchCampaignPledges(campaign.id);
+  };
+
+  const handleFulfillSubmit = async (e) => {
+    e.preventDefault();
+    if (!fulfillAmount || Number(fulfillAmount) <= 0) {
+      return toast.error('Please enter a valid amount');
+    }
+    setFulfilling(true);
+    try {
+      await pledgesAPI.fulfill(targetPledgeForFulfill.id, {
+        amount: parseFloat(fulfillAmount),
+        notes: fulfillNotes,
+      });
+      toast.success('Pledge redemption recorded successfully!');
+      setShowFulfillModal(false);
+      setTargetPledgeForFulfill(null);
+      setFulfillAmount('');
+      setFulfillNotes('');
+      fetchCampaignPledges(pledgesCampaign.id);
+      fetchCampaigns();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to record pledge redemption');
+    } finally {
+      setFulfilling(false);
     }
   };
 
@@ -497,6 +553,14 @@ export default function GivingCampaigns() {
                       className="px-2.5 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition shadow-2xs"
                     >
                       Donors ({c.donors_count || 0})
+                    </button>
+
+                    <button
+                      onClick={() => handleOpenPledges(c)}
+                      className="px-2.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 text-xs font-semibold transition shadow-2xs inline-flex items-center gap-1"
+                      title="View faith goals & redeem pledges"
+                    >
+                      <BookmarkCheck size={13} /> Pledges
                     </button>
 
                     <button
@@ -881,6 +945,163 @@ export default function GivingCampaigns() {
           churchName={user?.churchName}
         />
       )}
+
+      {/* ── CAMPAIGN PLEDGES MODAL ── */}
+      <Modal
+        open={showPledgesModal}
+        onClose={() => setShowPledgesModal(false)}
+        title={pledgesCampaign ? `Faith Pledges: ${pledgesCampaign.title}` : 'Campaign Pledges'}
+        size="xl"
+        footer={<button onClick={() => setShowPledgesModal(false)} className="btn-secondary">Close</button>}
+      >
+        <div className="space-y-5 max-h-[75vh] overflow-y-auto">
+          {/* Aggregate Overview Banner */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl">
+              <p className="text-[10px] uppercase font-bold text-purple-700">Total Pledged</p>
+              <p className="text-xl font-bold font-display text-purple-950 mt-0.5">{fmt(pledgeAggregates.totalPledged)}</p>
+              <p className="text-[11px] text-purple-600 mt-0.5">{pledgeAggregates.totalCount || 0} faith commitment(s)</p>
+            </div>
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <p className="text-[10px] uppercase font-bold text-emerald-700">Redeemed / Fulfilled</p>
+              <p className="text-xl font-bold font-display text-emerald-950 mt-0.5">{fmt(pledgeAggregates.totalFulfilled)}</p>
+              <p className="text-[11px] text-emerald-600 mt-0.5">Paid into kingdom account</p>
+            </div>
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <p className="text-[10px] uppercase font-bold text-blue-700">Fulfillment Rate</p>
+              <p className="text-xl font-bold font-display text-blue-950 mt-0.5">{pledgeAggregates.fulfillmentRate || 0}%</p>
+              <p className="text-[11px] text-blue-600 mt-0.5">Commitment redemption pace</p>
+            </div>
+          </div>
+
+          {/* Pledges List */}
+          {loadingPledges ? (
+            <div className="py-12 flex justify-center"><Loader2 size={24} className="animate-spin text-purple-600" /></div>
+          ) : campaignPledges.length === 0 ? (
+            <div className="text-center py-12 text-gray-400 text-sm">
+              <BookmarkCheck size={36} className="mx-auto text-gray-300 mb-2" />
+              <p className="font-medium text-gray-600">No faith commitments registered yet for this campaign.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Members can make pledges directly in their Member Portal.</p>
+            </div>
+          ) : (
+            <div className="table-wrapper">
+              <table className="crm-table text-xs">
+                <thead>
+                  <tr>
+                    <th>Donor</th>
+                    <th>Frequency</th>
+                    <th>Pledged Amount</th>
+                    <th>Redeemed</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaignPledges.map(p => {
+                    const pledged = Number(p.pledge_amount || 0);
+                    const fulfilled = Number(p.amount_fulfilled || 0);
+                    const pct = pledged > 0 ? Math.min(100, Math.round((fulfilled / pledged) * 100)) : 0;
+                    const isDone = p.status === 'fulfilled' || pct >= 100;
+                    return (
+                      <tr key={p.id}>
+                        <td>
+                          <div>
+                            <p className="font-semibold text-gray-900">{p.donor_name}</p>
+                            <p className="text-[11px] text-gray-400">{p.donor_phone || p.donor_email || 'No phone'}</p>
+                            {p.notes && <p className="text-[10px] text-gray-500 italic mt-0.5">{p.notes}</p>}
+                          </div>
+                        </td>
+                        <td>
+                          <span className="capitalize px-2 py-0.5 rounded bg-gray-100 text-gray-700 font-medium text-[11px]">
+                            {p.frequency?.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="font-bold text-gray-800">{p.currency} {pledged.toLocaleString()}</span>
+                        </td>
+                        <td>
+                          <div>
+                            <span className="font-bold text-emerald-700">{p.currency} {fulfilled.toLocaleString()}</span>
+                            <div className="w-20 bg-gray-200 rounded-full h-1.5 mt-1 overflow-hidden">
+                              <div className={`h-full rounded-full ${isDone ? 'bg-emerald-500' : 'bg-purple-600'}`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="text-[10px] text-gray-400">{pct}%</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${isDone ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {isDone ? 'Fulfilled' : 'Active'}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => {
+                              setTargetPledgeForFulfill(p);
+                              setFulfillAmount('');
+                              setFulfillNotes('');
+                              setShowFulfillModal(true);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-semibold text-xs transition"
+                          >
+                            Redeem
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* ── RECORD PLEDGE REDEMPTION MODAL ── */}
+      <Modal
+        open={showFulfillModal}
+        onClose={() => setShowFulfillModal(false)}
+        title="Record Pledge Redemption / Installment"
+        size="md"
+        footer={<>
+          <button onClick={() => setShowFulfillModal(false)} className="btn-secondary">Cancel</button>
+          <button onClick={handleFulfillSubmit} disabled={fulfilling} className="btn-primary bg-emerald-600 hover:bg-emerald-700">
+            {fulfilling ? <Loader2 size={15} className="animate-spin" /> : 'Record Redemption'}
+          </button>
+        </>}
+      >
+        {targetPledgeForFulfill && (
+          <form onSubmit={handleFulfillSubmit} className="space-y-4 text-xs">
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900">
+              Recording payment for <strong>{targetPledgeForFulfill.donor_name}</strong>'s faith pledge of <strong>{targetPledgeForFulfill.currency} {Number(targetPledgeForFulfill.pledge_amount).toLocaleString()}</strong>.
+              <p className="mt-1 text-[11px] text-emerald-700">Already redeemed: {targetPledgeForFulfill.currency} {Number(targetPledgeForFulfill.amount_fulfilled || 0).toLocaleString()}</p>
+            </div>
+
+            <div>
+              <label className="label">Redemption Amount ({targetPledgeForFulfill.currency}) *</label>
+              <input
+                type="number"
+                required
+                min="1"
+                step="any"
+                className="input text-base font-bold"
+                placeholder="e.g. 25000"
+                value={fulfillAmount}
+                onChange={e => setFulfillAmount(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="label">Notes / Reference</label>
+              <input
+                className="input"
+                placeholder="e.g. Bank transfer ref / Sunday envelope"
+                value={fulfillNotes}
+                onChange={e => setFulfillNotes(e.target.value)}
+              />
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }

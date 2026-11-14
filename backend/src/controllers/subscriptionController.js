@@ -4,6 +4,7 @@ const logger = require('../config/logger');
 const { PLANS, PLAN_CODES, getPlan } = require('../services/plans');
 const paymentService = require('../services/paymentService');
 const { sendEmail } = require('../services/emailService');
+const { recordWebhookIfNew } = require('../utils/webhookIdempotency');
 
 /**
  * Sends a branded tax receipt email to church administrators upon plan activation.
@@ -390,6 +391,15 @@ const handlePaystackWebhook = async (req, res) => {
   }
 
   const event = req.body;
+  const eventId = String(event?.data?.id || event?.data?.reference || '');
+  if (eventId) {
+    const isNew = await recordWebhookIfNew({ query }, { provider: 'paystack', eventId, rawPayload: rawBody });
+    if (!isNew) {
+      logger.info('Duplicate Paystack subscription webhook ignored', { eventId });
+      return res.status(200).send('Event already processed');
+    }
+  }
+
   if (event && event.event === 'charge.success') {
     const reference = event.data?.reference;
     if (reference && reference.startsWith('sub_')) {

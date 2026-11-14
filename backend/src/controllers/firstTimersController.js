@@ -2,6 +2,7 @@ const { query, getClient } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { createFirstTimerRecord } = require('../services/intakeService');
 const { resolveWriteBranchId, applyBranchFilter } = require('../utils/branchScope');
+const { getNextMemberNumber } = require('../utils/memberNumber');
 
 const getFirstTimers = async (req, res) => {
   const { page = 1, limit = 20, search, followUpStatus, branchId } = req.query;
@@ -106,8 +107,7 @@ const convertToMember = async (req, res) => {
       return res.status(409).json({ success: false, message: 'Already converted' });
     }
 
-    const countRes = await client.query('SELECT COUNT(*) FROM members WHERE church_id = $1', [req.churchId]);
-    const memberNumber = `MBR-${String(parseInt(countRes.rows[0].count) + 1).padStart(5, '0')}`;
+    const memberNumber = await getNextMemberNumber(client, req.churchId);
     const memberId = uuidv4();
 
     const { rows: memberRows } = await client.query(
@@ -115,7 +115,7 @@ const convertToMember = async (req, res) => {
         email, phone, gender, date_of_birth, address, join_date)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CURRENT_DATE) RETURNING *`,
       [memberId, req.churchId, ft.branch_id, memberNumber, ft.first_name, ft.last_name,
-       ft.email, ft.phone, ft.gender, ft.date_of_birth, ft.address]
+        ft.email, ft.phone, ft.gender, ft.date_of_birth, ft.address]
     );
 
     await client.query(
@@ -127,7 +127,7 @@ const convertToMember = async (req, res) => {
     await client.query('COMMIT');
     return res.json({ success: true, data: memberRows[0], message: 'First timer converted to member' });
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK').catch(() => { });
     return res.status(500).json({ success: false, message: 'Server error' });
   } finally {
     client.release();

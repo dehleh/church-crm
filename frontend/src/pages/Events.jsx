@@ -4,7 +4,8 @@ import {
   CalendarDays, Plus, Search, Users, Clock, MapPin, Video, Loader2,
   CheckSquare, QrCode, Bell, MessageCircle, Mail, Phone, Edit3, Trash2,
   Image, Sparkles, Send, CheckCircle2, ChevronRight, ListOrdered, UserCheck,
-  Copy, ArrowUp, ArrowDown, Shield, Mic, Music, BookOpen, Gift, Megaphone, Play
+  Copy, ArrowUp, ArrowDown, Shield, Mic, Music, BookOpen, Gift, Megaphone, Play,
+  Radio, Pause, RotateCcw, ArrowRight, ArrowLeft, RefreshCw, AlertCircle, Shuffle, ChevronLeft
 } from 'lucide-react';
 import { eventsAPI, branchesAPI, servicePlansAPI, membersAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
@@ -70,6 +71,25 @@ export default function Events() {
   const [newVolunteer, setNewVolunteer] = useState({ role_title: 'Usher', member_id: '', notes: '' });
   const [savingVolunteer, setSavingVolunteer] = useState(false);
   const [remindingVolunteerId, setRemindingVolunteerId] = useState(null);
+
+  // Live Service Mode & Live Cueing State
+  const [showLiveCueModal, setShowLiveCueModal] = useState(false);
+  const [livePlan, setLivePlan] = useState(null);
+  const [liveItems, setLiveItems] = useState([]);
+  const [liveVolunteers, setLiveVolunteers] = useState([]);
+  const [activeItemIndex, setActiveItemIndex] = useState(0);
+  const [liveStatus, setLiveStatus] = useState('idle'); // idle | running | paused
+  const [secondsRemaining, setSecondsRemaining] = useState(0);
+  const [loadingLive, setLoadingLive] = useState(false);
+
+  // Volunteer Swap Requests State
+  const [swapRequests, setSwapRequests] = useState([]);
+  const [showSwapModal, setShowSwapModal] = useState(false);
+  const [selectedRosterForSwap, setSelectedRosterForSwap] = useState(null);
+  const [targetMemberForSwap, setTargetMemberForSwap] = useState('');
+  const [swapReason, setSwapReason] = useState('');
+  const [submittingSwap, setSubmittingSwap] = useState(false);
+  const [loadingSwaps, setLoadingSwaps] = useState(false);
 
   const churchSlug = user?.church_slug || user?.churchSlug;
   const publicCheckInUrl = useMemo(() => {
@@ -338,12 +358,22 @@ export default function Events() {
   };
 
   // Volunteer handlers
+  const fetchSwapsForPlan = async (planId) => {
+    setLoadingSwaps(true);
+    try {
+      const res = await servicePlansAPI.listSwaps(planId);
+      setSwapRequests(res.data.data || []);
+    } catch {}
+    finally { setLoadingSwaps(false); }
+  };
+
   const openVolunteersModal = async (plan) => {
     setVolunteerPlan(plan);
     setShowVolunteersModal(true);
     try {
       const res = await servicePlansAPI.get(plan.id);
       setVolunteerList(res.data.data.volunteers || []);
+      fetchSwapsForPlan(plan.id);
     } catch {
       toast.error('Failed to load volunteers');
     }
@@ -389,6 +419,141 @@ export default function Events() {
       toast.error(err.response?.data?.message || 'Failed to send volunteer reminder');
     } finally {
       setRemindingVolunteerId(null);
+    }
+  };
+
+  // ── Live Service Cue Runner Handlers ────────────────────────
+  useEffect(() => {
+    let interval = null;
+    if (showLiveCueModal && liveStatus === 'running' && secondsRemaining > 0) {
+      interval = setInterval(() => {
+        setSecondsRemaining(prev => Math.max(0, prev - 1));
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [showLiveCueModal, liveStatus, secondsRemaining]);
+
+  const openLiveCueModal = async (plan) => {
+    setLivePlan(plan);
+    setShowLiveCueModal(true);
+    setLoadingLive(true);
+    try {
+      const res = await servicePlansAPI.getLiveCue(plan.id);
+      const data = res.data.data;
+      const items = data.items || [];
+      setLiveItems(items);
+      setLiveVolunteers(data.volunteers || []);
+      const savedState = data.liveState || {};
+      const activeIdx = (typeof savedState.activeItemIndex === 'number' && savedState.activeItemIndex >= 0 && savedState.activeItemIndex < items.length) ? savedState.activeItemIndex : 0;
+      setActiveItemIndex(activeIdx);
+      setLiveStatus(savedState.status === 'running' ? 'running' : 'idle');
+      const itemDuration = items[activeIdx] ? (parseInt(items[activeIdx].duration_minutes, 10) || 10) * 60 : 600;
+      setSecondsRemaining(itemDuration);
+    } catch {
+      toast.error('Failed to load live service state');
+    } finally {
+      setLoadingLive(false);
+    }
+  };
+
+  const handleStartLiveCue = async () => {
+    setLiveStatus('running');
+    try {
+      await servicePlansAPI.updateLiveCue(livePlan.id, {
+        activeItemIndex,
+        status: 'running',
+        startedAt: new Date().toISOString(),
+      });
+    } catch {}
+  };
+
+  const handlePauseLiveCue = async () => {
+    setLiveStatus('paused');
+    try {
+      await servicePlansAPI.updateLiveCue(livePlan.id, {
+        activeItemIndex,
+        status: 'paused',
+      });
+    } catch {}
+  };
+
+  const handleNextLiveItem = async () => {
+    if (activeItemIndex >= liveItems.length - 1) return;
+    const nextIdx = activeItemIndex + 1;
+    setActiveItemIndex(nextIdx);
+    const itemSecs = (parseInt(liveItems[nextIdx]?.duration_minutes, 10) || 10) * 60;
+    setSecondsRemaining(itemSecs);
+    try {
+      await servicePlansAPI.updateLiveCue(livePlan.id, {
+        activeItemIndex: nextIdx,
+        status: liveStatus,
+      });
+    } catch {}
+  };
+
+  const handlePrevLiveItem = async () => {
+    if (activeItemIndex <= 0) return;
+    const prevIdx = activeItemIndex - 1;
+    setActiveItemIndex(prevIdx);
+    const itemSecs = (parseInt(liveItems[prevIdx]?.duration_minutes, 10) || 10) * 60;
+    setSecondsRemaining(itemSecs);
+    try {
+      await servicePlansAPI.updateLiveCue(livePlan.id, {
+        activeItemIndex: prevIdx,
+        status: liveStatus,
+      });
+    } catch {}
+  };
+
+  const handleJumpToItem = async (idx) => {
+    setActiveItemIndex(idx);
+    const itemSecs = (parseInt(liveItems[idx]?.duration_minutes, 10) || 10) * 60;
+    setSecondsRemaining(itemSecs);
+    try {
+      await servicePlansAPI.updateLiveCue(livePlan.id, {
+        activeItemIndex: idx,
+        status: liveStatus,
+      });
+    } catch {}
+  };
+
+  // ── Volunteer Roster Swap Requests ──────────────────────────
+  const handleRequestSwapSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedRosterForSwap || !targetMemberForSwap) {
+      return toast.error('Please select a replacement volunteer');
+    }
+    setSubmittingSwap(true);
+    try {
+      await servicePlansAPI.requestSwap(volunteerPlan.id, {
+        rosterId: selectedRosterForSwap.id,
+        targetMemberId: targetMemberForSwap,
+        reason: swapReason,
+      });
+      toast.success('Swap request submitted!');
+      setShowSwapModal(false);
+      setSelectedRosterForSwap(null);
+      setTargetMemberForSwap('');
+      setSwapReason('');
+      fetchSwapsForPlan(volunteerPlan.id);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to submit swap request');
+    } finally {
+      setSubmittingSwap(false);
+    }
+  };
+
+  const handleRespondSwap = async (swapId, action) => {
+    try {
+      await servicePlansAPI.respondSwap(swapId, action);
+      toast.success(`Swap request ${action === 'accept' ? 'accepted' : 'rejected'}`);
+      fetchSwapsForPlan(volunteerPlan.id);
+      const res = await servicePlansAPI.get(volunteerPlan.id);
+      setVolunteerList(res.data.data.volunteers || []);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to respond to swap');
     }
   };
 
@@ -698,6 +863,7 @@ export default function Events() {
                     <th>Date & Time</th>
                     <th>Run-Sheet (Segments)</th>
                     <th>Volunteer Roster</th>
+                    <th>Live Mode</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
@@ -744,6 +910,16 @@ export default function Events() {
                         >
                           <Users size={14} />
                           <span>{plan.volunteer_count || 0} Volunteers</span>
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => openLiveCueModal(plan)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-amber-400 border border-slate-700 hover:bg-slate-800 transition-colors shadow-xs"
+                          title="Open Live Service Cue Runner & AV Dashboard"
+                        >
+                          <Radio size={13} className="text-red-500 animate-pulse" />
+                          <span>Live Mode</span>
                         </button>
                       </td>
                       <td>
@@ -1374,6 +1550,19 @@ export default function Events() {
                           </button>
                           <button
                             type="button"
+                            onClick={() => {
+                              setSelectedRosterForSwap(vol);
+                              setTargetMemberForSwap('');
+                              setSwapReason('');
+                              setShowSwapModal(true);
+                            }}
+                            className="p-1.5 rounded hover:bg-purple-50 text-purple-600 transition-colors"
+                            title="Request Peer Roster Swap"
+                          >
+                            <Shuffle size={13} />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleRemoveVolunteer(vol.id)}
                             className="p-1.5 rounded hover:bg-red-50 text-red-500"
                             title="Remove Volunteer"
@@ -1388,6 +1577,52 @@ export default function Events() {
               </tbody>
             </table>
           </div>
+
+          {/* Pending Swap Requests */}
+          {swapRequests.length > 0 && (
+            <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3">
+              <div className="flex items-center gap-2">
+                <Shuffle size={15} className="text-purple-700" />
+                <p className="text-xs font-bold text-purple-900 uppercase tracking-wide">
+                  Pending Roster Substitution / Swap Requests ({swapRequests.length})
+                </p>
+              </div>
+
+              <div className="divide-y divide-purple-100 bg-white rounded-lg border border-purple-100 overflow-hidden">
+                {swapRequests.map(sr => (
+                  <div key={sr.id} className="p-3 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {sr.requester_first_name} {sr.requester_last_name} ({sr.role_title}) → {sr.target_first_name ? `${sr.target_first_name} ${sr.target_last_name}` : 'Open Request'}
+                      </p>
+                      {sr.reason && <p className="text-[11px] text-gray-500 italic mt-0.5">"{sr.reason}"</p>}
+                    </div>
+
+                    {sr.status === 'pending' ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleRespondSwap(sr.id, 'accept')}
+                          className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleRespondSwap(sr.id, 'reject')}
+                          className="px-2.5 py-1 rounded bg-red-100 hover:bg-red-200 text-red-700 font-semibold text-[11px] transition-colors"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    ) : (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${sr.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                        {sr.status}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Add Volunteer Section */}
           <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
@@ -1454,6 +1689,229 @@ export default function Events() {
           </div>
         </div>
       </Modal>
+
+      {/* ── Volunteer Swap Request Modal ── */}
+      <Modal
+        open={showSwapModal}
+        onClose={() => setShowSwapModal(false)}
+        title="Request Volunteer Substitution / Swap"
+        size="md"
+        footer={<>
+          <button onClick={() => setShowSwapModal(false)} className="btn-secondary">Cancel</button>
+          <button onClick={handleRequestSwapSubmit} disabled={submittingSwap} className="btn-primary">
+            {submittingSwap ? <Loader2 size={15} className="animate-spin" /> : <Shuffle size={15} />}
+            Submit Swap Request
+          </button>
+        </>}
+      >
+        {selectedRosterForSwap && (
+          <form onSubmit={handleRequestSwapSubmit} className="space-y-4 text-xs">
+            <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-900">
+              Requesting a peer replacement for role: <strong>{selectedRosterForSwap.role_title}</strong> assigned to <strong>{selectedRosterForSwap.first_name} {selectedRosterForSwap.last_name}</strong>.
+            </div>
+
+            <div>
+              <label className="label">Select Target Volunteer for Substitution *</label>
+              <select
+                required
+                className="input text-xs"
+                value={targetMemberForSwap}
+                onChange={e => setTargetMemberForSwap(e.target.value)}
+              >
+                <option value="">Select a replacement member...</option>
+                {allMembers
+                  .filter(m => m.id !== selectedRosterForSwap.member_id)
+                  .map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.first_name} {m.last_name} {m.phone ? `(${m.phone})` : ''}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="label">Reason / Schedule Conflict</label>
+              <textarea
+                rows={2}
+                className="input text-xs"
+                placeholder="e.g. Shift conflict, requested Peter to swap for Sunday morning service"
+                value={swapReason}
+                onChange={e => setSwapReason(e.target.value)}
+              />
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* ── LIVE SERVICE MODE & CUE RUNNER MODAL ── */}
+      {showLiveCueModal && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col justify-between text-white p-4 sm:p-8">
+          {/* Top Bar */}
+          <div className="flex items-center justify-between border-b border-white/10 pb-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-3 w-3 relative">
+                {liveStatus === 'running' && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                )}
+                <span className={`relative inline-flex rounded-full h-3 w-3 ${liveStatus === 'running' ? 'bg-red-500' : liveStatus === 'paused' ? 'bg-amber-400' : 'bg-gray-500'}`}></span>
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-black font-display tracking-tight text-white">{livePlan?.title}</h2>
+                  <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded tracking-wider ${liveStatus === 'running' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-white/10 text-gray-300'}`}>
+                    {liveStatus === 'running' ? 'ON AIR' : liveStatus === 'paused' ? 'PAUSED' : 'STANDBY'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400">{livePlan?.theme ? `Theme: "${livePlan.theme}"` : 'Live Order of Service Cue Dashboard'}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <p className="text-xs text-gray-400">Scheduled Time</p>
+                <p className="text-sm font-bold font-mono text-white">{livePlan?.start_time?.substring(0, 5)} - {livePlan?.end_time?.substring(0, 5)}</p>
+              </div>
+              <button
+                onClick={() => setShowLiveCueModal(false)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white transition-colors"
+                title="Exit Live Console"
+              >
+                ✕ Close Console
+              </button>
+            </div>
+          </div>
+
+          {/* Central Live Cue Display */}
+          {loadingLive ? (
+            <div className="flex justify-center items-center py-20"><Loader2 size={36} className="animate-spin text-amber-400" /></div>
+          ) : liveItems.length === 0 ? (
+            <div className="text-center py-20 text-gray-400">No timeline items in this service plan.</div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 my-auto py-4">
+              {/* Active Item Giant Panel (2 cols) */}
+              <div className="lg:col-span-2 bg-slate-900/90 border border-white/10 rounded-3xl p-6 sm:p-10 flex flex-col justify-between shadow-2xl relative overflow-hidden">
+                <div className="flex items-center justify-between text-xs text-amber-400 font-semibold uppercase tracking-wider mb-2">
+                  <span>Segment #{activeItemIndex + 1} of {liveItems.length}</span>
+                  <span className="capitalize">{liveItems[activeItemIndex]?.item_type || 'General'}</span>
+                </div>
+
+                <div className="my-auto space-y-4">
+                  <h1 className="text-3xl sm:text-5xl font-black font-display tracking-tight text-white leading-tight">
+                    {liveItems[activeItemIndex]?.title}
+                  </h1>
+
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-300">
+                    <span>Minister: <strong className="text-white">{liveItems[activeItemIndex]?.minister_name || 'Assigned Minister'}</strong></span>
+                    <span>•</span>
+                    <span>Allocated: <strong>{liveItems[activeItemIndex]?.duration_minutes || 10} minutes</strong></span>
+                  </div>
+
+                  {/* AV Cue Notes */}
+                  {liveItems[activeItemIndex]?.notes && (
+                    <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-300 text-xs sm:text-sm font-medium flex items-start gap-2">
+                      <Radio size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                      <span><strong>AV / Media Cue:</strong> {liveItems[activeItemIndex].notes}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Digital Countdown Timer */}
+                <div className="mt-6 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-widest text-gray-400 font-mono">Time Remaining</p>
+                    <div className="text-6xl sm:text-7xl font-mono font-black text-amber-400 tracking-wider">
+                      {Math.floor(secondsRemaining / 60).toString().padStart(2, '0')}:{(secondsRemaining % 60).toString().padStart(2, '0')}
+                    </div>
+                  </div>
+
+                  {/* Up Next Preview */}
+                  {liveItems[activeItemIndex + 1] && (
+                    <div className="p-3 bg-white/5 border border-white/10 rounded-2xl max-w-xs text-xs text-left">
+                      <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Up Next</p>
+                      <p className="font-bold text-white mt-0.5 truncate">{liveItems[activeItemIndex + 1]?.title}</p>
+                      <p className="text-[11px] text-gray-400">{liveItems[activeItemIndex + 1]?.minister_name} ({liveItems[activeItemIndex + 1]?.duration_minutes}m)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Sidebar Run-Sheet Timeline */}
+              <div className="bg-slate-900/60 border border-white/10 rounded-3xl p-5 flex flex-col max-h-[500px]">
+                <h3 className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-3">Service Run-Sheet</h3>
+                <div className="overflow-y-auto space-y-2 flex-1 pr-1 divide-y divide-white/5">
+                  {liveItems.map((it, idx) => {
+                    const isActive = idx === activeItemIndex;
+                    const isPast = idx < activeItemIndex;
+                    return (
+                      <div
+                        key={it.id || idx}
+                        onClick={() => handleJumpToItem(idx)}
+                        className={`p-3 rounded-xl cursor-pointer transition-all flex items-center justify-between gap-2 ${
+                          isActive
+                            ? 'bg-amber-400 text-slate-950 font-bold shadow-lg scale-102'
+                            : isPast
+                            ? 'opacity-40 hover:opacity-80 text-gray-400'
+                            : 'hover:bg-white/10 text-gray-200'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold truncate">{idx + 1}. {it.title}</p>
+                          <p className={`text-[10px] truncate ${isActive ? 'text-slate-800' : 'text-gray-400'}`}>
+                            {it.minister_name || 'Minister'}
+                          </p>
+                        </div>
+                        <span className="text-xs font-mono font-bold flex-shrink-0">{it.duration_minutes}m</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bottom Live Controls */}
+          <div className="flex items-center justify-between border-t border-white/10 pt-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePrevLiveItem}
+                disabled={activeItemIndex <= 0}
+                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 disabled:opacity-30 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors"
+              >
+                <ChevronLeft size={16} /> Previous
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {liveStatus === 'running' ? (
+                <button
+                  onClick={handlePauseLiveCue}
+                  className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm flex items-center gap-2 shadow-lg transition-all"
+                >
+                  <Pause size={18} /> Pause Clock
+                </button>
+              ) : (
+                <button
+                  onClick={handleStartLiveCue}
+                  className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm flex items-center gap-2 shadow-lg transition-all"
+                >
+                  <Play size={18} /> {liveStatus === 'paused' ? 'Resume Service' : 'Start Service'}
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleNextLiveItem}
+                disabled={activeItemIndex >= liveItems.length - 1}
+                className="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:opacity-30 text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
+              >
+                <span>Advance to Next Segment</span>
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

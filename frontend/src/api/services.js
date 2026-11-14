@@ -62,6 +62,17 @@ export const servicePlansAPI = {
   removeVolunteer: (id, volunteerId) => api.delete(`/service-plans/${id}/volunteers/${volunteerId}`),
   sendVolunteerReminder: (id, volunteerId, data = {}) => api.post(`/service-plans/${id}/volunteers/${volunteerId}/remind`, data),
   duplicate: (id, data) => api.post(`/service-plans/${id}/duplicate`, data),
+  getLiveCue: (id) => api.get(`/service-plans/${id}/live`),
+  updateLiveCue: (id, liveState) => api.post(`/service-plans/${id}/live`, { liveState }),
+  listBlockouts: (params) => api.get('/service-plans/blockouts/list', { params }),
+  addBlockout: (data) => api.post('/service-plans/blockouts', data),
+  deleteBlockout: (id) => api.delete(`/service-plans/blockouts/${id}`),
+  requestSwap: (id, data) => api.post(`/service-plans/${id}/swap-request`, data),
+  listSwaps: (id) => api.get(`/service-plans/${id}/swap-requests`),
+  respondSwap: (swapId, action) => api.post(`/service-plans/swap-requests/${swapId}/respond`, { action }),
+  getMyBlockouts: () => api.get('/me/volunteer/blockouts'),
+  addMyBlockout: (data) => api.post('/me/volunteer/blockouts', data),
+  deleteMyBlockout: (id) => api.delete(`/me/volunteer/blockouts/${id}`),
 };
 
 
@@ -330,6 +341,23 @@ export const givingAPI = {
   initialize: (data) => axios.post(`${API_BASE}/giving/public/initialize`, data),
   verify: (reference, params) => axios.get(`${API_BASE}/giving/public/verify/${reference}`, { params }),
   listTransactions: (params) => api.get('/giving/transactions', { params }),
+  getStatement: (memberId, params) => api.get(`/giving/statement/${memberId}`, { params }),
+  getMyStatement: (params) => api.get('/me/giving/statement', { params }),
+};
+
+export const childCheckInAPI = {
+  list: (params) => api.get('/child-check-in', { params }),
+  checkIn: (data) => api.post('/child-check-in', data),
+  checkOut: (id, data) => api.post(`/child-check-in/${id}/checkout`, data),
+  pageParent: (id, data) => api.post(`/child-check-in/${id}/page-parent`, data),
+};
+
+export const pledgesAPI = {
+  list: (params) => api.get('/pledges', { params }),
+  create: (data) => api.post('/pledges', data),
+  fulfill: (id, data) => api.post(`/pledges/${id}/fulfill`, data),
+  getMyPledges: () => api.get('/pledges/my'),
+  createPortalPledge: (data) => api.post('/pledges/portal', data),
 };
 
 export const twoFactorAPI = {
@@ -361,6 +389,16 @@ export const subscriptionAPI = {
   initialize: (data) => api.post('/subscription/initialize', data),
   verify: (data) => api.post('/subscription/verify', data),
 };
+
+export const pastoralAppointmentsAPI = {
+  list: (params) => api.get('/pastoral-appointments', { params }),
+  get: (id) => api.get(`/pastoral-appointments/${id}`),
+  create: (data) => api.post('/pastoral-appointments', data),
+  updateStatus: (id, data) => api.patch(`/pastoral-appointments/${id}/status`, data),
+  resend: (id, data) => api.post(`/pastoral-appointments/${id}/resend`, data),
+  delete: (id) => api.delete(`/pastoral-appointments/${id}`),
+};
+
 
 
 

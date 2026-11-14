@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
   Loader2, DollarSign, HeartHandshake, Plus, CheckCircle2,
-  Building, Calendar, Sparkles, CreditCard, Landmark, Copy, Check, X
+  Building, Calendar, Sparkles, CreditCard, Landmark, Copy, Check, X,
+  FileText, Printer, BookmarkCheck, Target
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { memberPortalAPI } from '../../api/memberClient';
@@ -16,6 +17,22 @@ export default function MemberPortalGiving() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [givingOptions, setGivingOptions] = useState(null);
+
+  // Statement State
+  const [showStatementModal, setShowStatementModal] = useState(false);
+  const [statementYear, setStatementYear] = useState(new Date().getFullYear());
+  const [statementData, setStatementData] = useState(null);
+  const [loadingStatement, setLoadingStatement] = useState(false);
+
+  // Faith Pledge State
+  const [myPledges, setMyPledges] = useState([]);
+  const [loadingPledges, setLoadingPledges] = useState(false);
+  const [showPledgeModal, setShowPledgeModal] = useState(false);
+  const [pledgeCampaignId, setPledgeCampaignId] = useState('');
+  const [pledgeAmount, setPledgeAmount] = useState('');
+  const [pledgeFrequency, setPledgeFrequency] = useState('monthly');
+  const [pledgeNotes, setPledgeNotes] = useState('');
+  const [submittingPledge, setSubmittingPledge] = useState(false);
 
   // Form State
   const [givingType, setGivingType] = useState('Offering');
@@ -48,8 +65,50 @@ export default function MemberPortalGiving() {
       .finally(() => setLoading(false));
   };
 
+  const fetchMyPledges = () => {
+    setLoadingPledges(true);
+    memberPortalAPI.pledges()
+      .then(res => setMyPledges(res.data.data || []))
+      .catch(() => {})
+      .finally(() => setLoadingPledges(false));
+  };
+
+  const fetchGivingStatement = (yr) => {
+    setLoadingStatement(true);
+    memberPortalAPI.givingStatement({ year: yr })
+      .then(res => setStatementData(res.data.data))
+      .catch(() => toast.error('Failed to generate annual tax statement'))
+      .finally(() => setLoadingStatement(false));
+  };
+
+  const handlePledgeSubmit = async (e) => {
+    e.preventDefault();
+    if (!pledgeCampaignId || !pledgeAmount || Number(pledgeAmount) <= 0) {
+      return toast.error('Please select a campaign and enter a positive pledge amount');
+    }
+    setSubmittingPledge(true);
+    try {
+      await memberPortalAPI.createPledge({
+        campaignId: pledgeCampaignId,
+        pledgeAmount: parseFloat(pledgeAmount),
+        frequency: pledgeFrequency,
+        notes: pledgeNotes,
+      });
+      toast.success('Faith pledge committed! May the Lord prosper your hands.');
+      setShowPledgeModal(false);
+      setPledgeAmount('');
+      setPledgeNotes('');
+      fetchMyPledges();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to submit pledge');
+    } finally {
+      setSubmittingPledge(false);
+    }
+  };
+
   useEffect(() => {
     fetchGivingData();
+    fetchMyPledges();
   }, []);
 
   const handleCopyAccount = (accNo, cur) => {
@@ -123,13 +182,26 @@ export default function MemberPortalGiving() {
           </p>
         </div>
 
-        <button
-          onClick={() => setShowModal(true)}
-          className="btn-primary flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md hover:shadow-lg transition-all"
-        >
-          <HeartHandshake size={18} />
-          <span>Give Online Now</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => {
+              setShowStatementModal(true);
+              fetchGivingStatement(statementYear);
+            }}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 shadow-xs transition-all"
+          >
+            <FileText size={17} className="text-gray-500" />
+            <span>Annual Tax Statement</span>
+          </button>
+
+          <button
+            onClick={() => setShowModal(true)}
+            className="btn-primary flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md hover:shadow-lg transition-all"
+          >
+            <HeartHandshake size={18} />
+            <span>Give Online Now</span>
+          </button>
+        </div>
       </div>
 
       {/* Dedicated Virtual Bank Account Card (Direct Bank Transfer) */}
@@ -373,24 +445,126 @@ export default function MemberPortalGiving() {
                     <span>Goal: {c.target_amount > 0 ? fmt(c.target_amount) : 'Open'}</span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGivingType('Project');
-                      setSelectedCampaign(c.id);
-                      if (c.category_id) setSelectedCategory(c.category_id);
-                      setShowModal(true);
-                    }}
-                    className="w-full mt-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition"
-                  >
-                    Give to this Project →
-                  </button>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGivingType('Project');
+                        setSelectedCampaign(c.id);
+                        if (c.category_id) setSelectedCategory(c.category_id);
+                        setShowModal(true);
+                      }}
+                      className="py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition text-center"
+                    >
+                      Give Now →
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPledgeCampaignId(c.id);
+                        setShowPledgeModal(true);
+                      }}
+                      className="py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold transition text-center"
+                    >
+                      Make Pledge
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {/* Faith Commitments & Pledges Section */}
+      <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+              <BookmarkCheck size={16} />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 text-base">My Faith Goals & Campaign Pledges</h3>
+              <p className="text-xs text-gray-400">Track your voluntary commitments and redemption progress</p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              if (givingOptions?.campaigns?.length > 0) {
+                setPledgeCampaignId(givingOptions.campaigns[0].id);
+              }
+              setShowPledgeModal(true);
+            }}
+            className="px-3 py-1.5 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+          >
+            <Plus size={14} />
+            <span>New Faith Pledge</span>
+          </button>
+        </div>
+
+        {loadingPledges ? (
+          <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-brand-500" /></div>
+        ) : myPledges.length === 0 ? (
+          <div className="text-center py-6 border border-dashed border-gray-200 rounded-xl">
+            <Target size={28} className="mx-auto text-gray-300 mb-2" />
+            <p className="text-xs text-gray-500 font-medium">No active faith commitments registered</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Commit a target amount toward ongoing building projects or mission campaigns</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {myPledges.map((p) => {
+              const pledged = Number(p.pledge_amount || 0);
+              const fulfilled = Number(p.amount_fulfilled || 0);
+              const pct = pledged > 0 ? Math.min(100, Math.round((fulfilled / pledged) * 100)) : 0;
+              const isFulfilled = p.status === 'fulfilled' || pct >= 100;
+              return (
+                <div key={p.id} className="p-4 rounded-xl border border-gray-100 bg-slate-50/70 flex flex-col justify-between gap-3">
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+                      <span className="capitalize font-bold px-2 py-0.5 rounded bg-purple-50 text-purple-700">
+                        {p.frequency.replace('_', ' ')}
+                      </span>
+                      <span className={`font-bold px-2 py-0.5 rounded ${isFulfilled ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                        {isFulfilled ? 'Fulfilled' : `${pct}% redeemed`}
+                      </span>
+                    </div>
+                    <h4 className="font-bold text-gray-900 text-sm">{p.campaign_title}</h4>
+                    {p.notes && <p className="text-[11px] text-gray-500 italic mt-0.5 line-clamp-1">{p.notes}</p>}
+                  </div>
+
+                  <div className="space-y-1.5 pt-1">
+                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${isFulfilled ? 'bg-emerald-500' : 'bg-purple-600'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-gray-500">Fulfilled: <strong>{p.currency} {fulfilled.toLocaleString()}</strong></span>
+                      <span className="text-gray-700 font-semibold">Goal: {p.currency} {pledged.toLocaleString()}</span>
+                    </div>
+
+                    {!isFulfilled && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGivingType('Project');
+                          setSelectedCampaign(p.campaign_id);
+                          setShowModal(true);
+                        }}
+                        className="w-full mt-2 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-xs transition"
+                      >
+                        Redeem / Give Toward Goal →
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Table */}
       <div className="bg-white border border-gray-100 rounded-2xl shadow-xs overflow-hidden">
@@ -714,6 +888,305 @@ export default function MemberPortalGiving() {
                 {submitting ? <Loader2 size={18} className="animate-spin" /> : <HeartHandshake size={18} />}
                 <span>{submitting ? 'Recording Giving…' : `Give ${amount ? `${{ NGN: '₦', USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', KES: 'KSh', GHS: 'GH₵', ZAR: 'R', AUD: 'AU$' }[currency] || currency}${amount}` : ''} for ${givingType}`}</span>
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── ANNUAL GIVING & TAX CONTRIBUTION STATEMENT MODAL ── */}
+      {showStatementModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 print:p-0 print:bg-white" onClick={() => setShowStatementModal(false)}>
+          <div
+            className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto print:max-w-none print:shadow-none print:p-8 print:max-h-none"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header & Controls */}
+            <div className="flex items-center justify-between border-b border-gray-100 pb-4 print:hidden">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 font-display">Annual Contribution & Tax Statement</h3>
+                  <p className="text-xs text-gray-500">Official itemized giving certificate for tax documentation</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={statementYear}
+                  onChange={e => {
+                    const yr = parseInt(e.target.value, 10);
+                    setStatementYear(yr);
+                    fetchGivingStatement(yr);
+                  }}
+                  className="text-xs font-semibold bg-gray-100 hover:bg-gray-200 border-0 rounded-lg px-3 py-2 text-gray-700 outline-none"
+                >
+                  {[0, 1, 2, 3].map(offset => {
+                    const y = new Date().getFullYear() - offset;
+                    return <option key={y} value={y}>Tax Year {y}</option>;
+                  })}
+                </select>
+
+                <button
+                  onClick={() => setShowStatementModal(false)}
+                  className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {loadingStatement ? (
+              <div className="flex flex-col items-center justify-center py-16 space-y-3">
+                <Loader2 size={32} className="animate-spin text-brand-600" />
+                <p className="text-xs text-gray-500">Calculating contributions and generating statement…</p>
+              </div>
+            ) : statementData ? (
+              <div className="space-y-6 print:space-y-4">
+                {/* Printable Certificate Container */}
+                <div className="border border-gray-200 rounded-2xl p-6 sm:p-8 space-y-6 print:border-none print:p-0">
+                  {/* Church Header */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b border-gray-100 pb-5">
+                    <div>
+                      <h2 className="text-2xl font-bold font-display text-gray-900">{statementData.church?.name}</h2>
+                      {statementData.church?.denomination && (
+                        <p className="text-xs text-brand-600 font-semibold">{statementData.church.denomination}</p>
+                      )}
+                      <p className="text-xs text-gray-500 mt-1 max-w-sm">{statementData.church?.address || 'Church Headquarters'}</p>
+                      <p className="text-xs text-gray-400">{statementData.church?.phone} • {statementData.church?.email}</p>
+                    </div>
+
+                    <div className="text-left sm:text-right">
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-brand-50 text-brand-700 border border-brand-200">
+                        Official Tax Receipt
+                      </span>
+                      <p className="text-sm font-bold text-gray-900 mt-2 font-mono">{statementData.statementNumber}</p>
+                      <p className="text-xs text-gray-500">Tax Year: <strong>{statementData.year}</strong></p>
+                      <p className="text-[11px] text-gray-400">Nonprofit Tax ID: <strong>{statementData.church?.taxId || 'EXEMPT-NONPROFIT'}</strong></p>
+                    </div>
+                  </div>
+
+                  {/* Member Details */}
+                  <div className="p-4 bg-slate-50/70 rounded-xl border border-gray-100 text-xs flex flex-col sm:flex-row justify-between gap-3">
+                    <div>
+                      <p className="text-gray-400 uppercase font-semibold text-[10px]">Donor Information</p>
+                      <p className="font-bold text-gray-900 text-sm mt-0.5">{statementData.member?.name}</p>
+                      <p className="text-gray-500">{statementData.member?.email} • {statementData.member?.phone}</p>
+                      {statementData.member?.address && <p className="text-gray-500 mt-0.5">{statementData.member.address}</p>}
+                    </div>
+
+                    <div className="sm:text-right">
+                      <p className="text-gray-400 uppercase font-semibold text-[10px]">Member ID</p>
+                      <p className="font-bold text-gray-800 text-sm mt-0.5 font-mono">{statementData.member?.memberNumber || 'MBR-PORTAL'}</p>
+                      <p className="text-[10px] text-gray-400 mt-1">Generated: {format(new Date(statementData.generatedAt), 'MMMM d, yyyy')}</p>
+                    </div>
+                  </div>
+
+                  {/* Categorized Giving Summary */}
+                  <div>
+                    <h4 className="text-xs uppercase font-bold text-gray-500 tracking-wider mb-2">Giving Breakdown by Category</h4>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-gray-400 text-left">
+                          <th className="py-2">Category</th>
+                          <th className="py-2 text-center">Donation Count</th>
+                          <th className="py-2 text-right">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {statementData.summary?.map((s, idx) => (
+                          <tr key={idx} className="text-gray-700">
+                            <td className="py-2 font-medium">{s.category}</td>
+                            <td className="py-2 text-center text-gray-500">{s.count} gift(s)</td>
+                            <td className="py-2 text-right font-semibold">{statementData.currency} {Number(s.total).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Total Giving Box */}
+                  <div className="p-4 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl text-white flex items-center justify-between shadow-xs">
+                    <div>
+                      <p className="text-xs uppercase tracking-wider font-semibold text-emerald-100">Total Tax-Deductible Giving</p>
+                      <p className="text-xs text-white/80">Jan 1, {statementData.year} – Dec 31, {statementData.year}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-black font-display tracking-tight">
+                        {statementData.currency} {Number(statementData.totalAmount || 0).toLocaleString()}
+                      </p>
+                      <p className="text-[10px] text-emerald-100">100% Voluntary Giving</p>
+                    </div>
+                  </div>
+
+                  {/* Itemized Table */}
+                  {statementData.items?.length > 0 && (
+                    <div>
+                      <h4 className="text-xs uppercase font-bold text-gray-500 tracking-wider mb-2">Itemized Log of Contributions</h4>
+                      <div className="max-h-56 overflow-y-auto border border-gray-100 rounded-xl print:max-h-none print:border-0">
+                        <table className="w-full text-xs">
+                          <thead className="bg-gray-50 text-gray-500 sticky top-0 print:static">
+                            <tr className="border-b border-gray-200 text-left">
+                              <th className="py-2 px-3">Date</th>
+                              <th className="py-2 px-3">Category</th>
+                              <th className="py-2 px-3">Method / Ref</th>
+                              <th className="py-2 px-3 text-right">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {statementData.items.map(it => (
+                              <tr key={it.id} className="text-gray-700">
+                                <td className="py-2 px-3 whitespace-nowrap">{format(new Date(it.date), 'MMM d, yyyy')}</td>
+                                <td className="py-2 px-3 font-medium">{it.category}</td>
+                                <td className="py-2 px-3 text-gray-400 font-mono text-[10px]">{it.reference || it.paymentMethod || 'Direct'}</td>
+                                <td className="py-2 px-3 text-right font-semibold">{statementData.currency} {Number(it.amount).toLocaleString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Legal Disclaimer & Signatory */}
+                  <div className="pt-4 border-t border-gray-100 space-y-4 text-xs">
+                    <p className="text-gray-500 italic text-[11px] leading-relaxed">
+                      "{statementData.disclaimer}"
+                    </p>
+
+                    <div className="flex justify-between items-end pt-3">
+                      <div>
+                        <p className="text-[10px] text-gray-400">Electronic verification ID: {statementData.statementNumber}</p>
+                        <p className="text-[10px] text-gray-400">Issued by Church Operating System (ChurchOS)</p>
+                      </div>
+
+                      <div className="text-right border-t border-gray-300 pt-2 min-w-[180px]">
+                        <p className="font-bold text-gray-900 text-xs">{statementData.signatory?.name}</p>
+                        <p className="text-[10px] text-gray-500">{statementData.signatory?.title}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Print Action */}
+                <div className="flex justify-end gap-3 print:hidden">
+                  <button
+                    onClick={() => setShowStatementModal(false)}
+                    className="btn-secondary text-xs"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => window.print()}
+                    className="btn-primary text-xs flex items-center gap-2"
+                  >
+                    <Printer size={15} />
+                    <span>Print Official Statement / Save PDF</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-400 text-sm">
+                No giving records found for tax year {statementYear}.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── MAKE A FAITH PLEDGE MODAL ── */}
+      {showPledgeModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" onClick={() => setShowPledgeModal(false)}>
+          <div
+            className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl space-y-5"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <Target size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 font-display">Make a Faith Pledge</h3>
+                  <p className="text-xs text-gray-500">Voluntary commitment toward church building & vision</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPledgeModal(false)}
+                className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handlePledgeSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Target Project / Campaign *</label>
+                <select
+                  required
+                  value={pledgeCampaignId}
+                  onChange={e => setPledgeCampaignId(e.target.value)}
+                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:border-purple-500"
+                >
+                  <option value="">Select a Campaign</option>
+                  {givingOptions?.campaigns?.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.title} (Goal: {fmt(c.target_amount)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Pledge Commitment Amount (₦) *</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  step="any"
+                  placeholder="e.g. 100000"
+                  value={pledgeAmount}
+                  onChange={e => setPledgeAmount(e.target.value)}
+                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Fulfillment Frequency</label>
+                <select
+                  value={pledgeFrequency}
+                  onChange={e => setPledgeFrequency(e.target.value)}
+                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:border-purple-500"
+                >
+                  <option value="one_time">One-Time Redemption</option>
+                  <option value="weekly">Weekly Installments</option>
+                  <option value="monthly">Monthly Installments</option>
+                  <option value="annual">Annual Commitment</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Notes / Faith Declaration (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. By God's grace for the youth hall sanctuary"
+                  value={pledgeNotes}
+                  onChange={e => setPledgeNotes(e.target.value)}
+                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={submittingPledge}
+                  className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all text-sm"
+                >
+                  {submittingPledge ? <Loader2 size={16} className="animate-spin" /> : <BookmarkCheck size={16} />}
+                  <span>Commit Faith Pledge</span>
+                </button>
+              </div>
             </form>
           </div>
         </div>

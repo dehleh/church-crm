@@ -4,6 +4,7 @@ const paymentService = require('../services/paymentService');
 const { logChurchAudit } = require('../services/auditService');
 const { sendWhatsApp, sendSMS } = require('../services/smsService');
 const { sendEmail } = require('../services/emailService');
+const { recordWebhookIfNew } = require('../utils/webhookIdempotency');
 const logger = require('../config/logger');
 
 // GET /api/public/give/:slug/info
@@ -110,21 +111,21 @@ const getPublicGivingInfo = async (req, res) => {
 
 // POST /api/public/give/initialize
 const initializeGiving = async (req, res) => {
-    const {
-      churchSlug,
-      churchId: inputChurchId,
-      branchId,
-      categoryId,
-      campaignId,
-      amount,
-      currency = 'NGN',
-      donorName,
-      donorEmail,
-      donorPhone,
-      isAnonymous = false,
-      notes,
-      callbackUrl,
-    } = req.body;
+  const {
+    churchSlug,
+    churchId: inputChurchId,
+    branchId,
+    categoryId,
+    campaignId,
+    amount,
+    currency = 'NGN',
+    donorName,
+    donorEmail,
+    donorPhone,
+    isAnonymous = false,
+    notes,
+    callbackUrl,
+  } = req.body;
 
   try {
     if (!amount || Number(amount) <= 0) {
@@ -391,7 +392,7 @@ const verifyGiving = async (req, res) => {
       const receiptMessage = `Dear ${tx.donor_name},\nThank you for your generous giving of ${tx.currency} ${Number(tx.amount).toLocaleString()} towards ${tx.category_name} at ${tx.church_name}.\n\nReceipt No: ${receiptNumber}\nRef: ${reference}\nMay the Lord bless and reward your seed abundantly!`;
 
       if (tx.donor_phone) {
-        sendWhatsApp({ to: tx.donor_phone, body: receiptMessage }, tx.payment_settings).catch(() => {});
+        sendWhatsApp({ to: tx.donor_phone, body: receiptMessage }, tx.payment_settings).catch(() => { });
       }
       if (tx.donor_email && tx.donor_email !== 'giving@themobilemissionary.org') {
         sendEmail({
@@ -411,7 +412,7 @@ const verifyGiving = async (req, res) => {
             </div>
             <p><em>"God loves a cheerful giver." (2 Corinthians 9:7)</em></p>
           </div>`,
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       logChurchAudit({
@@ -420,7 +421,7 @@ const verifyGiving = async (req, res) => {
         resourceType: 'online_giving',
         resourceId: tx.id,
         details: { amount: tx.amount, currency: tx.currency, category: tx.category_name, reference },
-      }).catch(() => {});
+      }).catch(() => { });
 
       // Fetch updated transaction
       const { rows: updatedRows } = await query(
@@ -558,6 +559,15 @@ const handleGivingWebhook = async (req, res) => {
         return res.status(400).send('Invalid signature');
       }
 
+      const eventId = String(flwData.id || flwData.flw_ref || txRef || '');
+      if (eventId) {
+        const isNew = await recordWebhookIfNew({ query }, { provider: 'flutterwave', eventId, rawPayload: rawBody });
+        if (!isNew) {
+          logger.info('Duplicate Flutterwave webhook ignored', { eventId });
+          return res.status(200).send('Event already processed');
+        }
+      }
+
       if (flwData.status === 'successful' && txRef && tx && tx.status !== 'successful') {
         if (Number(flwData.amount || 0) < Number(tx.amount || 0)) {
           logger.warn('Flutterwave webhook amount mismatch', { txRef, paid: flwData.amount, expected: tx.amount });
@@ -576,13 +586,13 @@ const handleGivingWebhook = async (req, res) => {
               transaction_type, amount, currency, description, payment_method,
               reference, transaction_date, status
             ) VALUES ($1, $2, $3, $4, $5, $6, 'income', $7, $8, $9, 'card', $10, CURRENT_DATE, 'completed')
-            ON CONFLICT (reference) DO NOTHING`,
+            ON CONFLICT DO NOTHING`,
             [
               uuidv4(), tx.church_id, tx.branch_id, tx.campaign_id || null, tx.category_id, tx.member_id || null,
               tx.amount, tx.currency, `Online Giving (${tx.category_name}) - ${tx.donor_name}`, txRef
             ]
           );
-        } catch {}
+        } catch { }
         return res.status(200).send('Flutterwave webhook processed');
       }
       return res.status(200).send('Event ignored');
@@ -651,6 +661,15 @@ const handleGivingWebhook = async (req, res) => {
       return res.status(400).send('Invalid signature');
     }
 
+    const paystackEventId = String(data.id || reference || '');
+    if (paystackEventId) {
+      const isNew = await recordWebhookIfNew({ query }, { provider: 'paystack', eventId: paystackEventId, rawPayload: rawBody });
+      if (!isNew) {
+        logger.info('Duplicate Paystack webhook ignored', { eventId: paystackEventId });
+        return res.status(200).send('Event already processed');
+      }
+    }
+
     if (!event || event.event !== 'charge.success') {
       return res.status(200).send('Event ignored');
     }
@@ -668,7 +687,7 @@ const handleGivingWebhook = async (req, res) => {
             id, church_id, member_id, transaction_type, amount, currency,
             description, payment_method, reference, transaction_date, status
           ) VALUES ($1, $2, $3, 'income', $4, $5, $6, 'bank_transfer', $7, CURRENT_DATE, 'completed')
-          ON CONFLICT (reference) DO NOTHING`,
+          ON CONFLICT DO NOTHING`,
           [uuidv4(), account.church_id, account.member_id, amount, currency, desc, reference]
         );
         await client.query('COMMIT');
@@ -681,7 +700,7 @@ const handleGivingWebhook = async (req, res) => {
 
       const msg = `Dear ${account.first_name},\nWe have received your gift of ${currency} ${amount.toLocaleString()} via your dedicated church bank account (${account.bank_name} - ${account.account_number}).\nThank you for honoring the Lord with your substance! May the Lord bless and reward you abundantly.`;
       if (account.phone) {
-        sendWhatsApp({ to: account.phone, body: msg }, account.payment_settings).catch(() => {});
+        sendWhatsApp({ to: account.phone, body: msg }, account.payment_settings).catch(() => { });
       }
 
       return res.status(200).send('DVA transfer recorded');
@@ -706,11 +725,142 @@ const handleGivingWebhook = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/giving/statement/:memberId?year=2026
+ * Also supports /api/me/giving/statement?year=2026 when called with req.member
+ */
+const getAnnualGivingStatement = async (req, res) => {
+  const targetMemberId = req.params.memberId || req.member?.id;
+  const currentYear = new Date().getFullYear();
+  const year = parseInt(req.query.year, 10) || currentYear;
+
+  if (!targetMemberId) {
+    return res.status(400).json({ success: false, message: 'Member ID is required' });
+  }
+
+  try {
+    const { rows: churchRows } = await query(
+      `SELECT id, name, slug, logo_url, denomination, address, phone, email, currency, settings
+       FROM churches WHERE id = $1`,
+      [req.churchId]
+    );
+    const church = churchRows[0];
+    if (!church) {
+      return res.status(404).json({ success: false, message: 'Church not found' });
+    }
+
+    const { rows: memberRows } = await query(
+      `SELECT id, first_name, last_name, email, phone, member_number, address, city, state, country
+       FROM members WHERE id = $1 AND church_id = $2`,
+      [targetMemberId, req.churchId]
+    );
+    const member = memberRows[0];
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Member not found' });
+    }
+
+    // Category summary for specified tax year
+    const { rows: summaryRows } = await query(
+      `SELECT COALESCE(gc.name, 'General Giving') as category_name,
+              COUNT(t.id)::int as count,
+              COALESCE(SUM(t.amount), 0) as total_amount
+       FROM transactions t
+       LEFT JOIN giving_categories gc ON gc.id = t.category_id
+       WHERE t.church_id = $1
+         AND t.member_id = $2
+         AND t.transaction_type = 'income'
+         AND (t.status = 'completed' OR t.status IS NULL)
+         AND EXTRACT(YEAR FROM t.transaction_date) = $3
+       GROUP BY gc.name
+       ORDER BY total_amount DESC`,
+      [req.churchId, targetMemberId, year]
+    );
+
+    // Itemized donations
+    const { rows: itemRows } = await query(
+      `SELECT t.id, t.transaction_date, t.amount, t.currency, t.payment_method, t.reference, t.description,
+              COALESCE(gc.name, 'General Giving') as category_name
+       FROM transactions t
+       LEFT JOIN giving_categories gc ON gc.id = t.category_id
+       WHERE t.church_id = $1
+         AND t.member_id = $2
+         AND t.transaction_type = 'income'
+         AND (t.status = 'completed' OR t.status IS NULL)
+         AND EXTRACT(YEAR FROM t.transaction_date) = $3
+       ORDER BY t.transaction_date ASC, t.created_at ASC`,
+      [req.churchId, targetMemberId, year]
+    );
+
+    const totalAmount = itemRows.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const taxId = church.settings?.financial?.tax_id || church.settings?.tax_id || church.settings?.charity_registration || 'EXEMPT-NONPROFIT';
+    const signatoryName = church.settings?.financial?.signatory_name || church.settings?.signatory_name || 'Finance & Stewardship Board';
+    const signatoryTitle = church.settings?.financial?.signatory_title || 'Treasurer / Senior Pastor';
+    const statementNumber = `STMT-${year}-${member.member_number || String(member.id).slice(0, 8).toUpperCase()}`;
+
+    return res.json({
+      success: true,
+      data: {
+        statementNumber,
+        year,
+        generatedAt: new Date().toISOString(),
+        church: {
+          id: church.id,
+          name: church.name,
+          logoUrl: church.logo_url,
+          denomination: church.denomination,
+          address: church.address,
+          phone: church.phone,
+          email: church.email,
+          currency: church.currency || 'NGN',
+          taxId,
+        },
+        member: {
+          id: member.id,
+          name: `${member.first_name} ${member.last_name}`,
+          memberNumber: member.member_number,
+          email: member.email,
+          phone: member.phone,
+          address: member.address,
+          city: member.city,
+          state: member.state,
+          country: member.country,
+        },
+        summary: summaryRows.map(s => ({
+          category: s.category_name,
+          count: Number(s.count),
+          total: Number(s.total_amount),
+        })),
+        items: itemRows.map(it => ({
+          id: it.id,
+          date: it.transaction_date,
+          amount: Number(it.amount),
+          currency: it.currency || church.currency || 'NGN',
+          category: it.category_name,
+          paymentMethod: it.payment_method,
+          reference: it.reference,
+          description: it.description,
+        })),
+        totalAmount,
+        currency: church.currency || 'NGN',
+        disclaimer: 'No goods or services were provided in exchange for this contribution other than intangible religious benefits. Please retain this official statement for your personal tax and financial records.',
+        signatory: {
+          name: signatoryName,
+          title: signatoryTitle,
+        },
+      },
+    });
+  } catch (err) {
+    logger.error('getAnnualGivingStatement error', { error: err.message, memberId: targetMemberId, year });
+    return res.status(500).json({ success: false, message: 'Server error generating giving statement' });
+  }
+};
+
 module.exports = {
   getPublicGivingInfo,
   initializeGiving,
   verifyGiving,
   listGivingTransactions,
   handleGivingWebhook,
+  getAnnualGivingStatement,
 };
 

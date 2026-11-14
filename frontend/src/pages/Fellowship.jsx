@@ -4,7 +4,7 @@ import {
   CheckCircle2, Clock, DollarSign, HeartHandshake, ShieldAlert,
   ChevronRight, AlertCircle, Sparkles, Navigation, Check, X,
   Edit2, Trash2, UserPlus, FileText, Settings, Award, Layers,
-  Phone, Mail, ArrowRight, Loader2, RefreshCw
+  Phone, Mail, ArrowRight, Loader2, RefreshCw, Video, Globe, ExternalLink
 } from 'lucide-react';
 import { fellowshipAPI, membersAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
@@ -111,6 +111,8 @@ export default function Fellowship() {
       city: '',
       name: '',
       hostAddress: '',
+      meetingType: 'physical',
+      meetingLink: '',
     });
     setModal('center_new');
   };
@@ -131,6 +133,8 @@ export default function Fellowship() {
       meetingFrequency: center.meeting_frequency || center.meetingFrequency || 'weekly',
       maxCapacity: center.max_capacity || center.maxCapacity || 15,
       status: center.status || 'active',
+      meetingType: center.meeting_type || center.meetingType || 'physical',
+      meetingLink: center.meeting_link || center.meetingLink || '',
     });
     setModal('center_edit');
   };
@@ -139,19 +143,23 @@ export default function Fellowship() {
   const handleSaveCenter = async (e) => {
     e.preventDefault();
     const name = (centerForm.name || '').trim();
+    const meetingType = centerForm.meetingType || centerForm.meeting_type || 'physical';
+    const meetingLink = (centerForm.meetingLink || centerForm.meeting_link || '').trim();
     const hostAddress = (centerForm.hostAddress || centerForm.host_address || '').trim();
 
     if (!name) {
       return toast.error(`Please enter a name for the ${terms.singularTerm.toLowerCase()}`);
     }
-    if (!hostAddress) {
+    if (meetingType !== 'virtual' && !hostAddress) {
       return toast.error('Please enter the host residential address');
     }
 
     const payload = {
       ...centerForm,
       name,
-      hostAddress,
+      meetingType,
+      meetingLink: meetingLink || null,
+      hostAddress: hostAddress || (meetingType === 'virtual' ? 'Virtual Gathering' : ''),
       zoneId: centerForm.zoneId || centerForm.zone_id || null,
       leaderMemberId: centerForm.leaderMemberId || centerForm.leader_member_id || null,
       hostName: centerForm.hostName || centerForm.host_name || null,
@@ -515,15 +523,47 @@ export default function Fellowship() {
                       </div>
 
                       <div className="mt-3 space-y-2 text-sm text-gray-600">
-                        <div className="flex items-start gap-2">
-                          <MapPin size={16} className="text-gray-400 shrink-0 mt-0.5" />
-                          <div>
-                            <div>{center.host_address}</div>
-                            {center.landmark && (
-                              <div className="text-xs text-gray-400">Landmark: {center.landmark}</div>
-                            )}
-                          </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {center.meeting_type === 'virtual' ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200">
+                              <Video size={12} /> Virtual Meeting
+                            </span>
+                          ) : center.meeting_type === 'hybrid' ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200">
+                              <Globe size={12} /> Hybrid Meeting
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">
+                              <MapPin size={12} /> Physical Location
+                            </span>
+                          )}
                         </div>
+
+                        {center.meeting_link && (
+                          <div className="flex items-center gap-2">
+                            <Video size={16} className="text-purple-600 shrink-0" />
+                            <a
+                              href={center.meeting_link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs font-semibold text-purple-700 hover:text-purple-900 underline inline-flex items-center gap-1 truncate max-w-[220px]"
+                            >
+                              Join Online Link <ExternalLink size={11} />
+                            </a>
+                          </div>
+                        )}
+
+                        {center.meeting_type !== 'virtual' && center.host_address && (
+                          <div className="flex items-start gap-2">
+                            <MapPin size={16} className="text-gray-400 shrink-0 mt-0.5" />
+                            <div>
+                              <div>{center.host_address}</div>
+                              {center.landmark && (
+                                <div className="text-xs text-gray-400">Landmark: {center.landmark}</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-2">
                           <Clock size={16} className="text-gray-400 shrink-0" />
@@ -1063,14 +1103,42 @@ export default function Fellowship() {
                 </select>
               </div>
 
+              <div>
+                <label className="label">Meeting Mode</label>
+                <select
+                  value={centerForm.meetingType || centerForm.meeting_type || 'physical'}
+                  onChange={e => setCenterForm(f => ({ ...f, meetingType: e.target.value }))}
+                  className="input"
+                >
+                  <option value="physical">📍 Physical Location</option>
+                  <option value="virtual">💻 Virtual / Online Meeting</option>
+                  <option value="hybrid">🌐 Hybrid (Physical + Virtual)</option>
+                </select>
+              </div>
+
+              {(centerForm.meetingType === 'virtual' || centerForm.meetingType === 'hybrid') && (
+                <div className="sm:col-span-2">
+                  <label className="label">Virtual Meeting Link (Zoom, Google Meet, Teams, WhatsApp)</label>
+                  <input
+                    type="url"
+                    value={centerForm.meetingLink || centerForm.meeting_link || ''}
+                    onChange={e => setCenterForm(f => ({ ...f, meetingLink: e.target.value }))}
+                    placeholder="e.g. https://meet.google.com/xyz or https://zoom.us/j/..."
+                    className="input"
+                  />
+                </div>
+              )}
+
               <div className="sm:col-span-2">
-                <label className="label">Host Residential Address *</label>
+                <label className="label">
+                  Host Residential Address {centerForm.meetingType === 'virtual' ? '(Optional for Virtual Cells)' : '*'}
+                </label>
                 <input
                   type="text"
                   value={centerForm.hostAddress || centerForm.host_address || ''}
                   onChange={e => setCenterForm(f => ({ ...f, hostAddress: e.target.value }))}
-                  placeholder="e.g. 14 Admiralty Way, Lekki Phase 1"
-                  required
+                  placeholder={centerForm.meetingType === 'virtual' ? 'e.g. Virtual Online Gathering' : 'e.g. 14 Admiralty Way, Lekki Phase 1'}
+                  required={centerForm.meetingType !== 'virtual'}
                   className="input"
                 />
               </div>

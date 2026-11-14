@@ -1,6 +1,9 @@
 import { useRef, useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Loader2, Save, Camera, Download, Bell, Smartphone, Mail, MessageSquare, Send, CheckCircle2 } from 'lucide-react';
+import {
+  Loader2, Save, Camera, Download, Bell, Smartphone, Mail, MessageSquare, Send, CheckCircle2,
+  CalendarOff, Plus, Trash2, Calendar
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { memberPortalAPI } from '../../api/memberClient';
 import { isPushSupported, subscribeUserToPush } from '../../utils/pushNotifications';
@@ -29,6 +32,15 @@ export default function MemberPortalProfile() {
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  // Volunteer Blockout Dates State
+  const [blockouts, setBlockouts] = useState([]);
+  const [loadingBlockouts, setLoadingBlockouts] = useState(false);
+  const [showBlockoutForm, setShowBlockoutForm] = useState(false);
+  const [blockoutStartDate, setBlockoutStartDate] = useState('');
+  const [blockoutEndDate, setBlockoutEndDate] = useState('');
+  const [blockoutReason, setBlockoutReason] = useState('Personal Unavailability');
+  const [savingBlockout, setSavingBlockout] = useState(false);
+
   const [prefs, setPrefs] = useState({
     push_enabled: true,
     email_enabled: true,
@@ -52,7 +64,54 @@ export default function MemberPortalProfile() {
       })
       .catch(() => {})
       .finally(() => setLoadingPrefs(false));
+    fetchBlockouts();
   }, []);
+
+  const fetchBlockouts = () => {
+    setLoadingBlockouts(true);
+    memberPortalAPI.listBlockouts()
+      .then(res => setBlockouts(res.data.data || []))
+      .catch(() => {})
+      .finally(() => setLoadingBlockouts(false));
+  };
+
+  const handleAddBlockout = async (e) => {
+    e.preventDefault();
+    if (!blockoutStartDate || !blockoutEndDate) {
+      return toast.error('Start and end dates are required');
+    }
+    if (new Date(blockoutStartDate) > new Date(blockoutEndDate)) {
+      return toast.error('Start date cannot be after end date');
+    }
+    setSavingBlockout(true);
+    try {
+      await memberPortalAPI.addBlockout({
+        startDate: blockoutStartDate,
+        endDate: blockoutEndDate,
+        reason: blockoutReason || 'Unavailable',
+      });
+      toast.success('Blockout dates recorded. Leadership will be notified of your unavailability.');
+      setShowBlockoutForm(false);
+      setBlockoutStartDate('');
+      setBlockoutEndDate('');
+      setBlockoutReason('Personal Unavailability');
+      fetchBlockouts();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save blockout');
+    } finally {
+      setSavingBlockout(false);
+    }
+  };
+
+  const handleDeleteBlockout = async (id) => {
+    try {
+      await memberPortalAPI.deleteBlockout(id);
+      toast.success('Blockout date removed');
+      fetchBlockouts();
+    } catch {
+      toast.error('Failed to remove blockout');
+    }
+  };
 
   const togglePref = (k) => {
     setPrefs(p => ({ ...p, [k]: !p[k] }));
@@ -368,6 +427,108 @@ export default function MemberPortalProfile() {
                 <span>Save Notification Preferences</span>
               </button>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Volunteer Unavailability & Blockout Dates Card */}
+      <div className="mt-8 bg-white border border-gray-200 rounded-2xl p-6 shadow-xs space-y-5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+              <CalendarOff size={20} />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Volunteer Availability & Blockout Dates</h2>
+              <p className="text-xs text-gray-500">Set dates when you are traveling or unavailable so you are not rostered on duty</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowBlockoutForm(prev => !prev)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
+          >
+            <Plus size={14} />
+            <span>{showBlockoutForm ? 'Cancel' : 'Add Blockout Date'}</span>
+          </button>
+        </div>
+
+        {/* Add Blockout Form */}
+        {showBlockoutForm && (
+          <form onSubmit={handleAddBlockout} className="p-4 bg-purple-50/50 border border-purple-200 rounded-xl space-y-3">
+            <p className="text-xs font-bold text-purple-900">Schedule Unavailable Date Range</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="label">Start Date *</label>
+                <input
+                  type="date"
+                  required
+                  className={inputCls}
+                  value={blockoutStartDate}
+                  onChange={e => setBlockoutStartDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="label">End Date *</label>
+                <input
+                  type="date"
+                  required
+                  className={inputCls}
+                  value={blockoutEndDate}
+                  onChange={e => setBlockoutEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="label">Reason / Notes</label>
+              <input
+                className={inputCls}
+                placeholder="e.g. Annual Leave, Family Wedding, Out of town"
+                value={blockoutReason}
+                onChange={e => setBlockoutReason(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end pt-1">
+              <button
+                type="submit"
+                disabled={savingBlockout}
+                className="btn-primary text-xs bg-purple-600 hover:bg-purple-700 h-8 px-4"
+              >
+                {savingBlockout ? <Loader2 size={13} className="animate-spin" /> : 'Save Blockout Window'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Blockouts List */}
+        {loadingBlockouts ? (
+          <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-gray-400" /></div>
+        ) : blockouts.length === 0 ? (
+          <div className="text-center py-6 text-gray-400 text-xs">
+            <Calendar className="mx-auto text-gray-300 mb-1" size={24} />
+            <p>You have no scheduled blockout dates. You are marked available for service rosters.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+            {blockouts.map(b => (
+              <div key={b.id} className="p-3.5 flex items-center justify-between text-xs hover:bg-gray-50/50 transition-colors">
+                <div>
+                  <p className="font-bold text-gray-900 flex items-center gap-1.5">
+                    <CalendarOff size={13} className="text-purple-600" />
+                    <span>{b.start_date ? String(b.start_date).slice(0, 10) : ''} to {b.end_date ? String(b.end_date).slice(0, 10) : ''}</span>
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{b.reason || 'Personal Unavailability'}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteBlockout(b.id)}
+                  className="p-1.5 rounded hover:bg-red-50 text-red-500 hover:text-red-700 transition-colors"
+                  title="Remove blockout date"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>

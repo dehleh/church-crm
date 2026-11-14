@@ -29,6 +29,8 @@ const api = axios.create({
   timeout: 30000,
 });
 
+let refreshPromise = null;
+
 // Attach token to every request
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('accessToken');
@@ -58,18 +60,35 @@ api.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         if (!refreshToken) throw new Error('No refresh token');
-        const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken });
-        localStorage.setItem('accessToken', data.data.accessToken);
-        localStorage.setItem('refreshToken', data.data.refreshToken);
-        original.headers.Authorization = `Bearer ${data.data.accessToken}`;
+
+        if (!refreshPromise) {
+          refreshPromise = axios
+            .post(`${API_BASE}/auth/refresh`, { refreshToken })
+            .then(res => {
+              const { accessToken, refreshToken: nextRefresh } = res.data?.data || {};
+              if (accessToken) localStorage.setItem('accessToken', accessToken);
+              if (nextRefresh) localStorage.setItem('refreshToken', nextRefresh);
+              return accessToken;
+            })
+            .finally(() => {
+              refreshPromise = null;
+            });
+        }
+
+        const newAccessToken = await refreshPromise;
+        if (!newAccessToken) throw new Error('Token refresh failed');
+
+        original.headers = original.headers || {};
+        original.headers.Authorization = `Bearer ${newAccessToken}`;
         return api(original);
-      } catch {
+      } catch (refreshErr) {
         localStorage.clear();
         if (window.location.pathname.startsWith('/platform')) {
           window.location.href = '/platform/login';
         } else {
           window.location.href = '/login';
         }
+        return Promise.reject(refreshErr);
       }
     }
     if (err.response?.status !== 401) {

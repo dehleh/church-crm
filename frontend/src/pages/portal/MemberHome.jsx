@@ -32,6 +32,28 @@ export default function MemberHome() {
   const [loading, setLoading] = useState(true);
   const [selectedBankCurrency, setSelectedBankCurrency] = useState('ALL');
   const [copiedAcc, setCopiedAcc] = useState('');
+  const [acknowledgingId, setAcknowledgingId] = useState(null);
+
+  const handleAcknowledgePastoralNotice = async (noticeId) => {
+    setAcknowledgingId(noticeId);
+    try {
+      await memberPortalAPI.acknowledgePastoralAppointment(noticeId);
+      toast.success('Thank you! Pastor has been notified that you confirmed.');
+      setData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          pastoralNotices: (prev.pastoralNotices || []).map(n =>
+            n.id === noticeId ? { ...n, status: 'acknowledged', acknowledged_at: new Date().toISOString() } : n
+          ),
+        };
+      });
+    } catch {
+      toast.error('Failed to acknowledge pastoral request');
+    } finally {
+      setAcknowledgingId(null);
+    }
+  };
 
   const handleCopyAcc = (accNo, cur) => {
     navigator.clipboard.writeText(accNo);
@@ -66,6 +88,110 @@ export default function MemberHome() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-4">
       {/* Mobile Lock Screen Pop-up & Morning Devotional Notification Prompt */}
       <PushNotificationPrompt churchName={church?.name || 'Our Church'} />
+
+      {/* Pastoral Notice / Summons ("Pastor wants to see you") */}
+      {data?.pastoralNotices && data.pastoralNotices.length > 0 && (
+        <div className="space-y-3">
+          {data.pastoralNotices.map((notice) => {
+            const isUrgent = notice.urgency === 'urgent';
+            const isHigh = notice.urgency === 'high';
+            const isPending = notice.status === 'pending';
+            let formattedTime = notice.meeting_time;
+            try {
+              formattedTime = format(new Date(notice.meeting_time), 'EEEE, MMMM d, yyyy @ h:mm a');
+            } catch {}
+
+            return (
+              <div
+                key={notice.id}
+                className={`rounded-2xl p-4 sm:p-5 border transition-all shadow-sm ${
+                  isUrgent
+                    ? 'bg-rose-50/95 border-rose-300 text-rose-950'
+                    : isHigh
+                    ? 'bg-amber-50/95 border-amber-300 text-amber-950'
+                    : 'bg-indigo-50/95 border-indigo-200 text-indigo-950'
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className={`p-3 rounded-2xl shrink-0 ${
+                      isUrgent
+                        ? 'bg-rose-200 text-rose-800'
+                        : isHigh
+                        ? 'bg-amber-200 text-amber-900'
+                        : 'bg-indigo-200 text-indigo-800'
+                    }`}>
+                      <Users size={22} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          isUrgent
+                            ? 'bg-rose-600 text-white'
+                            : isHigh
+                            ? 'bg-amber-600 text-white'
+                            : 'bg-indigo-700 text-white'
+                        }`}>
+                          {isUrgent ? '⚠️ Urgent Pastoral Summons' : isHigh ? '📌 High Priority Pastoral Notice' : '📌 Pastoral Request'}
+                        </span>
+                        {notice.status === 'acknowledged' ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                            <CheckCircle2 size={11} /> Confirmed & Acknowledged
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                            Action Requested
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="font-bold text-base sm:text-lg mt-1 text-gray-900">
+                        Pastor {notice.pastor_name} requests to see you
+                      </h3>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-700 mt-1 font-medium">
+                        <span className="inline-flex items-center gap-1">
+                          <Clock size={13} className="text-gray-500" /> {formattedTime}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin size={13} className="text-gray-500" /> Venue: <strong>{notice.venue}</strong>
+                        </span>
+                      </div>
+
+                      {notice.notes && (
+                        <p className="text-xs text-gray-600 mt-2 bg-white/70 p-2.5 rounded-xl border border-black/5">
+                          <strong>Note from Pastor:</strong> {notice.notes}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-2 self-end sm:self-center">
+                    {isPending ? (
+                      <button
+                        onClick={() => handleAcknowledgePastoralNotice(notice.id)}
+                        disabled={acknowledgingId === notice.id}
+                        className="btn-primary text-xs py-2 px-4 shadow-sm inline-flex items-center gap-1.5 whitespace-nowrap"
+                      >
+                        {acknowledgingId === notice.id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <CheckCircle2 size={14} />
+                        )}
+                        I Acknowledge / Will Attend
+                      </button>
+                    ) : (
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-100/80 border border-emerald-200 px-3 py-1.5 rounded-xl inline-flex items-center gap-1">
+                        <Check size={14} /> Confirmed
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Pinned Church Announcement Notice */}
       {portalSettings.bannerNoticeActive && portalSettings.bannerNoticeMessage && (

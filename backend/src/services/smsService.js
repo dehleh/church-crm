@@ -77,6 +77,7 @@ async function sendMetaWhatsAppMessage({ to, body, mediaUrl }, cfg) {
       `https://graph.facebook.com/v18.0/${phoneId}/messages`,
       {
         method: 'POST',
+        timeout: 10000,
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -96,6 +97,9 @@ async function sendMetaWhatsAppMessage({ to, body, mediaUrl }, cfg) {
         });
       }
     );
+    req.on('timeout', () => {
+      req.destroy(new Error('Meta WhatsApp request timed out after 10000ms'));
+    });
     req.on('error', (e) => {
       logger.error('Meta WhatsApp request error', { error: e.message });
       resolve({ success: false, error: e.message });

@@ -2,6 +2,9 @@ const router = require('express').Router();
 const { authenticateMember } = require('../middleware/memberAuth');
 const { upload, uploadFor } = require('../middleware/upload');
 const c = require('../controllers/memberPortalController');
+const { getAnnualGivingStatement } = require('../controllers/givingController');
+const { addBlockoutDate, getBlockoutDates, deleteBlockoutDate } = require('../controllers/servicePlansController');
+const { getMyPastoralAppointments, acknowledgeMyAppointment } = require('../controllers/pastoralAppointmentsController');
 
 router.use(authenticateMember);
 
@@ -16,6 +19,7 @@ router.get('/affiliations', c.getAffiliations);
 
 // Giving (record & interactive giving)
 router.get('/giving', c.getGiving);
+router.get('/giving/statement', getAnnualGivingStatement);
 router.get('/giving/options', c.getGivingOptions);
 router.post('/giving/initiate', c.initiatePortalGiving);
 router.get('/giving/virtual-account', c.getMyVirtualAccount);
@@ -67,6 +71,15 @@ router.post('/push/unsubscribe', c.unsubscribePush);
 router.post('/push/test', c.sendTestPush);
 router.get('/notifications/preferences', c.getNotificationPreferences);
 router.put('/notifications/preferences', c.updateNotificationPreferences);
+
+// Volunteer Blockout Dates
+router.get('/volunteer/blockouts', getBlockoutDates);
+router.post('/volunteer/blockouts', addBlockoutDate);
+router.delete('/volunteer/blockouts/:id', deleteBlockoutDate);
+
+// Pastoral Appointments / Summons ("Pastor wants to see you")
+router.get('/pastoral-appointments', getMyPastoralAppointments);
+router.post('/pastoral-appointments/:id/acknowledge', acknowledgeMyAppointment);
 
 module.exports = router;
 

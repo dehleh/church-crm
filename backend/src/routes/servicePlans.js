@@ -7,9 +7,25 @@ const { handleValidationErrors } = require('../middleware/errorHandler');
 
 router.use(authenticate);
 
+// Volunteer Blockout Dates (must precede /:id)
+router.get('/blockouts/list', authorize('admin', 'pastor', 'director', 'hod', 'volunteer', 'member'), c.getBlockoutDates);
+router.post('/blockouts', authorize('admin', 'pastor', 'director', 'hod', 'volunteer', 'member'), c.addBlockoutDate);
+router.delete('/blockouts/:id', authorize('admin', 'pastor', 'director', 'hod', 'volunteer', 'member'), c.deleteBlockoutDate);
+
+// Volunteer Swap Response (must precede /:id)
+router.post('/swap-requests/:swapId/respond', authorize('head_pastor', 'pastor', 'director', 'hod', 'volunteer'), c.respondToVolunteerSwap);
+
 // List and view service plans
 router.get('/', authorize('admin', 'pastor', 'director', 'hod', 'member'), c.listServicePlans);
 router.get('/:id', authorize('admin', 'pastor', 'director', 'hod', 'member'), c.getServicePlan);
+
+// Live Service Mode & Cue Runner
+router.get('/:id/live', authorize('admin', 'pastor', 'director', 'hod', 'volunteer', 'member'), c.getLiveCueState);
+router.post('/:id/live', authorize('head_pastor', 'pastor', 'director', 'hod', 'volunteer'), c.updateLiveCueState);
+
+// Volunteer Swaps for Service Plan
+router.post('/:id/swap-request', authorize('admin', 'pastor', 'director', 'hod', 'volunteer', 'member'), c.requestVolunteerSwap);
+router.get('/:id/swap-requests', authorize('admin', 'pastor', 'director', 'hod', 'volunteer', 'member'), c.listVolunteerSwapRequests);
 
 // Manage service plans
 router.post('/', authorize('head_pastor', 'pastor', 'director', 'hod'), [

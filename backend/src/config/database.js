@@ -22,6 +22,7 @@ const pool = new Pool({
   max: parseInt(process.env.DB_POOL_MAX) || 30,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
+  statement_timeout: parseInt(process.env.DB_STATEMENT_TIMEOUT || '15000', 10),
 });
 
 pool.on('error', (err) => {

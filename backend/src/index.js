@@ -41,6 +41,9 @@ if (isProduction) {
 }
 
 // ── Security & Middleware ────────────────────────────────────
+const compression = require('compression');
+app.use(compression());
+
 app.use(helmet({
   contentSecurityPolicy: isProduction ? {
     directives: {
@@ -161,43 +164,43 @@ app.use('/api/', (req, res, next) => {
 });
 
 // ── Routes ───────────────────────────────────────────────────
-app.use('/api/auth',         require('./routes/auth'));
-app.use('/api/license',      require('./routes/license'));
-app.use('/api/public',       require('./routes/public'));
-app.use('/api/dashboard',    require('./routes/dashboard'));
-app.use('/api/members',      require('./routes/members'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/license', require('./routes/license'));
+app.use('/api/public', require('./routes/public'));
+app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/members', require('./routes/members'));
 app.use('/api/first-timers', require('./routes/firstTimers'));
-app.use('/api/events',       require('./routes/events'));
-app.use('/api/finance',      require('./routes/finance'));
-app.use('/api/departments',  require('./routes/departments'));
-app.use('/api/branches',     require('./routes/branches'));
-app.use('/api/media',          require('./routes/media'));
-app.use('/api/prayer',         require('./routes/prayer'));
+app.use('/api/events', require('./routes/events'));
+app.use('/api/finance', require('./routes/finance'));
+app.use('/api/departments', require('./routes/departments'));
+app.use('/api/branches', require('./routes/branches'));
+app.use('/api/media', require('./routes/media'));
+app.use('/api/prayer', require('./routes/prayer'));
 app.use('/api/communications', require('./routes/communications'));
-app.use('/api/users',          require('./routes/users'));
-app.use('/api/reports',        require('./routes/reports'));
-app.use('/api/budgets',        require('./routes/budgets'));
-app.use('/api/follow-ups',     require('./routes/followUps'));
-app.use('/api/settings',       require('./routes/settings'));
-app.use('/api/search',         require('./routes/search'));
-app.use('/api/groups',         require('./routes/groups'));
-app.use('/api/assets',         require('./routes/assets'));
-app.use('/api/counseling',     require('./routes/counseling'));
-app.use('/api/welfare',        require('./routes/welfare'));
-app.use('/api/procurement',    require('./routes/procurement'));
-app.use('/api/platform',       require('./routes/platform'));
-app.use('/api/contact',        require('./routes/contact'));
-app.use('/api/jobs',           require('./routes/jobs'));
-app.use('/api/member-auth',    require('./routes/memberAuth'));
-app.use('/api/me',             require('./routes/memberPortal'));
-app.use('/api/fellowship',     require('./routes/fellowship'));
-app.use('/api/discipleship',    require('./routes/discipleship'));
-app.use('/api/devotionals',     require('./routes/devotionals'));
-app.use('/api/giving',          require('./routes/giving'));
-app.use('/api/campaigns',       require('./routes/campaigns'));
-app.use('/api/auth/2fa',        require('./routes/twoFactor'));
-app.use('/api/subscription',    require('./routes/subscription'));
-app.use('/api/service-plans',    require('./routes/servicePlans'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/reports', require('./routes/reports'));
+app.use('/api/budgets', require('./routes/budgets'));
+app.use('/api/follow-ups', require('./routes/followUps'));
+app.use('/api/settings', require('./routes/settings'));
+app.use('/api/search', require('./routes/search'));
+app.use('/api/groups', require('./routes/groups'));
+app.use('/api/assets', require('./routes/assets'));
+app.use('/api/counseling', require('./routes/counseling'));
+app.use('/api/welfare', require('./routes/welfare'));
+app.use('/api/procurement', require('./routes/procurement'));
+app.use('/api/platform', require('./routes/platform'));
+app.use('/api/contact', require('./routes/contact'));
+app.use('/api/jobs', require('./routes/jobs'));
+app.use('/api/member-auth', require('./routes/memberAuth'));
+app.use('/api/me', require('./routes/memberPortal'));
+app.use('/api/fellowship', require('./routes/fellowship'));
+app.use('/api/discipleship', require('./routes/discipleship'));
+app.use('/api/devotionals', require('./routes/devotionals'));
+app.use('/api/giving', require('./routes/giving'));
+app.use('/api/campaigns', require('./routes/campaigns'));
+app.use('/api/auth/2fa', require('./routes/twoFactor'));
+app.use('/api/subscription', require('./routes/subscription'));
+app.use('/api/service-plans', require('./routes/servicePlans'));
 
 // Initialize background job queue (BullMQ if REDIS_URL set, in-process otherwise).
 // Importing csvImportController here also registers the CSV processors.
@@ -274,29 +277,38 @@ if (process.env.NODE_ENV !== 'test') {
       logger.info(`Health: http://localhost:${PORT}/health`);
     });
 
-  // Graceful shutdown
-  const shutdown = async (signal) => {
-    logger.info(`${signal} received — shutting down gracefully`);
-    stopScheduler();
-    server.close(async () => {
-      logger.info('HTTP server closed');
-      try {
-        await pool.end();
-        logger.info('Database pool closed');
-      } catch (err) {
-        logger.error('Error closing database pool', err);
-      }
-      process.exit(0);
-    });
-    // Force exit after 30s if graceful shutdown hangs
-    setTimeout(() => {
-      logger.error('Graceful shutdown timed out — forcing exit');
-      process.exit(1);
-    }, 30000);
-  };
+    // Graceful shutdown
+    const shutdown = async (signal) => {
+      logger.info(`${signal} received — shutting down gracefully`);
+      stopScheduler();
+      server.close(async () => {
+        logger.info('HTTP server closed');
+        try {
+          await pool.end();
+          logger.info('Database pool closed');
+        } catch (err) {
+          logger.error('Error closing database pool', err);
+        }
+        process.exit(0);
+      });
+      // Force exit after 30s if graceful shutdown hangs
+      setTimeout(() => {
+        logger.error('Graceful shutdown timed out — forcing exit');
+        process.exit(1);
+      }, 30000);
+    };
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+
+    process.on('unhandledRejection', (reason, promise) => {
+      logger.error('Unhandled Promise Rejection', { reason: reason?.stack || reason });
+    });
+
+    process.on('uncaughtException', (err) => {
+      logger.error('Uncaught Exception', { error: err.message, stack: err.stack });
+      setTimeout(() => process.exit(1), 1000);
+    });
   })();
 }
 
