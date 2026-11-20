@@ -32,7 +32,10 @@ const AUDIENCE_OPTIONS = [
   { value: 'first_timers',      label: '🌱 First Timers' },
   { value: 'male_members',      label: '👨 All Male Members' },
   { value: 'female_members',    label: '👩 All Female Members' },
-  { value: 'parents',           label: '👪 Parents (Married or with Children)' },
+  { value: 'parents',           label: '👪 All Parents (Married or with Children)' },
+  { value: 'parents_children',   label: '👶 Parents of Toddlers & Children (0 - 12 yrs)' },
+  { value: 'parents_teens',      label: '🎒 Parents of Teenagers (13 - 17 yrs)' },
+  { value: 'teens',              label: '⚡ Teenagers / Youth Members (13 - 17 yrs)' },
   { value: 'birthday',          label: '🎂 Birthday on a Specific Date' },
   { value: 'anniversary',       label: '💍 Wedding Anniversary on a Specific Date' },
 ];

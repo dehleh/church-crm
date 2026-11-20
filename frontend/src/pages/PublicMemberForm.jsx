@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { Church, Loader2, Send, Award, Shield, UserCheck, Sparkles, Users, Briefcase, Heart, KeyRound, Copy, CheckCircle2, ArrowRight, Smartphone } from 'lucide-react';
+import {
+  Church, Loader2, Send, Award, Shield, UserCheck, Sparkles, Users, Briefcase, Heart,
+  KeyRound, Copy, CheckCircle2, ArrowRight, Smartphone, Baby, Plus, Trash2, AlertCircle
+} from 'lucide-react';
 import { publicIntakeAPI } from '../api/services';
 import toast from 'react-hot-toast';
 
@@ -39,6 +42,7 @@ export default function PublicMemberForm() {
     childrenCount: 0,
     teenagersCount: 0,
     childrenDetails: '',
+    children: [],
     isWorker: false,
     workerUnit: '',
     workerRole: 'worker',
@@ -80,6 +84,87 @@ export default function PublicMemberForm() {
 
   const set = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }));
   const setBool = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.checked }));
+
+  const handleAddChild = () => {
+    setForm(prev => {
+      const newChild = {
+        id: Math.random().toString(36).slice(2),
+        firstName: '',
+        lastName: prev.lastName || '',
+        dateOfBirth: '',
+        gender: 'male',
+        classroom: 'Toddlers',
+        allergiesMedical: '',
+      };
+      const children = [...(prev.children || []), newChild];
+      return {
+        ...prev,
+        children,
+        hasChildren: true,
+      };
+    });
+  };
+
+  const handleRemoveChild = (index) => {
+    setForm(prev => {
+      const children = (prev.children || []).filter((_, i) => i !== index);
+      const cCount = children.filter(c => {
+        if (!c.dateOfBirth) return true;
+        const a = Math.floor((Date.now() - new Date(c.dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+        return a <= 12;
+      }).length;
+      const tCount = children.filter(c => {
+        if (!c.dateOfBirth) return false;
+        const a = Math.floor((Date.now() - new Date(c.dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+        return a >= 13;
+      }).length;
+      return {
+        ...prev,
+        children,
+        childrenCount: cCount,
+        teenagersCount: tCount,
+      };
+    });
+  };
+
+  const handleChildChange = (index, field, value) => {
+    setForm(prev => {
+      const children = [...(prev.children || [])];
+      const target = { ...children[index], [field]: value };
+
+      if (field === 'dateOfBirth' && value) {
+        const dob = new Date(value);
+        if (!isNaN(dob.getTime())) {
+          const age = Math.floor((Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+          if (age <= 2) target.classroom = 'Nursery';
+          else if (age <= 4) target.classroom = 'Toddlers';
+          else if (age <= 8) target.classroom = 'Primary';
+          else if (age <= 12) target.classroom = 'Pre-Teens';
+          else target.classroom = 'Teens';
+        }
+      }
+
+      children[index] = target;
+
+      const cCount = children.filter(c => {
+        if (!c.dateOfBirth) return true;
+        const a = Math.floor((Date.now() - new Date(c.dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+        return a <= 12;
+      }).length;
+      const tCount = children.filter(c => {
+        if (!c.dateOfBirth) return false;
+        const a = Math.floor((Date.now() - new Date(c.dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+        return a >= 13;
+      }).length;
+
+      return {
+        ...prev,
+        children,
+        childrenCount: cCount,
+        teenagersCount: tCount,
+      };
+    });
+  };
 
   const location = useMemo(() => {
     if (!meta?.church) return '';
@@ -487,41 +572,162 @@ export default function PublicMemberForm() {
                     )}
 
                     {!form.spouseAlreadyRegisteredChildren && (
-                      <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="label text-emerald-950 font-medium">Children Count (Ages 0 - 12)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="20"
-                              className="input bg-white"
-                              value={form.childrenCount}
-                              onChange={set('childrenCount')}
-                            />
+                      <div className="space-y-4">
+                        {/* Children List */}
+                        {form.children && form.children.length > 0 && (
+                          <div className="space-y-3">
+                            {form.children.map((ch, idx) => {
+                              let calculatedAge = null;
+                              if (ch.dateOfBirth) {
+                                const d = new Date(ch.dateOfBirth);
+                                if (!isNaN(d.getTime())) {
+                                  calculatedAge = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+                                }
+                              }
+
+                              return (
+                                <div key={ch.id || idx} className="p-3.5 bg-white rounded-xl border border-emerald-200/90 shadow-2xs space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center">
+                                        {idx + 1}
+                                      </div>
+                                      <span className="font-bold text-xs text-gray-800">
+                                        {ch.firstName ? `${ch.firstName} ${ch.lastName || ''}` : `Child #${idx + 1}`}
+                                      </span>
+                                      {calculatedAge != null && (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                          {calculatedAge} {calculatedAge === 1 ? 'yr old' : 'yrs old'}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveChild(idx)}
+                                      className="text-gray-400 hover:text-red-500 p-1 rounded-lg transition"
+                                      title="Remove child"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    <div>
+                                      <label className="text-[11px] font-medium text-gray-600 block mb-1">Child's First Name *</label>
+                                      <input
+                                        required
+                                        className="input bg-emerald-50/20 text-xs py-1.5"
+                                        placeholder="First name"
+                                        value={ch.firstName}
+                                        onChange={e => handleChildChange(idx, 'firstName', e.target.value)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[11px] font-medium text-gray-600 block mb-1">Last Name</label>
+                                      <input
+                                        className="input bg-emerald-50/20 text-xs py-1.5"
+                                        placeholder="Last name"
+                                        value={ch.lastName}
+                                        onChange={e => handleChildChange(idx, 'lastName', e.target.value)}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                    <div>
+                                      <label className="text-[11px] font-medium text-gray-600 block mb-1">Date of Birth</label>
+                                      <input
+                                        type="date"
+                                        className="input bg-emerald-50/20 text-xs py-1.5"
+                                        value={ch.dateOfBirth}
+                                        onChange={e => handleChildChange(idx, 'dateOfBirth', e.target.value)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[11px] font-medium text-gray-600 block mb-1">Gender</label>
+                                      <select
+                                        className="input bg-emerald-50/20 text-xs py-1.5"
+                                        value={ch.gender}
+                                        onChange={e => handleChildChange(idx, 'gender', e.target.value)}
+                                      >
+                                        <option value="male">Boy / Male</option>
+                                        <option value="female">Girl / Female</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="text-[11px] font-medium text-gray-600 block mb-1">Church Department / Room</label>
+                                      <select
+                                        className="input bg-emerald-50/20 text-xs py-1.5"
+                                        value={ch.classroom}
+                                        onChange={e => handleChildChange(idx, 'classroom', e.target.value)}
+                                      >
+                                        <option value="Nursery">Nursery / Crèche (0 - 2 yrs)</option>
+                                        <option value="Toddlers">Toddlers (2 - 4 yrs)</option>
+                                        <option value="Primary">Children's Church (5 - 8 yrs)</option>
+                                        <option value="Pre-Teens">Pre-Teens (9 - 12 yrs)</option>
+                                        <option value="Teens">Teens Church (13 - 17 yrs)</option>
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[11px] font-medium text-amber-900 flex items-center gap-1 mb-1">
+                                      <AlertCircle size={12} className="text-amber-600" /> Allergies / Medical Flags / Special Care
+                                    </label>
+                                    <input
+                                      className="input bg-amber-50/30 border-amber-200 text-xs py-1.5"
+                                      placeholder="e.g. Asthma, Peanut allergy, Lactose intolerant, None"
+                                      value={ch.allergiesMedical}
+                                      onChange={e => handleChildChange(idx, 'allergiesMedical', e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                          <div>
-                            <label className="label text-emerald-950 font-medium">Teenagers Count (Ages 13 - 19)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="20"
-                              className="input bg-white"
-                              value={form.teenagersCount}
-                              onChange={set('teenagersCount')}
-                            />
+                        )}
+
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                          <button
+                            type="button"
+                            onClick={handleAddChild}
+                            className="btn-secondary text-xs py-2 px-3 inline-flex items-center gap-1.5 w-full sm:w-auto justify-center bg-white border-emerald-300 text-emerald-800 hover:bg-emerald-50 font-bold"
+                          >
+                            <Plus size={14} /> Add Child / Dependent Profile
+                          </button>
+
+                          <div className="text-[11px] text-gray-500 font-medium text-center sm:text-right">
+                            <span>Total Registered: <strong>{form.children?.length || 0}</strong> ({form.childrenCount} kids, {form.teenagersCount} teens)</span>
                           </div>
                         </div>
-                        <div>
-                          <label className="label text-emerald-950 font-medium">Children / Teenagers Names & Ages</label>
-                          <input
-                            className="input bg-white"
-                            placeholder="e.g. David (5), Grace (11), Joshua (15)"
-                            value={form.childrenDetails}
-                            onChange={set('childrenDetails')}
-                          />
-                        </div>
-                      </>
+
+                        {(!form.children || form.children.length === 0) && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-emerald-100">
+                            <div>
+                              <label className="label text-emerald-950 font-medium">Children Count (Ages 0 - 12)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="20"
+                                className="input bg-white text-xs"
+                                value={form.childrenCount}
+                                onChange={set('childrenCount')}
+                              />
+                            </div>
+                            <div>
+                              <label className="label text-emerald-950 font-medium">Teenagers Count (Ages 13 - 19)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="20"
+                                className="input bg-white text-xs"
+                                value={form.teenagersCount}
+                                onChange={set('teenagersCount')}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

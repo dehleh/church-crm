@@ -100,6 +100,14 @@ function AttendanceRecorder({ eventId }) {
   });
   const [submittingChild, setSubmittingChild] = useState(false);
 
+  // Fast Family Lookup State
+  const [familyLookupQuery, setFamilyLookupQuery] = useState('');
+  const [familySearchResults, setFamilySearchResults] = useState([]);
+  const [searchingFamily, setSearchingFamily] = useState(false);
+  const [selectedFamily, setSelectedFamily] = useState(null);
+  const [selectedChildIds, setSelectedChildIds] = useState(new Set());
+  const [checkInMode, setCheckInMode] = useState('family'); // 'family' | 'manual'
+
   // Checkout Modal State
   const [checkoutTarget, setCheckoutTarget] = useState(null);
   const [securityCodeInput, setSecurityCodeInput] = useState('');
@@ -213,6 +221,78 @@ function AttendanceRecorder({ eventId }) {
       fetchChildren();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to check in child');
+    } finally {
+      setSubmittingChild(false);
+    }
+  };
+
+  const handleSearchFamily = async (e) => {
+    if (e) e.preventDefault();
+    if (!familyLookupQuery.trim()) return toast.error('Enter parent phone or name to lookup');
+    setSearchingFamily(true);
+    try {
+      const res = await childCheckInAPI.familyLookup({ search: familyLookupQuery.trim(), eventId });
+      const families = res.data.data || [];
+      setFamilySearchResults(families);
+      if (families.length === 0) {
+        toast('No matching family found. You can enter details manually below.', { icon: 'ℹ️' });
+      } else if (families.length === 1) {
+        handleSelectFamily(families[0]);
+      }
+    } catch {
+      toast.error('Failed to lookup family');
+    } finally {
+      setSearchingFamily(false);
+    }
+  };
+
+  const handleSelectFamily = (fam) => {
+    setSelectedFamily(fam);
+    // Auto-select children who are not yet checked in
+    const unChecked = new Set((fam.children || []).filter(c => !c.isCheckedIn).map(c => c.id));
+    setSelectedChildIds(unChecked);
+  };
+
+  const toggleSelectChild = (childId) => {
+    setSelectedChildIds(prev => {
+      const next = new Set(prev);
+      if (next.has(childId)) next.delete(childId);
+      else next.add(childId);
+      return next;
+    });
+  };
+
+  const handleBulkCheckInFamily = async () => {
+    if (!selectedFamily || selectedChildIds.size === 0) {
+      return toast.error('Please select at least one child to check in');
+    }
+    const childrenToCheckIn = selectedFamily.children.filter(c => selectedChildIds.has(c.id));
+    setSubmittingChild(true);
+    try {
+      let lastCreatedTag = null;
+      for (const ch of childrenToCheckIn) {
+        const res = await childCheckInAPI.checkIn({
+          eventId,
+          childName: ch.name,
+          childMemberId: ch.id,
+          classroom: ch.suggestedClassroom || 'Children',
+          parentName: selectedFamily.parent.name,
+          parentPhone: selectedFamily.parent.phone,
+          parentMemberId: selectedFamily.parent.id,
+          allergiesMedical: ch.allergiesMedical,
+        });
+        lastCreatedTag = res.data.data;
+      }
+      toast.success(`${childrenToCheckIn.length} child(ren) checked in securely! Security codes sent via SMS/WhatsApp.`);
+      setActiveClaimTag(lastCreatedTag);
+      setShowCheckInModal(false);
+      setShowTagModal(true);
+      setSelectedFamily(null);
+      setFamilySearchResults([]);
+      setFamilyLookupQuery('');
+      fetchChildren();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to check in children');
     } finally {
       setSubmittingChild(false);
     }
@@ -568,87 +648,257 @@ function AttendanceRecorder({ eventId }) {
       <Modal
         open={showCheckInModal}
         onClose={() => setShowCheckInModal(false)}
-        title="Child Safety Check-In"
-        size="md"
+        title="Child Safety & Safeguarding Check-In"
+        size="lg"
         footer={<>
           <button onClick={() => setShowCheckInModal(false)} className="btn-secondary">Cancel</button>
-          <button onClick={handleCheckInSubmit} disabled={submittingChild} className="btn-primary">
-            {submittingChild ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
-            Generate Security Tag
-          </button>
+          {checkInMode === 'family' ? (
+            <button
+              onClick={handleBulkCheckInFamily}
+              disabled={submittingChild || !selectedFamily || selectedChildIds.size === 0}
+              className="btn-primary"
+            >
+              {submittingChild ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
+              Check In Selected ({selectedChildIds.size})
+            </button>
+          ) : (
+            <button onClick={handleCheckInSubmit} disabled={submittingChild} className="btn-primary">
+              {submittingChild ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
+              Generate Security Tag
+            </button>
+          )}
         </>}
       >
-        <form onSubmit={handleCheckInSubmit} className="space-y-4">
-          <div>
-            <label className="label">Child Full Name *</label>
-            <input
-              required
-              className="input"
-              placeholder="e.g. Samuel Adebayo"
-              value={childForm.childName}
-              onChange={e => setChildForm(f => ({ ...f, childName: e.target.value }))}
-            />
+        <div className="space-y-4">
+          {/* Mode Switcher */}
+          <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setCheckInMode('family')}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                checkInMode === 'family' ? 'bg-white text-brand-700 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              ⚡ Fast Family Phone Lookup
+            </button>
+            <button
+              type="button"
+              onClick={() => setCheckInMode('manual')}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                checkInMode === 'manual' ? 'bg-white text-brand-700 shadow-xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              📝 Manual / First-Timer Entry
+            </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Classroom / Ministry Room *</label>
-              <select
-                className="input"
-                value={childForm.classroom}
-                onChange={e => setChildForm(f => ({ ...f, classroom: e.target.value }))}
-              >
-                <option value="Nursery">Nursery (0 - 2 yrs)</option>
-                <option value="Toddlers">Toddlers (2 - 4 yrs)</option>
-                <option value="Primary">Primary (5 - 8 yrs)</option>
-                <option value="Pre-Teens">Pre-Teens (9 - 12 yrs)</option>
-                <option value="Teens">Teens (13 - 17 yrs)</option>
-              </select>
+          {checkInMode === 'family' ? (
+            <div className="space-y-4">
+              {/* Parent Phone / Name Search */}
+              <form onSubmit={handleSearchFamily} className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    className="input pl-9 text-xs sm:text-sm"
+                    placeholder="Enter parent phone number (e.g. 080...) or name…"
+                    value={familyLookupQuery}
+                    onChange={e => setFamilyLookupQuery(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={searchingFamily}
+                  className="btn-primary text-xs whitespace-nowrap px-4"
+                >
+                  {searchingFamily ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                  Lookup Family
+                </button>
+              </form>
+
+              {/* Family Results */}
+              {familySearchResults.length > 1 && !selectedFamily && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Select Family:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {familySearchResults.map(fam => (
+                      <div
+                        key={fam.parent.id}
+                        onClick={() => handleSelectFamily(fam)}
+                        className="p-3 rounded-xl border border-gray-200 hover:border-brand-500 hover:bg-brand-50/30 cursor-pointer transition"
+                      >
+                        <p className="font-bold text-sm text-gray-900">{fam.parent.name}</p>
+                        <p className="text-xs text-gray-500">{fam.parent.phone}</p>
+                        <p className="text-[11px] text-brand-600 font-semibold mt-1">{fam.children.length} child(ren) registered</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Family Details & Children Checkboxes */}
+              {selectedFamily && (
+                <div className="bg-emerald-50/50 border border-emerald-200 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-emerald-100">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">Family Account</p>
+                      <h4 className="text-sm font-bold text-gray-900">{selectedFamily.parent.name}</h4>
+                      <p className="text-xs text-gray-500">{selectedFamily.parent.phone}</p>
+                    </div>
+                    {familySearchResults.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFamily(null)}
+                        className="text-xs text-brand-600 font-semibold hover:underline"
+                      >
+                        Change Family
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Select Children to Check In:</p>
+                    {selectedFamily.children.length === 0 ? (
+                      <div className="p-4 bg-white rounded-xl text-center text-xs text-gray-500">
+                        No registered children found under this family. You can switch to manual entry above.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {selectedFamily.children.map(child => {
+                          const isSelected = selectedChildIds.has(child.id);
+                          const isAlreadyIn = child.isCheckedIn;
+
+                          return (
+                            <div
+                              key={child.id}
+                              onClick={() => !isAlreadyIn && toggleSelectChild(child.id)}
+                              className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition ${
+                                isAlreadyIn
+                                  ? 'bg-gray-100/80 border-gray-200 cursor-not-allowed opacity-75'
+                                  : isSelected
+                                  ? 'bg-white border-brand-500 shadow-xs cursor-pointer ring-1 ring-brand-500'
+                                  : 'bg-white border-gray-200 hover:border-gray-300 cursor-pointer'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${
+                                  isAlreadyIn ? 'border-gray-400 bg-gray-400 text-white' : isSelected ? 'border-brand-600 bg-brand-600 text-white' : 'border-gray-300'
+                                }`}>
+                                  {(isSelected || isAlreadyIn) && <Check size={12} strokeWidth={3} />}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-xs text-gray-900">{child.name}</span>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
+                                      {child.suggestedClassroom}
+                                    </span>
+                                    {child.age != null && (
+                                      <span className="text-[10px] text-gray-500">
+                                        ({child.age} yrs)
+                                      </span>
+                                    )}
+                                  </div>
+                                  {child.allergiesMedical && (
+                                    <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 mt-0.5">
+                                      <AlertTriangle size={11} /> Allergies: {child.allergiesMedical}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div>
+                                {isAlreadyIn ? (
+                                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
+                                    Checked In ({child.checkIn?.security_code})
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-brand-600 font-semibold">
+                                    {isSelected ? 'Ready' : 'Click to Select'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-            <div>
-              <label className="label">Parent / Guardian Name *</label>
-              <input
-                required
-                className="input"
-                placeholder="e.g. David Adebayo"
-                value={childForm.parentName}
-                onChange={e => setChildForm(f => ({ ...f, parentName: e.target.value }))}
-              />
-            </div>
-          </div>
+          ) : (
+            <form onSubmit={handleCheckInSubmit} className="space-y-4">
+              <div>
+                <label className="label">Child Full Name *</label>
+                <input
+                  required
+                  className="input"
+                  placeholder="e.g. Samuel Adebayo"
+                  value={childForm.childName}
+                  onChange={e => setChildForm(f => ({ ...f, childName: e.target.value }))}
+                />
+              </div>
 
-          <div>
-            <label className="label">Parent Contact Phone *</label>
-            <input
-              required
-              className="input"
-              placeholder="e.g. +2348012345678"
-              value={childForm.parentPhone}
-              onChange={e => setChildForm(f => ({ ...f, parentPhone: e.target.value }))}
-            />
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Classroom / Ministry Room *</label>
+                  <select
+                    className="input"
+                    value={childForm.classroom}
+                    onChange={e => setChildForm(f => ({ ...f, classroom: e.target.value }))}
+                  >
+                    <option value="Nursery">Nursery / Crèche (0 - 2 yrs)</option>
+                    <option value="Toddlers">Toddlers (2 - 4 yrs)</option>
+                    <option value="Primary">Children's Church (5 - 8 yrs)</option>
+                    <option value="Pre-Teens">Pre-Teens (9 - 12 yrs)</option>
+                    <option value="Teens">Teens Church (13 - 17 yrs)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Parent / Guardian Name *</label>
+                  <input
+                    required
+                    className="input"
+                    placeholder="e.g. David Adebayo"
+                    value={childForm.parentName}
+                    onChange={e => setChildForm(f => ({ ...f, parentName: e.target.value }))}
+                  />
+                </div>
+              </div>
 
-          <div>
-            <label className="label text-amber-700">Allergies / Special Medical Notes</label>
-            <textarea
-              rows={2}
-              className="input border-amber-300 focus:ring-amber-500"
-              placeholder="e.g. Peanut allergy, Asthma inhaler with teacher, Vegetarian diet only"
-              value={childForm.allergiesMedical}
-              onChange={e => setChildForm(f => ({ ...f, allergiesMedical: e.target.value }))}
-            />
-          </div>
+              <div>
+                <label className="label">Parent Contact Phone *</label>
+                <input
+                  required
+                  className="input"
+                  placeholder="e.g. +2348012345678"
+                  value={childForm.parentPhone}
+                  onChange={e => setChildForm(f => ({ ...f, parentPhone: e.target.value }))}
+                />
+              </div>
 
-          <div>
-            <label className="label">Special Instructions / General Notes</label>
-            <input
-              className="input"
-              placeholder="e.g. Mother will pick up after choir practice"
-              value={childForm.notes}
-              onChange={e => setChildForm(f => ({ ...f, notes: e.target.value }))}
-            />
-          </div>
-        </form>
+              <div>
+                <label className="label text-amber-700">Allergies / Special Medical Notes</label>
+                <textarea
+                  rows={2}
+                  className="input border-amber-300 focus:ring-amber-500"
+                  placeholder="e.g. Peanut allergy, Asthma inhaler with teacher, Vegetarian diet only"
+                  value={childForm.allergiesMedical}
+                  onChange={e => setChildForm(f => ({ ...f, allergiesMedical: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <label className="label">Special Instructions / General Notes</label>
+                <input
+                  className="input"
+                  placeholder="e.g. Mother will pick up after choir practice"
+                  value={childForm.notes}
+                  onChange={e => setChildForm(f => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
+            </form>
+          )}
+        </div>
       </Modal>
 
       {/* ── MODAL 2: PRINTABLE SECURITY CLAIM TAG ── */}

@@ -270,6 +270,83 @@ const createMemberRecord = async ({ churchId, data, user }) => {
     }
   }
 
+  // Create linked child members in the household if children array provided
+  if (Array.isArray(data.children) && data.children.length > 0) {
+    const validChildren = data.children.filter(c => c && c.firstName && c.firstName.trim());
+    let addedCount = 0;
+    for (let i = 0; i < validChildren.length; i++) {
+      const ch = validChildren[i];
+      const childId = uuidv4();
+      const childMemberNumber = await getNextMemberNumber({ query }, churchId, 'KID', currentMembers + 1 + i);
+      let calculatedAge = null;
+      let childClass = 'child';
+      let autoClassroom = ch.classroom || ch.demographicCategory || 'Children';
+
+      if (ch.dateOfBirth) {
+        const dob = new Date(ch.dateOfBirth);
+        if (!isNaN(dob.getTime())) {
+          const diffMs = Date.now() - dob.getTime();
+          calculatedAge = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 365.25));
+          if (calculatedAge <= 3) autoClassroom = 'Toddlers';
+          else if (calculatedAge <= 8) autoClassroom = 'Primary';
+          else if (calculatedAge <= 12) autoClassroom = 'Pre-Teens';
+          else {
+            autoClassroom = 'Teens';
+            childClass = 'youth';
+          }
+        }
+      }
+
+      try {
+        await query(
+          `INSERT INTO members (
+            id, church_id, branch_id, member_number, first_name, last_name,
+            date_of_birth, gender, marital_status, address, city, state, country,
+            membership_status, membership_class, join_date,
+            family_id, family_role, is_primary_family_contact,
+            notes, custom_fields, next_of_kin_name, next_of_kin_phone, next_of_kin_relationship
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6,
+            $7, $8, 'single', $9, $10, $11, $12,
+            'active', $13, $14,
+            $15, 'child', false,
+            $16, $17, $18, $19, 'Parent'
+          )`,
+          [
+            childId, churchId, safeBranchId, childMemberNumber,
+            ch.firstName.trim(), (ch.lastName || lastName || '').trim(),
+            ch.dateOfBirth || null, ch.gender || null,
+            address || null, city || null, state || null, country || null,
+            childClass, joinDate || new Date().toISOString().slice(0, 10),
+            assignedFamilyId,
+            ch.allergiesMedical ? `Allergies/Medical: ${ch.allergiesMedical.trim()}` : null,
+            JSON.stringify({
+              allergies_medical: ch.allergiesMedical || null,
+              classroom: autoClassroom,
+              age: calculatedAge
+            }),
+            `${firstName} ${lastName}`.trim(), phone || null
+          ]
+        );
+        addedCount++;
+      } catch (childErr) {
+        logger.warn('Failed to insert linked child member record', { error: childErr.message, child: ch.firstName });
+      }
+    }
+
+    if (addedCount > 0) {
+      await query(
+        `UPDATE members
+         SET has_children = true,
+             children_count = COALESCE(children_count, 0) + $1
+         WHERE id = $2`,
+        [addedCount, id]
+      ).catch(() => {});
+      member.has_children = true;
+      member.children_count = (member.children_count || 0) + addedCount;
+    }
+  }
+
   // If worker is in a department, link into member_departments
   if (userIsWorker && workerUnit) {
     try {

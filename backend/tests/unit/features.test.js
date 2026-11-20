@@ -143,6 +143,64 @@ describe('Core Feature Suites & Optimizations', () => {
         })
       );
     });
+
+    it('looks up family by parent phone and returns linked children with demographic classrooms', async () => {
+      const { req, res } = mockReqRes({
+        query: { search: '+2348011112222', eventId: 'evt-1' },
+      });
+
+      // 1. Parent search query
+      db.query.mockResolvedValueOnce({
+        rows: [{
+          id: 'parent-1',
+          first_name: 'David',
+          last_name: 'Mensah',
+          phone: '+2348011112222',
+          email: 'david@example.com',
+          family_id: 'fam-1',
+          address: '14 Lekki Way',
+        }],
+      });
+
+      // 2. Children in family
+      db.query.mockResolvedValueOnce({
+        rows: [{
+          id: 'child-1',
+          first_name: 'Samuel',
+          last_name: 'Mensah',
+          date_of_birth: '2023-01-01',
+          gender: 'male',
+          calculated_age: 3,
+          custom_fields: { allergies_medical: 'Peanut allergy' },
+          notes: null,
+        }],
+      });
+
+      // 3. Checked-in status check
+      db.query.mockResolvedValueOnce({
+        rows: [],
+      });
+
+      await childCtrl.familyLookup(req, res);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.arrayContaining([
+            expect.objectContaining({
+              parent: expect.objectContaining({ name: 'David Mensah', phone: '+2348011112222' }),
+              children: expect.arrayContaining([
+                expect.objectContaining({
+                  firstName: 'Samuel',
+                  suggestedClassroom: 'Toddlers',
+                  allergiesMedical: 'Peanut allergy',
+                  isCheckedIn: false,
+                }),
+              ]),
+            }),
+          ]),
+        })
+      );
+    });
   });
 
   // 2. Annual Giving & Tax Contribution Statements

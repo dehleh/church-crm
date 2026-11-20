@@ -363,6 +363,7 @@ export const childCheckInAPI = {
   checkIn: (data) => api.post('/child-check-in', data),
   checkOut: (id, data) => api.post(`/child-check-in/${id}/checkout`, data),
   pageParent: (id, data) => api.post(`/child-check-in/${id}/page-parent`, data),
+  familyLookup: (params) => api.get('/child-check-in/family-lookup', { params }),
 };
 
 export const pledgesAPI = {

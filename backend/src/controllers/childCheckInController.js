@@ -50,6 +50,24 @@ const checkInChild = async (req, res) => {
       securityCode
     });
 
+    // Send check-in claim code notification to parent asynchronously (non-blocking)
+    Promise.resolve().then(async () => {
+      try {
+        const churchRes = await query('SELECT name, settings FROM churches WHERE id = $1', [req.churchId]);
+        const church = churchRes?.rows?.[0];
+        const churchSettings = church?.settings?.messaging || {};
+        const churchName = church?.name || 'Our Church';
+        const notifyMsg = `Hello ${parentName.trim()}, your child ${childName.trim()} is checked into ${classroom || 'Children'} Church at ${churchName}. Security Claim Code: ${securityCode}. Please present this code at pick-up.`;
+
+        const waRes = await sendWhatsApp({ to: parentPhone.trim(), body: notifyMsg }, churchSettings).catch(() => null);
+        if (!waRes?.success) {
+          await sendSMS({ to: parentPhone.trim(), body: notifyMsg }, churchSettings).catch(() => {});
+        }
+      } catch {
+        // Notification dispatch failure should never fail the check-in transaction
+      }
+    });
+
     return res.status(201).json({
       success: true,
       data: rows[0],
@@ -227,9 +245,116 @@ const pageParent = async (req, res) => {
   }
 };
 
+const familyLookup = async (req, res) => {
+  const { search, eventId } = req.query;
+  if (!search || !search.trim()) {
+    return res.status(400).json({ success: false, message: 'Search query is required' });
+  }
+
+  try {
+    const q = `%${search.trim()}%`;
+    // Find parent(s) matching phone, email, or name
+    const { rows: parents } = await query(
+      `SELECT id, first_name, last_name, phone, email, family_id, address
+       FROM members
+       WHERE church_id = $1 AND (
+         phone ILIKE $2 OR phone_alt ILIKE $2 OR
+         CONCAT(first_name, ' ', last_name) ILIKE $2
+       )
+       LIMIT 6`,
+      [req.churchId, q]
+    );
+
+    if (parents.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const results = [];
+    for (const parent of parents) {
+      const familyId = parent.family_id || parent.id;
+      // Get all children / dependants for this family
+      const { rows: children } = await query(
+        `SELECT id, first_name, last_name, date_of_birth, gender,
+                custom_fields, notes,
+                EXTRACT(YEAR FROM age(CURRENT_DATE, date_of_birth))::int as calculated_age
+         FROM members
+         WHERE church_id = $1 AND family_id = $2 AND (
+           family_role = 'child' OR family_role = 'dependant' OR
+           membership_class IN ('child', 'youth') OR
+           (date_of_birth IS NOT NULL AND date_of_birth > CURRENT_DATE - INTERVAL '18 years')
+         ) AND id != $3
+         ORDER BY date_of_birth DESC`,
+        [req.churchId, familyId, parent.id]
+      );
+
+      // Check current check-in status for today's event if eventId provided
+      let checkedInMap = {};
+      if (eventId && children.length > 0) {
+        const childIds = children.map(c => c.id);
+        const { rows: checkIns } = await query(
+          `SELECT id, child_member_id, child_name, classroom, security_code, status
+           FROM child_check_ins
+           WHERE church_id = $1 AND event_id = $2 AND status = 'checked_in' AND (
+             child_member_id = ANY($3::uuid[]) OR parent_member_id = $4
+           )`,
+          [req.churchId, eventId, childIds, parent.id]
+        );
+        for (const ci of checkIns) {
+          if (ci.child_member_id) checkedInMap[ci.child_member_id] = ci;
+        }
+      }
+
+      const formattedChildren = children.map(child => {
+        const age = child.calculated_age;
+        let suggestedClassroom = 'Children';
+        if (age != null) {
+          if (age <= 3) suggestedClassroom = 'Toddlers';
+          else if (age <= 8) suggestedClassroom = 'Primary';
+          else if (age <= 12) suggestedClassroom = 'Pre-Teens';
+          else suggestedClassroom = 'Teens';
+        } else if (child.custom_fields?.classroom) {
+          suggestedClassroom = child.custom_fields.classroom;
+        }
+
+        const activeCheckIn = checkedInMap[child.id];
+        return {
+          id: child.id,
+          firstName: child.first_name,
+          lastName: child.last_name,
+          name: `${child.first_name} ${child.last_name}`,
+          dateOfBirth: child.date_of_birth,
+          age,
+          gender: child.gender,
+          allergiesMedical: child.custom_fields?.allergies_medical || (child.notes?.toLowerCase().includes('allerg') ? child.notes : ''),
+          suggestedClassroom,
+          isCheckedIn: !!activeCheckIn,
+          checkIn: activeCheckIn || null,
+        };
+      });
+
+      results.push({
+        parent: {
+          id: parent.id,
+          name: `${parent.first_name} ${parent.last_name}`,
+          phone: parent.phone,
+          email: parent.email,
+          familyId,
+        },
+        children: formattedChildren,
+      });
+    }
+
+    return res.json({ success: true, data: results });
+  } catch (err) {
+    logger.error('familyLookup error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error looking up family' });
+  }
+};
+
 module.exports = {
   checkInChild,
   listChildCheckIns,
   checkOutChild,
-  pageParent
+  pageParent,
+  familyLookup
 };

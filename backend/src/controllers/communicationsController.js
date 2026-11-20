@@ -81,9 +81,71 @@ const resolveAudience = async (churchId, audience, filter = {}) => {
     }
     case 'parents': {
       const r = await query(
-        `SELECT id, email, phone, first_name, last_name FROM members
+        `SELECT DISTINCT id, email, phone, first_name, last_name FROM members
          WHERE church_id=$1 AND membership_status='active'
-           AND (COALESCE(num_children,0) > 0 OR marital_status='married')`,
+           AND (COALESCE(children_count,0) > 0 OR COALESCE(teenagers_count,0) > 0 OR has_children = true OR marital_status='married')`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'parents_children': {
+      // Parents with Toddlers / Children (Ages 0 - 12)
+      const r = await query(
+        `SELECT DISTINCT p.id, p.email, p.phone, p.first_name, p.last_name
+         FROM members p
+         WHERE p.church_id = $1 AND p.membership_status = 'active'
+           AND (p.family_role IN ('head', 'spouse', 'member') OR p.family_role IS NULL)
+           AND (
+             COALESCE(p.children_count, 0) > 0
+             OR EXISTS (
+               SELECT 1 FROM members c
+               WHERE c.church_id = p.church_id
+                 AND c.family_id = p.family_id
+                 AND c.id != p.id
+                 AND (
+                   c.family_role = 'child'
+                   OR c.membership_class = 'child'
+                   OR (c.date_of_birth IS NOT NULL AND c.date_of_birth > CURRENT_DATE - INTERVAL '13 years')
+                 )
+             )
+           )`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'parents_teens': {
+      // Parents with Teenagers (Ages 13 - 17)
+      const r = await query(
+        `SELECT DISTINCT p.id, p.email, p.phone, p.first_name, p.last_name
+         FROM members p
+         WHERE p.church_id = $1 AND p.membership_status = 'active'
+           AND (p.family_role IN ('head', 'spouse', 'member') OR p.family_role IS NULL)
+           AND (
+             COALESCE(p.teenagers_count, 0) > 0
+             OR EXISTS (
+               SELECT 1 FROM members c
+               WHERE c.church_id = p.church_id
+                 AND c.family_id = p.family_id
+                 AND c.id != p.id
+                 AND (
+                   c.membership_class = 'youth'
+                   OR (c.date_of_birth IS NOT NULL AND c.date_of_birth <= CURRENT_DATE - INTERVAL '13 years' AND c.date_of_birth > CURRENT_DATE - INTERVAL '18 years')
+                 )
+             )
+           )`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'teens': {
+      // Teenagers / Youth Members (Ages 13 - 17)
+      const r = await query(
+        `SELECT id, email, phone, first_name, last_name FROM members
+         WHERE church_id = $1 AND membership_status = 'active'
+           AND (
+             membership_class = 'youth'
+             OR (date_of_birth IS NOT NULL AND date_of_birth <= CURRENT_DATE - INTERVAL '13 years' AND date_of_birth > CURRENT_DATE - INTERVAL '18 years')
+           )`,
         [churchId]
       );
       return r.rows;
