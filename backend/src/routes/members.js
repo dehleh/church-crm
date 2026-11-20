@@ -4,8 +4,18 @@ const c = require('../controllers/membersController');
 const { authenticate, authorize } = require('../middleware/auth');
 const { body } = require('express-validator');
 const { handleValidationErrors } = require('../middleware/errorHandler');
+const { upload, uploadFor } = require('../middleware/upload');
 
 router.use(authenticate);
+
+// Member Photo Upload
+router.post('/upload-photo', authorize('admin', 'pastor', 'director', 'hod'),
+  uploadFor('avatars'), upload.single('photo'), (req, res) => {
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+    const photoUrl = `/uploads/avatars/${req.file.filename}`;
+    return res.json({ success: true, photoUrl, data: { photoUrl } });
+  }
+);
 
 /**
  * @swagger

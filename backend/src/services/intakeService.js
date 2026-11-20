@@ -1,5 +1,8 @@
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../config/database');
+const logger = require('../config/logger');
+const { sendEmail } = require('./emailService');
+const { sendWhatsApp, sendSMS } = require('./smsService');
 
 const ensureBranchBelongsToChurch = async (churchId, branchId) => {
   if (!branchId) return null;
@@ -21,29 +24,156 @@ const ensureBranchBelongsToChurch = async (churchId, branchId) => {
 const createFirstTimerRecord = async ({ churchId, data }) => {
   const {
     firstName, lastName, email, phone, address, gender, dateOfBirth,
-    howDidYouHear, visitDate, serviceAttended, prayerRequest, branchId
+    howDidYouHear, visitDate, serviceAttended, prayerRequest, branchId,
+    wantsToJoinChurch, wants_to_join_church, decision,
+    photoUrl, photo_url, profilePhotoUrl, profile_photo_url,
   } = data;
 
   const safeBranchId = await ensureBranchBelongsToChurch(churchId, branchId || null);
+  const finalWantsToJoin = Boolean(wantsToJoinChurch || wants_to_join_church || decision === 'join_church');
+  const finalDecision = decision || (finalWantsToJoin ? 'join_church' : 'considering');
+  const finalPhotoUrl = photoUrl || photo_url || profilePhotoUrl || profile_photo_url || null;
+
+  // 1. Auto-assign to a volunteer in the Friendship Team / Follow-up Ministry
+  let assignedUserId = null;
+  let assignedMemberId = null;
+  let assignedWorker = null;
+
+  try {
+    const { rows: workers } = await query(
+      `SELECT m.id as member_id, m.first_name, m.last_name, m.email, m.phone, u.id as user_id,
+              (SELECT COUNT(*) FROM first_timers ft WHERE ft.follow_up_assigned_to = u.id AND ft.follow_up_status = 'pending') as active_load
+       FROM member_departments md
+       JOIN departments d ON d.id = md.department_id
+       JOIN members m ON m.id = md.member_id
+       LEFT JOIN users u ON (u.member_id = m.id OR LOWER(TRIM(u.email)) = LOWER(TRIM(m.email)))
+       WHERE d.church_id = $1
+         AND (d.name ILIKE '%friendship%' OR d.name ILIKE '%follow%' OR d.name ILIKE '%welcome%')
+         AND md.is_active = true
+         AND m.membership_status = 'active'
+       ORDER BY active_load ASC, md.joined_at ASC
+       LIMIT 1`,
+      [churchId]
+    );
+
+    if (workers.length > 0) {
+      assignedWorker = workers[0];
+      assignedUserId = assignedWorker.user_id || null;
+      assignedMemberId = assignedWorker.member_id;
+    } else {
+      // Fallback: look for users with pastoral or follow-up role
+      const { rows: staff } = await query(
+        `SELECT id as user_id, first_name, last_name, email, phone, member_id
+         FROM users
+         WHERE church_id = $1 AND role IN ('pastor', 'head_pastor', 'director', 'admin')
+         ORDER BY (SELECT COUNT(*) FROM first_timers ft WHERE ft.follow_up_assigned_to = users.id AND ft.follow_up_status = 'pending') ASC
+         LIMIT 1`,
+        [churchId]
+      );
+      if (staff.length > 0) {
+        assignedWorker = staff[0];
+        assignedUserId = assignedWorker.user_id;
+        assignedMemberId = assignedWorker.member_id || null;
+      }
+    }
+  } catch (workerErr) {
+    logger.warn('Could not auto-assign friendship team worker', { error: workerErr.message });
+  }
 
   const { rows } = await query(
     `INSERT INTO first_timers (
       id, church_id, branch_id, first_name, last_name, email, phone, address,
-      gender, date_of_birth, how_did_you_hear, visit_date, service_attended, prayer_request
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      gender, date_of_birth, how_did_you_hear, visit_date, service_attended, prayer_request,
+      wants_to_join_church, decision, photo_url, profile_photo_url,
+      follow_up_assigned_to, assigned_member_id, assigned_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20, CASE WHEN $19 IS NOT NULL OR $20 IS NOT NULL THEN NOW() ELSE NULL END)
+    RETURNING *`,
     [
       uuidv4(), churchId, safeBranchId, firstName, lastName, email || null,
       phone || null, address || null, gender || null, dateOfBirth || null,
-      howDidYouHear || null, visitDate || new Date(), serviceAttended || null, prayerRequest || null
+      howDidYouHear || null, visitDate || new Date(), serviceAttended || null, prayerRequest || null,
+      finalWantsToJoin, finalDecision, finalPhotoUrl, finalPhotoUrl,
+      assignedUserId, assignedMemberId
     ]
   );
+
+  const firstTimer = rows[0];
 
   if (prayerRequest && prayerRequest.trim()) {
     await query(
       `INSERT INTO prayer_requests (id, church_id, branch_id, first_timer_id, requester_name, request, category, is_anonymous)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [uuidv4(), churchId, safeBranchId, rows[0].id, `${firstName} ${lastName}`, prayerRequest, 'others', false]
-    );
+      [uuidv4(), churchId, safeBranchId, firstTimer.id, `${firstName} ${lastName}`, prayerRequest, 'others', false]
+    ).catch(() => {});
+  }
+
+  // Create follow_up entry in pastoral care
+  if (assignedUserId || assignedMemberId) {
+    query(
+      `INSERT INTO follow_ups (
+        id, church_id, first_timer_id, assigned_to, follow_up_type, status, notes
+      ) VALUES ($1, $2, $3, $4, 'call', 'pending', $5)`,
+      [
+        uuidv4(), churchId, firstTimer.id, assignedUserId,
+        `Friendship Team Follow-up: ${assignedWorker ? `${assignedWorker.first_name} ${assignedWorker.last_name}` : 'Assigned'}`
+      ]
+    ).catch(() => {});
+  }
+
+  // Dispatch Instant WhatsApp / SMS / Email Notification to Assigned Friendship Worker
+  if (assignedWorker && (assignedWorker.phone || assignedWorker.email)) {
+    Promise.resolve().then(async () => {
+      try {
+        const { rows: churchInfo } = await query('SELECT name, settings FROM churches WHERE id = $1', [churchId]);
+        const churchName = churchInfo[0]?.name || 'ChurchOS';
+        const churchSettings = churchInfo[0]?.settings?.messaging || {};
+
+        const joinBadge = finalWantsToJoin ? '🌟 YES, wants to join church!' : finalDecision === 'visiting' ? '✈️ Visiting from out of town' : 'Thinking/Praying about it';
+        const notifyBody =
+          `Hello ${assignedWorker.first_name}, you have been assigned a new First Timer to follow up at *${churchName}*! 🤝\n\n` +
+          `👤 *Name:* ${firstName} ${lastName}\n` +
+          `📞 *Phone:* ${phone || 'N/A'}\n` +
+          `📧 *Email:* ${email || 'N/A'}\n` +
+          `📅 *Visited:* ${visitDate || new Date().toISOString().slice(0, 10)}\n` +
+          `⛪ *Service:* ${serviceAttended || 'Main Service'}\n` +
+          `🤝 *Home Church Decision:* ${joinBadge}\n` +
+          (prayerRequest ? `🙏 *Prayer Request:* ${prayerRequest}\n` : '') +
+          `\nPlease call or message them to welcome them warmly to our family! ❤️`;
+
+        if (assignedWorker.phone) {
+          const waRes = await sendWhatsApp({ to: assignedWorker.phone, body: notifyBody }, churchSettings).catch(() => null);
+          if (!waRes?.success) {
+            await sendSMS({ to: assignedWorker.phone, body: notifyBody }, churchSettings).catch(() => {});
+          }
+        }
+
+        if (assignedWorker.email) {
+          await sendEmail({
+            to: assignedWorker.email,
+            subject: `🤝 New First Timer Assigned to You: ${firstName} ${lastName} (${churchName})`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #065f46; margin-top: 0;">New First-Timer Follow-Up Assignment 🤝</h2>
+                <p>Hello <strong>${assignedWorker.first_name}</strong>,</p>
+                <p>You have been assigned to follow up and welcome a new first-time guest who worshipped at <strong>${churchName}</strong>.</p>
+                <div style="background-color: #f8fafc; border-left: 4px solid #059669; padding: 16px; border-radius: 6px; margin: 20px 0;">
+                  <p style="margin: 4px 0;"><strong>Guest Name:</strong> ${firstName} ${lastName}</p>
+                  <p style="margin: 4px 0;"><strong>Phone:</strong> <a href="tel:${phone}">${phone || 'N/A'}</a></p>
+                  <p style="margin: 4px 0;"><strong>Email:</strong> <a href="mailto:${email}">${email || 'N/A'}</a></p>
+                  <p style="margin: 4px 0;"><strong>Service:</strong> ${serviceAttended || 'Main Service'}</p>
+                  <p style="margin: 4px 0;"><strong>Decision:</strong> <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">${joinBadge}</span></p>
+                  ${prayerRequest ? `<p style="margin: 8px 0 0 0;"><strong>Prayer Request:</strong> <em>"${prayerRequest}"</em></p>` : ''}
+                </div>
+                <p style="color: #475569; font-size: 14px;">Please reach out via call or WhatsApp within 24 hours to welcome them with warmth and pastoral love.</p>
+                <p style="color: #64748b; font-size: 12px; margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 12px;">${churchName} Pastoral Care & Friendship Ministry</p>
+              </div>
+            `
+          }, churchSettings).catch(() => {});
+        }
+      } catch (notifyErr) {
+        logger.warn('Failed to notify assigned friendship worker', { error: notifyErr.message });
+      }
+    });
   }
 
   // Trigger automated WhatsApp / SMS follow-up sequence
@@ -52,7 +182,7 @@ const createFirstTimerRecord = async ({ churchId, data }) => {
     const { rows: churchInfo } = await query('SELECT name FROM churches WHERE id = $1', [churchId]);
     enrollFirstTimerInSequence({
       churchId,
-      firstTimer: rows[0],
+      firstTimer,
       churchName: churchInfo[0]?.name || 'ChurchOS',
       pastorName: 'the Pastorate',
     }).catch(seqErr => console.warn('Could not auto-enroll first timer sequence:', seqErr.message));
@@ -60,7 +190,7 @@ const createFirstTimerRecord = async ({ churchId, data }) => {
     // Non-fatal if sequence service encounters issue
   }
 
-  return rows[0];
+  return firstTimer;
 };
 
 const { autoAssignFellowshipCell } = require('./fellowshipAssignmentService');
@@ -68,8 +198,6 @@ const { getNextMemberNumber } = require('../utils/memberNumber');
 
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-
-const logger = require('../config/logger');
 
 const createMemberRecord = async ({ churchId, data, user }) => {
   const {
@@ -86,7 +214,7 @@ const createMemberRecord = async ({ churchId, data, user }) => {
     isPrimaryFamilyContact, is_primary_family_contact,
     isWorker, workerUnit, workerRole, fellowshipCellId, latitude, longitude,
     designation, leadershipTitle, leadership_title, assignedPastorId, assigned_pastor_id,
-    password
+    password, profilePhotoUrl, profile_photo_url, photoUrl, photo_url
   } = data;
 
   const safeBranchId = await ensureBranchBelongsToChurch(churchId, branchId || null);
@@ -118,6 +246,7 @@ const createMemberRecord = async ({ churchId, data, user }) => {
 
   const finalSpouseName = spouseName || spouse_name || null;
   const finalSpousePhone = spousePhone || spouse_phone || null;
+  const finalProfilePhotoUrl = profilePhotoUrl || profile_photo_url || photoUrl || photo_url || null;
   const spouseHasChildrenRegistered = !!(spouseAlreadyRegisteredChildren || spouse_already_registered_children);
 
   let assignedFamilyId = familyId || family_id || null;
@@ -230,10 +359,10 @@ const createMemberRecord = async ({ churchId, data, user }) => {
       is_worker, worker_unit, worker_role, fellowship_cell_id,
       designation, leadership_title, assigned_pastor_id,
       wedding_anniversary_date, password_hash, portal_invited_at, set_password_token, set_password_expires_at,
-      family_id, spouse_id, spouse_name, spouse_phone, is_primary_family_contact, family_role
+      family_id, spouse_id, spouse_name, spouse_phone, is_primary_family_contact, family_role, profile_photo_url
     ) VALUES (
       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,
-      $42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52
+      $42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53
     )
     RETURNING *`,
     [
@@ -247,7 +376,7 @@ const createMemberRecord = async ({ churchId, data, user }) => {
       userIsWorker, workerUnit || null, workerRole || 'worker', fellowshipCellId || null,
       userDesignation, finalLeadershipTitle, finalAssignedPastor,
       finalAnniversaryDate, passwordHash, portalInvitedAt, setPasswordToken, setPasswordExpiresAt,
-      assignedFamilyId, linkedSpouseId, finalSpouseName, finalSpousePhone, isPrimaryContact, finalFamilyRole
+      assignedFamilyId, linkedSpouseId, finalSpouseName, finalSpousePhone, isPrimaryContact, finalFamilyRole, finalProfilePhotoUrl
     ]
   );
 

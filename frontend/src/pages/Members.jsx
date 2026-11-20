@@ -4,9 +4,10 @@ import {
   Users, Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit2, Trash2,
   Loader2, ExternalLink, FileSpreadsheet, QrCode, CheckCircle2, Cake, Baby,
   Briefcase, Home, Send, MessageCircle, Sparkles, MapPin, Calendar, Check,
-  Award, Shield, UserCheck, Heart
+  Award, Shield, UserCheck, Heart, Camera
 } from 'lucide-react';
 import { membersAPI, branchesAPI, departmentsAPI, fellowshipAPI } from '../api/services';
+import { getAssetUrl } from '../api/client';
 import Modal from '../components/ui/Modal';
 import CsvImportModal from '../components/ui/CsvImportModal';
 import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
@@ -40,8 +41,80 @@ const MONTHS = [
 
 function MemberForm({ form, setForm, branches = [], departments = [], fellowshipCenters = [], errors = {} }) {
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) return toast.error('Photo size must be less than 8MB');
+    setUploadingPhoto(true);
+    const formData = new FormData();
+    formData.append('photo', file);
+    try {
+      const res = await membersAPI.uploadPhoto(formData);
+      const url = res.data?.photoUrl || res.data?.data?.photoUrl;
+      setForm(prev => ({ ...prev, profilePhotoUrl: url, profile_photo_url: url }));
+      toast.success('Member photo uploaded!');
+    } catch {
+      toast.error('Failed to upload photo');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const photo = form.profilePhotoUrl || form.profile_photo_url;
+
   return (
     <div className="space-y-4 max-h-[72vh] overflow-y-auto pr-1">
+      {/* Member Photo Live Preview & Upload */}
+      <div className="flex items-center gap-4 p-3.5 bg-brand-50/40 rounded-xl border border-brand-100">
+        <div className="relative flex-shrink-0">
+          {photo ? (
+            <img
+              src={getAssetUrl(photo)}
+              alt="Member"
+              className="w-16 h-16 rounded-full object-cover border-2 border-brand-400 shadow-sm"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold border-2 border-dashed border-brand-300">
+              <Camera size={22} className="text-brand-600" />
+            </div>
+          )}
+          {uploadingPhoto && (
+            <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
+              <Loader2 size={18} className="animate-spin text-white" />
+            </div>
+          )}
+        </div>
+        <div className="flex-1">
+          <label className="text-xs font-semibold text-gray-800 block mb-1">Member Photo (Live Capture or Upload)</label>
+          <div className="flex items-center gap-2">
+            <label className="btn-secondary text-xs py-1.5 px-3 cursor-pointer flex items-center gap-1.5 hover:bg-gray-100">
+              <Camera size={14} />
+              {photo ? 'Change Photo' : 'Upload / Snap Photo'}
+              <input
+                type="file"
+                accept="image/*"
+                capture="user"
+                className="hidden"
+                onChange={handlePhotoUpload}
+                disabled={uploadingPhoto}
+              />
+            </label>
+            {photo && (
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, profilePhotoUrl: '', profile_photo_url: '' }))}
+                className="text-xs text-red-500 hover:text-red-700 underline"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-gray-500 mt-1">Displayed in directory, family units, and member recognition lists.</p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">First Name *</label>
@@ -552,6 +625,8 @@ export default function Members() {
       designation: m.designation || 'member',
       leadershipTitle: m.leadership_title || '',
       assignedPastorId: m.assigned_pastor_id || '',
+      profilePhotoUrl: m.profile_photo_url || '',
+      profile_photo_url: m.profile_photo_url || '',
     });
     setFormErrors({});
     setSelectedMember(m);
@@ -827,15 +902,31 @@ export default function Members() {
                   <tr key={m.id}>
                     <td>
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-xs font-bold flex-shrink-0 relative">
-                          {getInitials(m.first_name, m.last_name)}
-                          {isBdayToday && (
-                            <span className="absolute -top-1 -right-1 text-sm" title="Birthday Today!">🎂</span>
-                          )}
-                          {isAnnivToday && !isBdayToday && (
-                            <span className="absolute -top-1 -right-1 text-sm" title="Wedding Anniversary Today!">💍</span>
-                          )}
-                        </div>
+                        {m.profile_photo_url ? (
+                          <div className="relative flex-shrink-0">
+                            <img
+                              src={getAssetUrl(m.profile_photo_url)}
+                              alt=""
+                              className="w-9 h-9 rounded-full object-cover border border-brand-200 shadow-xs"
+                            />
+                            {isBdayToday && (
+                              <span className="absolute -top-1 -right-1 text-xs" title="Birthday Today!">🎂</span>
+                            )}
+                            {isAnnivToday && !isBdayToday && (
+                              <span className="absolute -top-1 -right-1 text-xs" title="Wedding Anniversary Today!">💍</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-xs font-bold flex-shrink-0 relative">
+                            {getInitials(m.first_name, m.last_name)}
+                            {isBdayToday && (
+                              <span className="absolute -top-1 -right-1 text-sm" title="Birthday Today!">🎂</span>
+                            )}
+                            {isAnnivToday && !isBdayToday && (
+                              <span className="absolute -top-1 -right-1 text-sm" title="Wedding Anniversary Today!">💍</span>
+                            )}
+                          </div>
+                        )}
                         <div>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-semibold text-gray-900">{m.first_name} {m.last_name}</span>

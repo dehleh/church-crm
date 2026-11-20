@@ -31,10 +31,14 @@ const getFirstTimers = async (req, res) => {
     const { rows } = await query(
       `SELECT ft.*,
               b.name as branch_name,
-              u.first_name || ' ' || u.last_name as assigned_to_name
+              COALESCE(u.first_name || ' ' || u.last_name, am.first_name || ' ' || am.last_name) as assigned_to_name,
+              am.phone as assigned_member_phone,
+              EXISTS (SELECT 1 FROM member_departments md WHERE md.member_id = ft.member_id AND md.is_active = true) as has_joined_department,
+              EXISTS (SELECT 1 FROM fellowship_members fm WHERE fm.member_id = ft.member_id AND fm.status = 'active') as has_joined_cell
        FROM first_timers ft
        LEFT JOIN branches b ON b.id = ft.branch_id
        LEFT JOIN users u ON u.id = ft.follow_up_assigned_to
+       LEFT JOIN members am ON am.id = ft.assigned_member_id
        WHERE ${where}
        ORDER BY ft.visit_date DESC
        LIMIT $${idx} OFFSET $${idx + 1}`,
@@ -136,23 +140,67 @@ const convertToMember = async (req, res) => {
 
 const getFirstTimerStats = async (req, res) => {
   try {
+    const { period = 'all' } = req.query;
     const params = [req.churchId];
     let branchCond = '';
     if (req.branchId) {
       params.push(req.branchId);
-      branchCond = ' AND branch_id = $2';
+      branchCond = ` AND ft.branch_id = $${params.length}`;
     }
+
+    let dateCond = '';
+    if (period === 'this_month') {
+      dateCond = ` AND ft.visit_date >= DATE_TRUNC('month', CURRENT_DATE)`;
+    } else if (period === 'last_30_days') {
+      dateCond = ` AND ft.visit_date >= CURRENT_DATE - INTERVAL '30 days'`;
+    } else if (period === 'quarter') {
+      dateCond = ` AND ft.visit_date >= CURRENT_DATE - INTERVAL '90 days'`;
+    } else if (period === 'year') {
+      dateCond = ` AND ft.visit_date >= DATE_TRUNC('year', CURRENT_DATE)`;
+    }
+
     const { rows } = await query(
       `SELECT
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE follow_up_status = 'pending') as pending,
-        COUNT(*) FILTER (WHERE follow_up_status = 'contacted') as contacted,
-        COUNT(*) FILTER (WHERE follow_up_status = 'converted') as converted,
-        COUNT(*) FILTER (WHERE visit_date >= NOW() - INTERVAL '30 days') as this_month
-       FROM first_timers WHERE church_id = $1${branchCond}`,
+        COUNT(*)::int as total,
+        COUNT(*) FILTER (WHERE ft.follow_up_status = 'pending')::int as pending,
+        COUNT(*) FILTER (WHERE ft.follow_up_status = 'contacted')::int as contacted,
+        COUNT(*) FILTER (WHERE ft.follow_up_status = 'converted' OR ft.converted_to_member = true OR ft.member_id IS NOT NULL)::int as converted,
+        COUNT(*) FILTER (WHERE ft.visit_date >= CURRENT_DATE - INTERVAL '30 days')::int as this_month,
+        COUNT(*) FILTER (WHERE LOWER(ft.gender) = 'male')::int as male,
+        COUNT(*) FILTER (WHERE LOWER(ft.gender) = 'female')::int as female,
+        COUNT(*) FILTER (WHERE ft.wants_to_join_church = true OR ft.decision = 'join_church')::int as wants_to_join,
+        COUNT(*) FILTER (WHERE ft.decision = 'considering' OR (ft.wants_to_join_church = false AND (ft.decision IS NULL OR ft.decision != 'visiting')))::int as considering,
+        COUNT(*) FILTER (WHERE ft.decision = 'visiting')::int as visiting,
+        COUNT(DISTINCT ft.id) FILTER (WHERE ft.member_id IS NOT NULL AND EXISTS (
+          SELECT 1 FROM member_departments md WHERE md.member_id = ft.member_id AND md.is_active = true
+        ))::int as joined_department,
+        COUNT(DISTINCT ft.id) FILTER (WHERE ft.member_id IS NOT NULL AND (
+          EXISTS (SELECT 1 FROM fellowship_members fm WHERE fm.member_id = ft.member_id AND fm.status = 'active')
+          OR EXISTS (SELECT 1 FROM members m WHERE m.id = ft.member_id AND m.fellowship_cell_id IS NOT NULL)
+        ))::int as joined_cell,
+        COUNT(DISTINCT ft.id) FILTER (WHERE EXISTS (
+          SELECT 1 FROM event_attendance ea
+          WHERE (ea.first_timer_id = ft.id OR (ft.member_id IS NOT NULL AND ea.member_id = ft.member_id))
+          GROUP BY COALESCE(ea.first_timer_id, ea.member_id)
+          HAVING COUNT(*) >= 2
+        ))::int as consistent
+       FROM first_timers ft
+       WHERE ft.church_id = $1${branchCond}${dateCond}`,
       params
     );
-    return res.json({ success: true, data: rows[0] });
+
+    const stats = rows[0] || {};
+    const total = Number(stats.total || 0);
+    const converted = Number(stats.converted || 0);
+    const conversionRate = total > 0 ? Math.round((converted / total) * 100) : 0;
+
+    return res.json({
+      success: true,
+      data: {
+        ...stats,
+        conversion_rate: conversionRate
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Server error' });
   }
@@ -162,16 +210,21 @@ const updateFirstTimer = async (req, res) => {
   const { id } = req.params;
   const {
     firstName, lastName, email, phone, address, gender, dateOfBirth,
-    howDidYouHear, visitDate, serviceAttended, prayerRequest, branchId
+    howDidYouHear, visitDate, serviceAttended, prayerRequest, branchId,
+    wantsToJoinChurch, decision, photoUrl
   } = req.body;
   try {
     const effectiveBranchId = req.branchId ? req.branchId : (branchId || null);
-    const params = [id, req.churchId, firstName, lastName, email, phone, address, gender,
-      dateOfBirth || null, howDidYouHear, visitDate, serviceAttended, prayerRequest, effectiveBranchId];
+    const finalWantsToJoin = wantsToJoinChurch !== undefined ? Boolean(wantsToJoinChurch) : null;
+    const params = [
+      id, req.churchId, firstName, lastName, email, phone, address, gender,
+      dateOfBirth || null, howDidYouHear, visitDate, serviceAttended, prayerRequest, effectiveBranchId,
+      finalWantsToJoin, decision || null, photoUrl || null
+    ];
     let branchWhere = '';
     if (req.branchId) {
       params.push(req.branchId);
-      branchWhere = ' AND branch_id = $15';
+      branchWhere = ` AND branch_id = $${params.length}`;
     }
     const { rows } = await query(
       `UPDATE first_timers SET
@@ -186,7 +239,12 @@ const updateFirstTimer = async (req, res) => {
         visit_date = COALESCE($11, visit_date),
         service_attended = COALESCE($12, service_attended),
         prayer_request = COALESCE($13, prayer_request),
-        branch_id = COALESCE($14, branch_id)
+        branch_id = COALESCE($14, branch_id),
+        wants_to_join_church = COALESCE($15, wants_to_join_church),
+        decision = COALESCE($16, decision),
+        photo_url = COALESCE($17, photo_url),
+        profile_photo_url = COALESCE($17, profile_photo_url),
+        updated_at = NOW()
        WHERE id = $1 AND church_id = $2${branchWhere} RETURNING *`,
       params
     );

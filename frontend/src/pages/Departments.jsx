@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Building2, Plus, Users, ChevronRight, Loader2, ArrowLeft, UserPlus, X,
   Mail, Phone, Calendar, Search, UserMinus, Crown, Trash2, AlertTriangle,
-  CheckSquare, ClipboardCheck, Send, CheckCircle2, Clock, Sparkles, Check
+  CheckSquare, ClipboardCheck, Send, CheckCircle2, Clock, Sparkles, Check,
+  MessageSquare
 } from 'lucide-react';
-import { departmentsAPI, membersAPI } from '../api/services';
+import { departmentsAPI, membersAPI, communicationsAPI } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
@@ -82,12 +83,46 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
   const [newItemForm, setNewItemForm] = useState({ title: '', category: 'General', assignedMemberId: '' });
   const [addingItem, setAddingItem] = useState(false);
 
-  // Broadcast Modal
+  // Broadcast Modal (Checklists)
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [broadcastTarget, setBroadcastTarget] = useState(null);
   const [broadcastChannels, setBroadcastChannels] = useState(['in_app']);
   const [broadcastCustomNote, setBroadcastCustomNote] = useState('');
   const [broadcasting, setBroadcasting] = useState(false);
+
+  // Direct HOD Unit Messaging Modal
+  const [showDirectMessageModal, setShowDirectMessageModal] = useState(false);
+  const [directMsgChannel, setDirectMsgChannel] = useState('whatsapp');
+  const [directMsgTitle, setDirectMsgTitle] = useState('');
+  const [directMsgBody, setDirectMsgBody] = useState('');
+  const [sendingDirectMsg, setSendingDirectMsg] = useState(false);
+
+  const handleSendDirectMessage = async () => {
+    if (!directMsgTitle.trim()) return toast.error('Please enter a message title/subject');
+    if (!directMsgBody.trim()) return toast.error('Please enter message content');
+    setSendingDirectMsg(true);
+    try {
+      const res = await communicationsAPI.create({
+        title: directMsgTitle.trim(),
+        body: directMsgBody.trim(),
+        channel: directMsgChannel,
+        audience: 'department',
+        audienceFilter: { departmentId: dept.id }
+      });
+      const commId = res.data?.data?.id || res.data?.id;
+      if (commId) {
+        await communicationsAPI.send(commId);
+      }
+      toast.success(`Message sent to ${dept.name} members via ${directMsgChannel.toUpperCase()}! 🚀`);
+      setShowDirectMessageModal(false);
+      setDirectMsgTitle('');
+      setDirectMsgBody('');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to dispatch message');
+    } finally {
+      setSendingDirectMsg(false);
+    }
+  };
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
@@ -391,6 +426,14 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
                 className="btn-secondary flex items-center gap-1.5 border-brand-200 text-brand-700 bg-brand-50 hover:bg-brand-100"
               >
                 <ClipboardCheck size={16} /> + Service Checklist
+              </button>
+            )}
+            {canManage(user?.role) && (
+              <button
+                onClick={() => setShowDirectMessageModal(true)}
+                className="btn-secondary flex items-center gap-1.5 border-emerald-200 text-emerald-800 bg-emerald-50 hover:bg-emerald-100"
+              >
+                <MessageSquare size={16} /> Message Unit ({members.length})
               </button>
             )}
             {canManage(user?.role) && (
@@ -1025,6 +1068,93 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
               value={broadcastCustomNote}
               onChange={e => setBroadcastCustomNote(e.target.value)}
             />
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODAL 5: DIRECT MESSAGE TO UNIT MEMBERS */}
+      <Modal
+        open={showDirectMessageModal}
+        onClose={() => setShowDirectMessageModal(false)}
+        title={`Message ${dept.name} Members`}
+        footer={
+          <>
+            <button
+              onClick={() => setShowDirectMessageModal(false)}
+              className="btn-secondary"
+              disabled={sendingDirectMsg}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSendDirectMessage}
+              disabled={sendingDirectMsg || members.length === 0}
+              className="btn-primary flex items-center gap-1.5"
+            >
+              {sendingDirectMsg ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+              Send to {members.length} Members
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-900">
+            <p className="font-semibold flex items-center gap-1.5">
+              <MessageSquare size={14} className="text-emerald-600" />
+              Direct Departmental Announcement
+            </p>
+            <p className="mt-0.5 text-emerald-700">
+              Deliver urgent notices, schedule updates, or words of encouragement directly to all <strong>{members.length}</strong> active members in <strong>{dept.name}</strong>.
+            </p>
+          </div>
+
+          <div>
+            <label className="label">Delivery Channel</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
+              {[
+                { id: 'whatsapp', label: 'WhatsApp', sub: 'Instant chat' },
+                { id: 'sms', label: 'SMS', sub: 'Direct text' },
+                { id: 'email', label: 'Email', sub: 'Newsletter style' },
+                { id: 'in_app', label: 'In-App', sub: 'Push notice' },
+              ].map(ch => (
+                <button
+                  key={ch.id}
+                  type="button"
+                  onClick={() => setDirectMsgChannel(ch.id)}
+                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                    directMsgChannel === ch.id
+                      ? 'border-brand-600 bg-brand-50/70 text-brand-900 ring-1 ring-brand-500'
+                      : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'
+                  }`}
+                >
+                  <p className="text-xs font-bold">{ch.label}</p>
+                  <p className="text-[10px] text-gray-500">{ch.sub}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Title / Subject *</label>
+            <input
+              className="input text-sm"
+              placeholder={`e.g. ${dept.name} Briefing & Rehearsal Schedule`}
+              value={directMsgTitle}
+              onChange={e => setDirectMsgTitle(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="label">Message Content *</label>
+            <textarea
+              className="input min-h-[110px] text-sm"
+              placeholder="Type your message to unit members here…"
+              value={directMsgBody}
+              onChange={e => setDirectMsgBody(e.target.value)}
+            />
+            <p className="text-[11px] text-gray-400 mt-1">
+              Supports church merge tags like [First Name].
+            </p>
           </div>
         </div>
       </Modal>

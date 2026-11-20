@@ -34,6 +34,7 @@ export const membersAPI = {
   getFamily: (id) => api.get(`/members/${id}/family`),
   getVirtualAccount: (id) => api.get(`/members/${id}/virtual-account`),
   generateVirtualAccount: (id) => api.post(`/members/${id}/virtual-account`),
+  uploadPhoto: (formData) => api.post('/members/upload-photo', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
 };
 
 export const firstTimersAPI = {
@@ -285,6 +286,7 @@ export const publicIntakeAPI = {
   submitPrayerRequest: (churchSlug, data) => publicApi.post(`/churches/${churchSlug}/prayer-requests`, data),
   submitWelfareApplication: (churchSlug, data) => publicApi.post(`/churches/${churchSlug}/welfare-applications`, data),
   submitEventCheckIn: (churchSlug, eventId, data) => publicApi.post(`/churches/${churchSlug}/events/${eventId}/check-in`, data),
+  uploadPhoto: (churchSlug, formData) => publicApi.post(`/churches/${churchSlug}/upload-photo`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
 };
 
 const contactAxios = axios.create({

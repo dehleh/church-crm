@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { UserPlus, Plus, Search, Phone, Mail, ArrowRightCircle, Loader2, CheckCircle, Edit2, FileSpreadsheet, QrCode, Bot, Sparkles, Clock, Send, MessageSquare, Play, XCircle } from 'lucide-react';
-import { firstTimersAPI, branchesAPI } from '../api/services';
+import {
+  UserPlus, Plus, Search, Phone, Mail, ArrowRightCircle, Loader2, CheckCircle,
+  Edit2, FileSpreadsheet, QrCode, Bot, Sparkles, Clock, Send, MessageSquare, Play,
+  XCircle, Camera, Heart, Users, CheckSquare, Building2, UserCheck
+} from 'lucide-react';
+import { firstTimersAPI, branchesAPI, membersAPI } from '../api/services';
+import { getAssetUrl } from '../api/client';
 import Modal from '../components/ui/Modal';
 import CsvImportModal from '../components/ui/CsvImportModal';
 import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
@@ -31,6 +36,8 @@ export default function FirstTimers() {
   const [formErrors, setFormErrors] = useState({});
   const [showImport, setShowImport] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [period, setPeriod] = useState('all');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Automated Drip Follow-up Sequence state
   const [showSequenceModal, setShowSequenceModal] = useState(false);
@@ -108,20 +115,49 @@ export default function FirstTimers() {
     }
   };
 
-  const fetch = useCallback(async (page = 1) => {
+  const fetch = useCallback(async (page = 1, currentPeriod = period) => {
     setLoading(true);
     try {
       const params = { page, limit: 20, ...(search && { search }), ...(statusFilter && { followUpStatus: statusFilter }) };
-      const [res, statsRes] = await Promise.all([firstTimersAPI.list(params), firstTimersAPI.stats()]);
+      const [res, statsRes] = await Promise.all([
+        firstTimersAPI.list(params),
+        firstTimersAPI.stats({ period: currentPeriod })
+      ]);
       setItems(res.data.data);
       setPagination(res.data.pagination);
       setStats(statsRes.data.data);
     } catch { toast.error('Failed to load first timers'); }
     finally { setLoading(false); }
-  }, [search, statusFilter]);
+  }, [search, statusFilter, period]);
 
-  useEffect(() => { fetch(1); }, [fetch]);
+  useEffect(() => { fetch(1, period); }, [fetch, period]);
   useEffect(() => { branchesAPI.list().then(r => setBranches(r.data.data)).catch(() => {}); }, []);
+
+  const handlePeriodChange = (newPeriod) => {
+    setPeriod(newPeriod);
+    fetch(1, newPeriod);
+  };
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      return toast.error('Photo size must be less than 8MB');
+    }
+    setUploadingPhoto(true);
+    const formData = new FormData();
+    formData.append('photo', file);
+    try {
+      const res = await membersAPI.uploadPhoto(formData);
+      const url = res.data?.photoUrl || res.data?.data?.photoUrl;
+      setForm(prev => ({ ...prev, photoUrl: url, profilePhotoUrl: url }));
+      toast.success('Photo uploaded!');
+    } catch {
+      toast.error('Failed to upload photo');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -140,14 +176,20 @@ export default function FirstTimers() {
     if (Object.keys(errs).length > 0) return toast.error('Please fill all required fields');
     setSaving(true);
     try {
+      const payload = {
+        ...form,
+        wantsToJoinChurch: form.decision === 'join_church' || !!form.wantsToJoinChurch,
+        decision: form.decision || (form.wantsToJoinChurch ? 'join_church' : 'considering'),
+        photoUrl: form.photoUrl || form.profilePhotoUrl || '',
+      };
       if (modal === 'edit') {
-        await firstTimersAPI.update(selected.id, form);
+        await firstTimersAPI.update(selected.id, payload);
         toast.success('First timer updated!');
       } else {
-        await firstTimersAPI.create(form);
-        toast.success('First timer recorded!');
+        await firstTimersAPI.create(payload);
+        toast.success('First timer recorded & assigned to Friendship Team!');
       }
-      setModal(null); fetch(modal === 'edit' ? pagination.page : 1);
+      setModal(null); fetch(modal === 'edit' ? pagination.page : 1, period);
     } catch { toast.error('Failed to save'); }
     finally { setSaving(false); }
   };
@@ -161,6 +203,10 @@ export default function FirstTimers() {
       dateOfBirth: item.date_of_birth ? item.date_of_birth.split('T')[0] : '',
       howDidYouHear: item.how_did_you_hear || '', branchId: item.branch_id || '',
       prayerRequest: item.prayer_request || '', address: item.address || '',
+      wantsToJoinChurch: item.wants_to_join_church || false,
+      decision: item.decision || (item.wants_to_join_church ? 'join_church' : 'considering'),
+      photoUrl: item.photo_url || item.profile_photo_url || '',
+      assignedMemberId: item.assigned_member_id || '',
     });
     setFormErrors({});
     setModal('edit');
@@ -215,19 +261,94 @@ export default function FirstTimers() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        {[
-          { label: 'Total Visitors', value: stats.total, color: 'text-gray-700' },
-          { label: 'Pending Follow-up', value: stats.pending, color: 'text-amber-600' },
-          { label: 'Contacted', value: stats.contacted, color: 'text-brand-600' },
-          { label: 'Converted', value: stats.converted, color: 'text-emerald-600' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="card py-4 px-5">
-            <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">{label}</p>
-            <p className={`text-2xl font-bold font-display ${color}`}>{(value || 0).toLocaleString()}</p>
+      {/* Assimilation & Retention Analytics Metrics Bar */}
+      <div className="card p-5 mb-6 space-y-4 bg-gradient-to-br from-white via-white to-amber-50/20 border-amber-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+          <div>
+            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <Sparkles size={18} className="text-amber-500" />
+              Assimilation & Retention Metrics
+            </h2>
+            <p className="text-xs text-gray-500">Track guest conversion, ministry integration, and church community decisions</p>
           </div>
-        ))}
+          {/* Period Selection Pills */}
+          <div className="inline-flex rounded-xl bg-gray-100 p-1 self-start sm:self-auto">
+            {[
+              { id: 'all', label: 'All Time' },
+              { id: 'this_month', label: 'This Month' },
+              { id: 'last_30_days', label: 'Last 30 Days' },
+              { id: 'quarter', label: 'This Quarter' },
+              { id: 'year', label: 'This Year' },
+            ].map(p => (
+              <button
+                key={p.id}
+                onClick={() => handlePeriodChange(p.id)}
+                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                  period === p.id
+                    ? 'bg-white text-gray-900 shadow-xs'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 6 Key Assimilation Metrics */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Total Visitors</span>
+            <p className="text-2xl font-bold font-display text-gray-900">{(stats.total || 0).toLocaleString()}</p>
+            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-gray-500 font-medium">
+              <span className="text-blue-600 font-semibold">♂ {stats.male || 0}</span>
+              <span>•</span>
+              <span className="text-rose-600 font-semibold">♀ {stats.female || 0}</span>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-100">
+            <span className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wide block mb-1 flex items-center gap-1">
+              <Heart size={12} className="text-emerald-600 fill-emerald-500" /> Wants to Join
+            </span>
+            <p className="text-2xl font-bold font-display text-emerald-700">{(stats.wants_to_join || 0).toLocaleString()}</p>
+            <p className="mt-1 text-[11px] text-emerald-800/80">
+              {stats.considering || 0} considering · {stats.visiting || 0} visiting
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-brand-50/60 border border-brand-100">
+            <span className="text-[11px] font-semibold text-brand-800 uppercase tracking-wide block mb-1">Converted Members</span>
+            <p className="text-2xl font-bold font-display text-brand-700">{(stats.converted || 0).toLocaleString()}</p>
+            <p className="mt-1 text-[11px] text-brand-800/80 font-semibold">
+              {stats.conversion_rate || 0}% conversion rate
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-purple-50/60 border border-purple-100">
+            <span className="text-[11px] font-semibold text-purple-800 uppercase tracking-wide block mb-1 flex items-center gap-1">
+              <Building2 size={12} className="text-purple-600" /> In Departments
+            </span>
+            <p className="text-2xl font-bold font-display text-purple-700">{(stats.joined_department || 0).toLocaleString()}</p>
+            <p className="mt-1 text-[11px] text-purple-800/80">Active in church units</p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-indigo-50/60 border border-indigo-100">
+            <span className="text-[11px] font-semibold text-indigo-800 uppercase tracking-wide block mb-1 flex items-center gap-1">
+              <Users size={12} className="text-indigo-600" /> In Cell / Tribe
+            </span>
+            <p className="text-2xl font-bold font-display text-indigo-700">{(stats.joined_cell || 0).toLocaleString()}</p>
+            <p className="mt-1 text-[11px] text-indigo-800/80">Joined house tribe</p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-100">
+            <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wide block mb-1 flex items-center gap-1">
+              <CheckSquare size={12} className="text-amber-600" /> Consistent (2+ svcs)
+            </span>
+            <p className="text-2xl font-bold font-display text-amber-700">{(stats.consistent || 0).toLocaleString()}</p>
+            <p className="mt-1 text-[11px] text-amber-800/80">Retained attendance</p>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
@@ -261,11 +382,12 @@ export default function FirstTimers() {
             <thead>
               <tr>
                 <th>Visitor</th>
+                <th>Home Church Decision</th>
                 <th>Visit Date</th>
                 <th>Contact</th>
-                <th>How They Heard</th>
+                <th>Assimilation</th>
                 <th>Follow-up</th>
-                <th>Assigned To</th>
+                <th>Assigned Friendship Worker</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -274,23 +396,83 @@ export default function FirstTimers() {
                 <tr key={item.id}>
                   <td>
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-xs font-bold flex-shrink-0">
-                        {getInitials(item.first_name, item.last_name)}
-                      </div>
+                      {item.photo_url || item.profile_photo_url ? (
+                        <img
+                          src={getAssetUrl(item.photo_url || item.profile_photo_url)}
+                          alt=""
+                          className="w-10 h-10 rounded-full object-cover border border-amber-200 shadow-xs flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-xs font-bold flex-shrink-0">
+                          {getInitials(item.first_name, item.last_name)}
+                        </div>
+                      )}
                       <div>
                         <p className="font-medium text-gray-900">{item.first_name} {item.last_name}</p>
                         <p className="text-xs text-gray-400 capitalize">{item.gender || '—'}</p>
                       </div>
                     </div>
                   </td>
+                  <td>
+                    {item.wants_to_join_church || item.decision === 'join_church' ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        <Heart size={11} className="text-emerald-600 fill-emerald-500" /> Wants to Join
+                      </span>
+                    ) : item.decision === 'considering' ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        Considering
+                      </span>
+                    ) : item.decision === 'visiting' ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                        Just Visiting
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
                   <td className="text-sm text-gray-600">{item.visit_date ? format(new Date(item.visit_date), 'MMM d, yyyy') : '—'}</td>
                   <td>
                     <div className="flex flex-col gap-0.5">
-                      {item.phone && <span className="flex items-center gap-1 text-xs text-gray-500"><Phone size={11} />{item.phone}</span>}
-                      {item.email && <span className="flex items-center gap-1 text-xs text-gray-500"><Mail size={11} />{item.email}</span>}
+                      {item.phone && (
+                        <a
+                          href={`tel:${item.phone}`}
+                          className="flex items-center gap-1 text-xs text-gray-600 hover:text-brand-600"
+                        >
+                          <Phone size={11} />{item.phone}
+                        </a>
+                      )}
+                      {item.email && (
+                        <a
+                          href={`mailto:${item.email}`}
+                          className="flex items-center gap-1 text-xs text-gray-600 hover:text-brand-600"
+                        >
+                          <Mail size={11} />{item.email}
+                        </a>
+                      )}
                     </div>
                   </td>
-                  <td className="text-sm text-gray-500 capitalize">{item.how_did_you_hear || '—'}</td>
+                  <td>
+                    <div className="flex flex-wrap gap-1">
+                      {item.converted_to_member ? (
+                        <span className="badge badge-green text-[10px] py-0 px-1 font-semibold flex items-center gap-0.5">
+                          <CheckCircle size={10} /> Member
+                        </span>
+                      ) : null}
+                      {item.has_joined_department ? (
+                        <span className="badge badge-purple text-[10px] py-0 px-1 font-semibold flex items-center gap-0.5">
+                          <Building2 size={10} /> Unit
+                        </span>
+                      ) : null}
+                      {item.has_joined_cell ? (
+                        <span className="badge badge-blue text-[10px] py-0 px-1 font-semibold flex items-center gap-0.5">
+                          <Users size={10} /> Tribe
+                        </span>
+                      ) : null}
+                      {!item.converted_to_member && !item.has_joined_department && !item.has_joined_cell && (
+                        <span className="text-[11px] text-gray-400 italic">In progress</span>
+                      )}
+                    </div>
+                  </td>
                   <td>
                     <div className="flex flex-col items-start gap-1">
                       <span className={`badge capitalize ${FOLLOW_UP_BADGE[item.follow_up_status] || 'badge-gray'}`}>
@@ -306,7 +488,19 @@ export default function FirstTimers() {
                     </div>
                   </td>
 
-                  <td className="text-sm text-gray-500">{item.assigned_to_name || 'Unassigned'}</td>
+                  <td>
+                    {item.assigned_to_name ? (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-800 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-md">
+                          <UserCheck size={11} className="text-brand-600" />
+                          {item.assigned_to_name}
+                        </span>
+                        <span className="text-[10px] text-gray-500 font-medium pl-1">Friendship Team</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Auto-assigning…</span>
+                    )}
+                  </td>
                   <td>
                     <div className="flex items-center gap-1">
                       {!item.converted_to_member && (
@@ -350,7 +544,90 @@ export default function FirstTimers() {
       {/* Add/Edit Modal */}
       <Modal open={modal === 'add' || modal === 'edit'} onClose={() => setModal(null)} title={modal === 'edit' ? 'Edit First Timer' : 'Record First Timer'} size="lg"
         footer={<><button onClick={() => setModal(null)} className="btn-secondary">Cancel</button><button onClick={handleAdd} disabled={saving} className="btn-primary">{saving ? <Loader2 size={15} className="animate-spin" /> : modal === 'edit' ? 'Save Changes' : 'Save'}</button></>}>
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+          {/* Guest Photo Upload & Live Preview */}
+          <div className="flex items-center gap-4 p-3.5 bg-amber-50/50 rounded-xl border border-amber-100">
+            <div className="relative flex-shrink-0">
+              {form.photoUrl ? (
+                <img
+                  src={getAssetUrl(form.photoUrl)}
+                  alt="Guest"
+                  className="w-16 h-16 rounded-full object-cover border-2 border-amber-300 shadow-sm"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold border-2 border-dashed border-amber-300">
+                  <Camera size={22} className="text-amber-600" />
+                </div>
+              )}
+              {uploadingPhoto && (
+                <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center">
+                  <Loader2 size={18} className="animate-spin text-white" />
+                </div>
+              )}
+            </div>
+            <div className="flex-1">
+              <label className="text-xs font-semibold text-gray-800 block mb-1">Guest Photo (Live Capture or Upload)</label>
+              <div className="flex items-center gap-2">
+                <label className="btn-secondary text-xs py-1.5 px-3 cursor-pointer flex items-center gap-1.5 hover:bg-gray-100">
+                  <Camera size={14} />
+                  {form.photoUrl ? 'Change Photo' : 'Upload / Snap Photo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    className="hidden"
+                    onChange={handlePhotoUpload}
+                    disabled={uploadingPhoto}
+                  />
+                </label>
+                {form.photoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, photoUrl: '', profilePhotoUrl: '' }))}
+                    className="text-xs text-red-500 hover:text-red-700 underline"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1">Gives Friendship team visual recognition to warmly greet guests.</p>
+            </div>
+          </div>
+
+          {/* Church Family Decision */}
+          <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200/80 space-y-2">
+            <label className="label text-xs font-semibold text-gray-800 flex items-center gap-1.5 mb-1">
+              <Heart size={14} className="text-emerald-600 fill-emerald-500" />
+              Would they like to make this their home church? *
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {[
+                { key: 'join_church', label: 'Yes, Join Church', sub: 'Make this my home church', color: 'border-emerald-500 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-500' },
+                { key: 'considering', label: 'Still Considering', sub: 'Praying & deciding', color: 'border-amber-500 bg-amber-50 text-amber-900 ring-1 ring-amber-500' },
+                { key: 'visiting', label: 'Just Visiting', sub: 'Guest for today', color: 'border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-500' },
+              ].map(opt => {
+                const isSelected = (form.decision || (form.wantsToJoinChurch ? 'join_church' : 'considering')) === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setForm(f => ({
+                      ...f,
+                      decision: opt.key,
+                      wantsToJoinChurch: opt.key === 'join_church'
+                    }))}
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
+                      isSelected ? opt.color : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'
+                    }`}
+                  >
+                    <p className="text-xs font-bold">{opt.label}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">{opt.sub}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">First Name *</label><input className={`input ${formErrors.firstName ? 'border-red-400' : ''}`} value={form.firstName || ''} onChange={set('firstName')} />{formErrors.firstName && <p className="text-xs text-red-500 mt-1">{formErrors.firstName}</p>}</div>
             <div><label className="label">Last Name *</label><input className={`input ${formErrors.lastName ? 'border-red-400' : ''}`} value={form.lastName || ''} onChange={set('lastName')} />{formErrors.lastName && <p className="text-xs text-red-500 mt-1">{formErrors.lastName}</p>}</div>

@@ -63,6 +63,7 @@ router.post('/', authorize('admin', 'pastor', 'director', 'hod'), [
   body('channel').notEmpty().isIn(['email', 'sms', 'whatsapp', 'push', 'in_app']),
   body('audience').optional().isIn([
     'all', 'members', 'first_timers', 'male_members', 'female_members', 'parents',
+    'parents_children', 'parents_teens', 'teens',
     'department', 'group', 'branch', 'birthday', 'anniversary', 'custom',
     'hods', 'directors', 'pastors_ministers', 'all_leaders', 'workers', 'cell_leaders', 'designation'
   ]),
@@ -94,7 +95,7 @@ router.post('/preview-audience', async (req, res) => {
  *     responses:
  *       200: { description: Message sent }
  */
-router.post('/:id/send', authorize('head_pastor','pastor','director'), c.sendCommunication);
+router.post('/:id/send', authorize('admin', 'head_pastor', 'pastor', 'director', 'hod'), c.sendCommunication);
 
 /**
  * @swagger
@@ -107,6 +108,6 @@ router.post('/:id/send', authorize('head_pastor','pastor','director'), c.sendCom
  *     responses:
  *       200: { description: Draft deleted }
  */
-router.delete('/:id', authorize('head_pastor','pastor'), c.deleteCommunication);
+router.delete('/:id', authorize('admin', 'head_pastor', 'pastor', 'director', 'hod'), c.deleteCommunication);
 
 module.exports = router;

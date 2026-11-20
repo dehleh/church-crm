@@ -423,6 +423,14 @@ const submitEventCheckIn = async (req, res) => {
   }
 };
 
+const uploadPublicPhoto = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No photo file uploaded' });
+  }
+  const photoUrl = `/uploads/avatars/${req.file.filename}`;
+  return res.json({ success: true, photoUrl, data: { photoUrl } });
+};
+
 module.exports = {
   getIntakeContext,
   getEventCheckInContext,
@@ -431,4 +439,5 @@ module.exports = {
   submitPrayerRequest,
   submitWelfareApplication,
   submitEventCheckIn,
+  uploadPublicPhoto,
 };

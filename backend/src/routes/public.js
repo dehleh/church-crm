@@ -2,11 +2,13 @@ const express = require('express');
 const { body } = require('express-validator');
 const c = require('../controllers/publicIntakeController');
 const { handleValidationErrors } = require('../middleware/errorHandler');
+const { upload, uploadFor } = require('../middleware/upload');
 
 const router = express.Router();
 
 router.get('/churches/:slug/intake', c.getIntakeContext);
 router.get('/churches/:slug/events/:eventId/check-in', c.getEventCheckInContext);
+router.post('/churches/:slug/upload-photo', uploadFor('avatars'), upload.single('photo'), c.uploadPublicPhoto);
 
 router.post('/churches/:slug/first-timers', [
   body('firstName').notEmpty().trim().escape(),
