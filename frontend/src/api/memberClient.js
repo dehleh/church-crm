@@ -91,6 +91,9 @@ export const memberPortalAPI = {
   updatePreferences: (data) => memberApi.put('/me/notifications/preferences', data),
   myPastoralAppointments: () => memberApi.get('/me/pastoral-appointments'),
   acknowledgePastoralAppointment: (id) => memberApi.post(`/me/pastoral-appointments/${id}/acknowledge`),
+  // Pre-Service Department Checklist
+  getActiveDepartmentChecklist: (departmentId) => memberApi.get(`/me/departments/${departmentId}/checklists/active`),
+  toggleChecklistItem: (itemId) => memberApi.post(`/me/checklists/items/${itemId}/toggle`),
 };
 
 

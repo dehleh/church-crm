@@ -742,6 +742,137 @@ async function detectAtRiskInactiveMembers() {
 }
 
 /**
+ * Automated HOD Pre-Service Checklist & Readiness Prompts
+ * On Friday/Saturday -> alerts HODs for Sunday Celebration Service.
+ * On Tuesday -> alerts HODs for Midweek Service (Thursday).
+ */
+async function processDepartmentReadinessPrompts() {
+  try {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+
+    let targetServiceTitle = null;
+    let daysAhead = 0;
+
+    if (dayOfWeek === 2) {
+      // Tuesday -> Midweek Thursday service
+      targetServiceTitle = 'Midweek Service';
+      daysAhead = 2;
+    } else if (dayOfWeek === 5) {
+      // Friday -> Sunday Celebration service
+      targetServiceTitle = 'Sunday Celebration Service';
+      daysAhead = 2;
+    } else if (dayOfWeek === 6) {
+      // Saturday -> Sunday Celebration service
+      targetServiceTitle = 'Sunday Celebration Service';
+      daysAhead = 1;
+    }
+
+    const upcomingTargets = [];
+    if (targetServiceTitle) {
+      const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysAhead);
+      const targetDateStr = targetDate.toISOString().split('T')[0];
+      upcomingTargets.push({ title: targetServiceTitle, dateStr: targetDateStr, daysAhead });
+    }
+
+    if (upcomingTargets.length === 0) {
+      return;
+    }
+
+    for (const target of upcomingTargets) {
+      const { rows: depts } = await query(
+        `SELECT d.id as department_id, d.name as department_name, d.church_id, d.head_member_id,
+                m.first_name, m.last_name, m.email, m.phone,
+                c.name as church_name, c.settings as church_settings
+         FROM departments d
+         JOIN members m ON m.id = d.head_member_id
+         JOIN churches c ON c.id = d.church_id
+         WHERE d.is_active = true
+           AND d.head_member_id IS NOT NULL`
+      );
+
+      for (const dept of depts) {
+        // 1. Check if alert already sent for this department and target date
+        const { rows: existingAlert } = await query(
+          `SELECT id FROM department_readiness_alerts
+           WHERE department_id = $1 AND target_service_date = $2`,
+          [dept.department_id, target.dateStr]
+        );
+        if (existingAlert.length > 0) continue;
+
+        // 2. Check if a checklist has already been created for this date
+        const { rows: existingChecklist } = await query(
+          `SELECT id FROM department_service_checklists
+           WHERE department_id = $1 AND service_date = $2`,
+          [dept.department_id, target.dateStr]
+        );
+        if (existingChecklist.length > 0) continue;
+
+        // 3. Dispatch prompt to HOD
+        const timingText = target.daysAhead === 1 ? 'tomorrow' : `in ${target.daysAhead} days`;
+        const promptMsg = `Hello ${dept.first_name || 'Leader'}, ${target.title} is ${timingText}! Please prepare your pre-service operational checklist for ${dept.department_name} so your unit is fully aligned and ready.`;
+
+        // Send Push Notification
+        try {
+          await pushNotificationService.sendPushToMember(dept.head_member_id, {
+            title: `Service Readiness: ${dept.department_name}`,
+            body: promptMsg,
+            data: {
+              type: 'department_readiness_prompt',
+              departmentId: dept.department_id,
+              serviceDate: target.dateStr,
+              serviceTitle: target.title,
+            },
+          });
+        } catch (pushErr) {
+          logger.warn('Push alert to HOD failed', { error: pushErr.message, deptId: dept.department_id });
+        }
+
+        // Send Email if configured
+        const churchSettings = dept.church_settings?.messaging || {};
+        if (dept.email) {
+          try {
+            await sendEmail({
+              to: [dept.email],
+              subject: `Action Required: Pre-Service Checklist for ${dept.department_name} (${target.title})`,
+              html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #4f46e5;">ChurchOS Service Readiness</h2>
+                <p>Hello <strong>${dept.first_name}</strong>,</p>
+                <p><strong>${target.title}</strong> is scheduled for <strong>${target.dateStr}</strong> (${timingText}).</p>
+                <p>As Head of the <strong>${dept.department_name}</strong> unit, please log into your ChurchOS dashboard or member portal to draw up your operational checklist (equipment checks, role assignments, team readiness).</p>
+                <p>Once published, all unit members will be notified with their duties.</p>
+                <div style="margin-top: 24px; padding: 12px; background: #f3f4f6; border-radius: 8px;">
+                  <p style="margin: 0; font-size: 13px; color: #6b7280;">Church: ${dept.church_name}</p>
+                </div>
+              </div>`,
+            }, churchSettings);
+          } catch (emailErr) {
+            logger.warn('Email alert to HOD failed', { error: emailErr.message, deptId: dept.department_id });
+          }
+        }
+
+        // Record in department_readiness_alerts
+        await query(
+          `INSERT INTO department_readiness_alerts (
+            id, church_id, department_id, hod_member_id, target_service_date, target_service_title, channel, sent_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'in_app', NOW())
+          ON CONFLICT (department_id, target_service_date, channel) DO NOTHING`,
+          [uuidv4(), dept.church_id, dept.department_id, dept.head_member_id, target.dateStr, target.title]
+        );
+
+        logger.info('Department readiness prompt dispatched to HOD', {
+          departmentId: dept.department_id,
+          hodMemberId: dept.head_member_id,
+          targetServiceDate: target.dateStr,
+        });
+      }
+    }
+  } catch (err) {
+    logger.error('Error in processDepartmentReadinessPrompts job', { error: err.message });
+  }
+}
+
+/**
  * Main scheduler loop.
  */
 async function runSchedulerTick() {
@@ -755,6 +886,7 @@ async function runSchedulerTick() {
     await processAutomatedDevotionalReminders();
     await processSubscriptionTrialReminders();
     await detectAtRiskInactiveMembers();
+    await processDepartmentReadinessPrompts();
     try {
       const { processDueSequenceQueue } = require('./firstTimerSequenceService');
       await processDueSequenceQueue();
@@ -794,6 +926,7 @@ module.exports = {
   processAutomatedDevotionalReminders,
   processSubscriptionTrialReminders,
   detectAtRiskInactiveMembers,
+  processDepartmentReadinessPrompts,
 };
 
 

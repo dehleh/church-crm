@@ -17,4 +17,33 @@ router.post('/:id/members', authorize('head_pastor', 'pastor', 'director', 'hod'
 ], handleValidationErrors, c.addMemberToDepartment);
 router.delete('/:id/members/:memberId', authorize('head_pastor', 'pastor', 'director'), c.removeMemberFromDepartment);
 
+// ── Department Pre-Service Checklists & Unit Readiness ────────
+router.get('/presets', authorize('admin', 'pastor', 'director', 'hod'), c.getPresetTemplates);
+router.get('/:id/checklists', authorize('admin', 'pastor', 'director', 'hod'), c.getDepartmentChecklists);
+router.post('/:id/checklists', authorize('admin', 'pastor', 'director', 'hod'), [
+  body('serviceTitle').notEmpty().trim(),
+  body('serviceDate').notEmpty(),
+], handleValidationErrors, c.createDepartmentChecklist);
+
+router.get('/:id/checklists/:checklistId', authorize('admin', 'pastor', 'director', 'hod'), c.getChecklistDetails);
+router.put('/:id/checklists/:checklistId', authorize('admin', 'pastor', 'director', 'hod'), c.updateDepartmentChecklist);
+router.delete('/:id/checklists/:checklistId', authorize('admin', 'pastor', 'director', 'hod'), c.deleteDepartmentChecklist);
+
+// Checklist items
+router.post('/:id/checklists/:checklistId/items', authorize('admin', 'pastor', 'director', 'hod'), [
+  body('title').notEmpty().trim(),
+], handleValidationErrors, c.addChecklistItem);
+router.put('/:id/checklists/:checklistId/items/:itemId', authorize('admin', 'pastor', 'director', 'hod'), c.updateChecklistItem);
+router.delete('/:id/checklists/:checklistId/items/:itemId', authorize('admin', 'pastor', 'director', 'hod'), c.deleteChecklistItem);
+
+// Broadcast checklist to all unit members
+router.post('/:id/checklists/:checklistId/broadcast', authorize('admin', 'pastor', 'director', 'hod'), c.broadcastDepartmentChecklist);
+
+// Reusable templates
+router.get('/:id/checklist-templates', authorize('admin', 'pastor', 'director', 'hod'), c.getDepartmentChecklistTemplates);
+router.post('/:id/checklist-templates', authorize('admin', 'pastor', 'director', 'hod'), [
+  body('name').notEmpty().trim(),
+  body('items').isArray(),
+], handleValidationErrors, c.saveDepartmentChecklistTemplate);
+
 module.exports = router;

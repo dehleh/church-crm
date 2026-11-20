@@ -1556,6 +1556,116 @@ const sendTestPush = async (req, res) => {
   }
 };
 
+// ── Department Pre-Service Checklists for Unit Members ───────────────────
+
+// GET /api/me/departments/:departmentId/checklists/active
+const getActiveDepartmentChecklist = async (req, res) => {
+  const { departmentId } = req.params;
+  try {
+    // 1. Verify member belongs to this department
+    const { rows: membership } = await query(
+      `SELECT * FROM member_departments
+       WHERE member_id = $1 AND department_id = $2 AND is_active = true AND church_id = $3`,
+      [req.member.id, departmentId, req.churchId]
+    );
+    if (!membership[0]) {
+      return res.status(403).json({ success: false, message: 'You are not assigned to this department' });
+    }
+
+    // 2. Fetch the upcoming or most recent checklist
+    const { rows: clRows } = await query(
+      `SELECT cl.*, d.name as department_name, d.category as department_category
+       FROM department_service_checklists cl
+       JOIN departments d ON d.id = cl.department_id
+       WHERE cl.department_id = $1 AND cl.church_id = $2
+         AND cl.service_date >= CURRENT_DATE - INTERVAL '1 day'
+       ORDER BY cl.service_date ASC
+       LIMIT 1`,
+      [departmentId, req.churchId]
+    );
+
+    if (!clRows[0]) {
+      return res.json({ success: true, data: null, message: 'No upcoming pre-service checklist found for this unit' });
+    }
+
+    const cl = clRows[0];
+
+    // 3. Fetch checklist items
+    const { rows: itemRows } = await query(
+      `SELECT ci.*,
+              m.first_name as assignee_first_name, m.last_name as assignee_last_name,
+              cb.first_name || ' ' || cb.last_name as completed_by_member_name
+       FROM department_checklist_items ci
+       LEFT JOIN members m ON m.id = ci.assigned_member_id
+       LEFT JOIN members cb ON cb.id = ci.completed_by_member_id
+       WHERE ci.checklist_id = $1
+       ORDER BY ci.sort_order ASC, ci.created_at ASC`,
+      [cl.id]
+    );
+
+    const items = itemRows.map(i => ({
+      ...i,
+      is_assigned_to_me: i.assigned_member_id === req.member.id,
+    }));
+
+    const total = items.length;
+    const completed = items.filter(i => i.is_completed).length;
+
+    return res.json({
+      success: true,
+      data: {
+        ...cl,
+        total_items: total,
+        completed_items: completed,
+        progress_pct: total > 0 ? Math.round((completed / total) * 100) : 0,
+        items,
+      }
+    });
+  } catch (err) {
+    logger.error('getActiveDepartmentChecklist error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error loading active checklist' });
+  }
+};
+
+// POST /api/me/checklists/items/:itemId/toggle
+const toggleChecklistItemMember = async (req, res) => {
+  const { itemId } = req.params;
+  try {
+    const { rows: existing } = await query(
+      `SELECT ci.*, cl.church_id
+       FROM department_checklist_items ci
+       JOIN department_service_checklists cl ON cl.id = ci.checklist_id
+       WHERE ci.id = $1 AND cl.church_id = $2`,
+      [itemId, req.churchId]
+    );
+    if (!existing[0]) return res.status(404).json({ success: false, message: 'Item not found' });
+
+    const newCompleted = !existing[0].is_completed;
+    const completedAt = newCompleted ? new Date().toISOString() : null;
+    const completedBy = newCompleted ? req.member.id : null;
+
+    const { rows: updated } = await query(
+      `UPDATE department_checklist_items SET
+        is_completed = $1,
+        completed_at = $2,
+        completed_by_member_id = $3,
+        updated_at = NOW()
+       WHERE id = $4
+       RETURNING *`,
+      [newCompleted, completedAt, completedBy, itemId]
+    );
+
+    return res.json({
+      success: true,
+      data: updated[0],
+      message: newCompleted ? 'Task marked as prepared & ready!' : 'Task marked as pending',
+    });
+  } catch (err) {
+    logger.error('toggleChecklistItemMember error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error updating task' });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -1597,6 +1707,8 @@ module.exports = {
   getNotificationPreferences,
   updateNotificationPreferences,
   sendTestPush,
+  getActiveDepartmentChecklist,
+  toggleChecklistItemMember,
 };
 
 

@@ -105,6 +105,19 @@ export const departmentsAPI = {
   members: (id) => api.get(`/departments/${id}/members`),
   addMember: (id, data) => api.post(`/departments/${id}/members`, data),
   removeMember: (id, memberId) => api.delete(`/departments/${id}/members/${memberId}`),
+  // Pre-Service Operational Checklists & Readiness
+  checklists: (deptId) => api.get(`/departments/${deptId}/checklists`),
+  checklistDetails: (deptId, clId) => api.get(`/departments/${deptId}/checklists/${clId}`),
+  createChecklist: (deptId, data) => api.post(`/departments/${deptId}/checklists`, data),
+  updateChecklist: (deptId, clId, data) => api.put(`/departments/${deptId}/checklists/${clId}`, data),
+  deleteChecklist: (deptId, clId) => api.delete(`/departments/${deptId}/checklists/${clId}`),
+  addItem: (deptId, clId, data) => api.post(`/departments/${deptId}/checklists/${clId}/items`, data),
+  updateItem: (deptId, clId, itemId, data) => api.put(`/departments/${deptId}/checklists/${clId}/items/${itemId}`, data),
+  deleteItem: (deptId, clId, itemId) => api.delete(`/departments/${deptId}/checklists/${clId}/items/${itemId}`),
+  broadcastChecklist: (deptId, clId, data) => api.post(`/departments/${deptId}/checklists/${clId}/broadcast`, data),
+  getTemplates: (deptId) => api.get(`/departments/${deptId}/templates`),
+  saveTemplate: (deptId, data) => api.post(`/departments/${deptId}/templates`, data),
+  getPresets: (category) => api.get('/departments/presets', { params: { category } }),
 };
 
 export const branchesAPI = {

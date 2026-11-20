@@ -81,6 +81,10 @@ router.delete('/volunteer/blockouts/:id', deleteBlockoutDate);
 router.get('/pastoral-appointments', getMyPastoralAppointments);
 router.post('/pastoral-appointments/:id/acknowledge', acknowledgeMyAppointment);
 
+// Department Pre-Service Readiness Checklists
+router.get('/departments/:departmentId/checklists/active', c.getActiveDepartmentChecklist);
+router.post('/checklists/items/:itemId/toggle', c.toggleChecklistItemMember);
+
 module.exports = router;
 
 
