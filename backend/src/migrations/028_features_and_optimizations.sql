@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS volunteer_swap_requests (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   church_id UUID NOT NULL REFERENCES churches(id) ON DELETE CASCADE,
   service_plan_id UUID NOT NULL REFERENCES service_plans(id) ON DELETE CASCADE,
-  roster_id UUID NOT NULL REFERENCES service_plan_rosters(id) ON DELETE CASCADE,
+  roster_id UUID NOT NULL REFERENCES service_volunteers(id) ON DELETE CASCADE,
   requester_member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   target_member_id UUID REFERENCES members(id) ON DELETE SET NULL,
   status VARCHAR(30) DEFAULT 'pending', -- pending | accepted | rejected | cancelled
