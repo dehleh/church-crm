@@ -81,7 +81,7 @@ function TabButton({ tab, active, onClick }) {
 }
 
 export default function Settings() {
-  const { user, login, updateUser } = useAuth();
+  const { user, login, updateUser, refreshUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'church');
 
@@ -106,7 +106,10 @@ export default function Settings() {
     accentColor: '#3b82f6',
     fontFamily: 'Inter',
     presetName: 'Royal Sapphire',
+    sidebarTheme: 'light', // 'light' | 'dark_slate' | 'midnight_navy'
   });
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   // Worship & Service Schedule State
   const [services, setServices] = useState([]);
@@ -233,6 +236,7 @@ export default function Settings() {
         accentColor: th.accentColor || '#3b82f6',
         fontFamily: th.fontFamily || 'Inter',
         presetName: th.presetName || 'Royal Sapphire',
+        sidebarTheme: th.sidebarTheme || 'light',
       });
       const pt = s.portal || {};
       setPortalConfig({
@@ -368,11 +372,56 @@ export default function Settings() {
       if (updatedSettingsPatch?.theme && updateUser) {
         updateUser({ theme: updatedSettingsPatch.theme });
       }
+      if (refreshUser) refreshUser();
       toast.success(successMsg || 'Customization saved successfully!');
     } catch {
       toast.error('Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('assetType', 'logo');
+      const res = await settingsAPI.uploadBranding(fd);
+      const url = res.data.data.url;
+      setChurch(c => ({ ...c, logoUrl: url }));
+      if (updateUser) updateUser({ churchLogoUrl: url });
+      if (refreshUser) refreshUser();
+      toast.success('Church logo uploaded and saved!');
+    } catch {
+      toast.error('Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleBannerUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingBanner(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('assetType', 'banner');
+      const res = await settingsAPI.uploadBranding(fd);
+      const url = res.data.data.url;
+      setChurch(c => ({ ...c, bannerUrl: url }));
+      if (updateUser) updateUser({ churchBannerUrl: url });
+      if (refreshUser) refreshUser();
+      toast.success('Church banner uploaded and saved!');
+    } catch {
+      toast.error('Failed to upload banner');
+    } finally {
+      setUploadingBanner(false);
+      e.target.value = '';
     }
   };
 
@@ -1347,6 +1396,46 @@ export default function Settings() {
                 </div>
               </div>
 
+              {/* Sidebar Theme Style Selector */}
+              <div className="pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-2 flex items-center gap-2">
+                  <Layers size={16} className="text-brand-600" /> Sidebar & Navigation Layout Style
+                </h3>
+                <p className="text-xs text-gray-500 mb-3">Choose the aesthetic style of your main admin navigation:</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { id: 'light', name: 'Crisp Light', desc: 'Modern bright white with soft gray borders', bg: 'bg-white', border: 'border-gray-200' },
+                    { id: 'dark_slate', name: 'Executive Slate', desc: 'Deep slate #0f172a contrast aesthetic', bg: 'bg-slate-900', border: 'border-slate-800' },
+                    { id: 'midnight_navy', name: 'Royal Midnight', desc: 'Deep midnight navy with church brand accents', bg: 'bg-[#090d16]', border: 'border-gray-800' },
+                  ].map(sb => {
+                    const isSelected = (theme.sidebarTheme || 'light') === sb.id;
+                    return (
+                      <button
+                        key={sb.id}
+                        type="button"
+                        onClick={() => setTheme(t => ({ ...t, sidebarTheme: sb.id }))}
+                        className={`p-3.5 rounded-xl border text-left transition-all ${
+                          isSelected
+                            ? 'border-brand-600 ring-2 ring-brand-500/20 bg-brand-50/20 shadow-sm'
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
+                      >
+                        <div className={`h-10 rounded-lg ${sb.bg} border ${sb.border} p-2 flex items-center gap-2 mb-2`}>
+                          <div className="w-4 h-4 rounded-md bg-brand-600 shrink-0" />
+                          <div className="space-y-1 flex-1">
+                            <div className="h-1.5 w-14 bg-gray-400/40 rounded" />
+                            <div className="h-1.5 w-8 bg-gray-400/20 rounded" />
+                          </div>
+                          {isSelected && <Check size={14} className="text-brand-600 ml-auto" />}
+                        </div>
+                        <div className="font-bold text-gray-900 text-xs">{sb.name}</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">{sb.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Typography */}
               <div className="pt-4 border-t border-gray-100">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3">Font & Typography Style</h3>
@@ -1369,20 +1458,90 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Logo & Banner URLs */}
+              {/* Logo & Banner Uploaders */}
               <div className="pt-4 border-t border-gray-100">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3">Graphics & Cover Visuals</h3>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-2 flex items-center gap-2">
+                  <Image size={16} className="text-brand-600" /> Graphics & Brand Visuals
+                </h3>
+                <p className="text-xs text-gray-500 mb-4">Upload your high-resolution church logo and auditorium cover photo:</p>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="label">Church Logo Image URL</label>
-                    <input className="input" placeholder="https://mychurch.org/logo.png" value={church.logoUrl || ''} onChange={setC('logoUrl')} />
-                    <p className="text-xs text-gray-400 mt-1">Square or transparent PNG recommended for high clarity</p>
+                  {/* Church Logo Card */}
+                  <div className="p-4 border border-gray-200 rounded-2xl bg-gray-50/60 flex flex-col justify-between">
+                    <div>
+                      <label className="label">Church Official Logo</label>
+                      <p className="text-xs text-gray-500 mb-3">Appears on the sidebar, receipts, member portal, and email headers.</p>
+                      <div className="flex items-center gap-4 mb-3">
+                        {church.logoUrl ? (
+                          <img
+                            src={getAssetUrl(church.logoUrl)}
+                            alt="Logo"
+                            className="w-16 h-16 rounded-xl object-contain bg-white border border-gray-200 p-1.5 shadow-xs"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-xl bg-gray-200 border border-gray-300 flex items-center justify-center text-gray-400 text-2xl font-bold">
+                            ⛪
+                          </div>
+                        )}
+                        <div className="space-y-1.5">
+                          <label className="btn-secondary text-xs cursor-pointer inline-flex items-center gap-1.5">
+                            {uploadingLogo ? <Loader2 size={13} className="animate-spin text-brand-600" /> : <Upload size={13} />}
+                            {uploadingLogo ? 'Uploading…' : church.logoUrl ? 'Change Logo File' : 'Upload Logo'}
+                            <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploadingLogo} />
+                          </label>
+                          {church.logoUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setChurch(c => ({ ...c, logoUrl: '' }))}
+                              className="text-[11px] text-red-600 hover:text-red-700 block transition-colors"
+                            >
+                              Remove logo
+                            </button>
+                          )}
+                          <p className="text-[10px] text-gray-400">PNG, SVG or JPG (transparent recommended)</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="label">Church Header Banner Photo URL</label>
-                    <input className="input" placeholder="https://images.unsplash.com/... or uploaded photo" value={church.bannerUrl || ''} onChange={setC('bannerUrl')} />
-                    <p className="text-xs text-gray-400 mt-1">Landscape photo of your auditorium or congregation (16:9 ratio)</p>
+
+                  {/* Church Header Banner Card */}
+                  <div className="p-4 border border-gray-200 rounded-2xl bg-gray-50/60 flex flex-col justify-between">
+                    <div>
+                      <label className="label">Auditorium / Congregation Banner</label>
+                      <p className="text-xs text-gray-500 mb-3">Backdrop cover photo displayed on Member Portal and public connect pages.</p>
+                      <div className="flex items-center gap-4 mb-3">
+                        {church.bannerUrl ? (
+                          <img
+                            src={getAssetUrl(church.bannerUrl)}
+                            alt="Banner"
+                            className="w-24 h-16 rounded-xl object-cover border border-gray-200 shadow-xs"
+                          />
+                        ) : (
+                          <div className="w-24 h-16 rounded-xl bg-gray-200 border border-gray-300 flex items-center justify-center text-gray-400 text-xs text-center px-1">
+                            No Cover
+                          </div>
+                        )}
+                        <div className="space-y-1.5">
+                          <label className="btn-secondary text-xs cursor-pointer inline-flex items-center gap-1.5">
+                            {uploadingBanner ? <Loader2 size={13} className="animate-spin text-brand-600" /> : <Upload size={13} />}
+                            {uploadingBanner ? 'Uploading…' : church.bannerUrl ? 'Change Banner File' : 'Upload Banner'}
+                            <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} disabled={uploadingBanner} />
+                          </label>
+                          {church.bannerUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setChurch(c => ({ ...c, bannerUrl: '' }))}
+                              className="text-[11px] text-red-600 hover:text-red-700 block transition-colors"
+                            >
+                              Remove banner
+                            </button>
+                          )}
+                          <p className="text-[10px] text-gray-400">16:9 Landscape photo of sanctuary or worship</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
+
                   <div className="md:col-span-2">
                     <label className="label">Church Tagline / Motto</label>
                     <input className="input" placeholder="Transforming Lives, Impacting Nations" value={church.tagline || ''} onChange={setC('tagline')} />

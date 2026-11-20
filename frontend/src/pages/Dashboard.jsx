@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import {
   Users, UserPlus, CalendarDays, DollarSign,
   TrendingUp, TrendingDown, ArrowRight, Clock, Sparkles,
-  CheckCircle2, Circle, AlertTriangle, ChevronDown, ChevronUp, X, GitBranch, UserCheck
+  CheckCircle2, Circle, AlertTriangle, ChevronDown, ChevronUp, X, GitBranch, UserCheck,
+  Send, CheckSquare
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -13,6 +14,7 @@ import { dashboardAPI } from '../api/services';
 import { format, parseISO } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency, getCurrencySymbol } from '../utils/currency';
+import { getAssetUrl } from '../api/client';
 
 const fmt = (n) => Number(n || 0).toLocaleString();
 
@@ -23,17 +25,23 @@ function StatCard({ icon: Icon, label, value, sub, subUp, color = 'brand', to })
     amber: 'bg-amber-50 text-amber-600',
     purple: 'bg-purple-50 text-purple-600',
   };
+  const borderAccents = {
+    brand: 'border-t-brand-500',
+    green: 'border-t-emerald-500',
+    amber: 'border-t-amber-500',
+    purple: 'border-t-purple-500',
+  };
   const card = (
-    <div className="stat-card hover:shadow-card-hover transition-shadow duration-200 cursor-pointer">
-      <div className={`stat-icon ${colors[color]}`}>
+    <div className={`card rounded-2xl border-t-2 ${borderAccents[color]} hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200 cursor-pointer p-5 flex items-start gap-4`}>
+      <div className={`stat-icon rounded-2xl ${colors[color]}`}>
         <Icon size={22} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</p>
-        <p className="text-2xl font-bold text-gray-900 font-display leading-none">{value}</p>
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+        <p className="text-2xl sm:text-3xl font-extrabold text-gray-900 font-display leading-tight">{value}</p>
         {sub && (
-          <p className={`text-xs mt-1.5 flex items-center gap-1 ${subUp ? 'text-emerald-600' : 'text-gray-400'}`}>
-            {subUp ? <TrendingUp size={11} /> : null}{sub}
+          <p className={`text-xs mt-1.5 flex items-center gap-1 font-medium ${subUp ? 'text-emerald-600' : 'text-gray-400'}`}>
+            {subUp ? <TrendingUp size={12} /> : null}{sub}
           </p>
         )}
       </div>
@@ -157,10 +165,75 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="page-title">Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}, {user?.firstName} 👋</h1>
-        <p className="text-gray-500 text-sm mt-1">{new Date().toLocaleDateString('en-NG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+      {/* Executive Command Hero Banner */}
+      <div className="mb-6 relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 shadow-xl border border-slate-800">
+        {/* Subtle background glow effect */}
+        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-80 h-80 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 -mb-12 w-64 h-64 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex items-start sm:items-center gap-4 sm:gap-5">
+            {user?.churchLogoUrl ? (
+              <img
+                src={getAssetUrl(user.churchLogoUrl)}
+                alt={user?.churchName || 'Church Logo'}
+                className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-2xl bg-white p-1.5 shadow-lg border border-white/20 flex-shrink-0"
+              />
+            ) : (
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white font-display font-black text-2xl sm:text-3xl flex-shrink-0 shadow-inner">
+                {(user?.churchName || 'C')[0]}
+              </div>
+            )}
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                <span className="text-[10px] sm:text-[11px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-sm text-brand-200 border border-white/10">
+                  Sanctuary Command Center
+                </span>
+                <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                  • {new Date().toLocaleDateString('en-NG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold font-display text-white tracking-tight leading-tight">
+                Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {user?.firstName} 👋
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-300 font-medium mt-1">
+                {user?.churchName || 'ChurchOS'}{user?.churchTagline ? ` — ${user.churchTagline}` : ''}
+              </p>
+            </div>
+          </div>
+
+          {/* Quick-Action Shortcuts */}
+          <div className="flex flex-wrap items-center gap-2.5 pt-2 lg:pt-0 border-t border-white/10 lg:border-t-0">
+            <Link
+              to="/members"
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white backdrop-blur border border-white/15 transition flex items-center gap-1.5 shadow-xs"
+            >
+              <UserPlus size={14} className="text-brand-300" />
+              <span>New Member</span>
+            </Link>
+            <Link
+              to="/finance"
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white backdrop-blur border border-white/15 transition flex items-center gap-1.5 shadow-xs"
+            >
+              <DollarSign size={14} className="text-emerald-300" />
+              <span>Record Giving</span>
+            </Link>
+            <Link
+              to="/communications"
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white backdrop-blur border border-white/15 transition flex items-center gap-1.5 shadow-xs"
+            >
+              <Send size={14} className="text-sky-300" />
+              <span>Broadcast</span>
+            </Link>
+            <Link
+              to="/departments"
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-brand-500 hover:bg-brand-600 text-white transition flex items-center gap-1.5 shadow-md shadow-brand-500/25"
+            >
+              <CheckSquare size={14} />
+              <span>Service Readiness</span>
+            </Link>
+          </div>
+        </div>
       </div>
 
       {/* Trial Banner */}
@@ -296,6 +369,135 @@ export default function Dashboard() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Live Service Readiness Command Center */}
+      {data?.serviceReadiness ? (
+        <div className="card mb-6 border border-brand-100 bg-white overflow-hidden shadow-xs p-0">
+          <div className="p-5 sm:p-6 bg-gradient-to-r from-brand-900 via-indigo-950 to-slate-900 text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur border border-white/15 flex items-center justify-center text-brand-300 flex-shrink-0">
+                  <CheckSquare size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] sm:text-[11px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-brand-500/30 text-brand-200 border border-brand-400/30">
+                      Service Readiness Command
+                    </span>
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                  </div>
+                  <h2 className="text-lg sm:text-xl font-bold font-display text-white mt-1">
+                    {data.serviceReadiness.serviceTitle || 'Upcoming Service Readiness'}
+                  </h2>
+                  <p className="text-xs text-brand-200">
+                    {data.serviceReadiness.serviceDate ? format(parseISO(data.serviceReadiness.serviceDate), 'EEEE, MMMM d, yyyy') : 'Service Scheduled'}
+                    {data.serviceReadiness.serviceTime ? ` • ${data.serviceReadiness.serviceTime}` : ''}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <div className="text-2xl font-black font-display text-white leading-tight">
+                    {data.serviceReadiness.progressPct}%
+                  </div>
+                  <div className="text-[11px] text-brand-200">
+                    {data.serviceReadiness.completedTasks} of {data.serviceReadiness.totalTasks} Tasks Ready
+                  </div>
+                </div>
+                <Link
+                  to="/departments"
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold bg-white text-brand-900 hover:bg-brand-50 transition shadow-sm flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
+                >
+                  Review Units <ArrowRight size={14} />
+                </Link>
+              </div>
+            </div>
+
+            {/* Overall Service Progress Bar */}
+            <div className="mt-4">
+              <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-brand-400 via-emerald-400 to-emerald-300 rounded-full transition-all duration-700"
+                  style={{ width: `${data.serviceReadiness.progressPct}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Department Unit Readiness Grid */}
+          {data.serviceReadiness.departments?.length > 0 && (
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <span>Unit Breakdown ({data.serviceReadiness.departments.length} Departments Active)</span>
+                <Link to="/departments" className="text-brand-600 hover:underline capitalize font-medium flex items-center gap-1">
+                  Open All Checklists <ArrowRight size={12} />
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {data.serviceReadiness.departments.map((dept) => (
+                  <Link
+                    key={dept.id}
+                    to="/departments"
+                    className="p-3.5 rounded-xl border border-gray-100 hover:border-brand-200 hover:bg-brand-50/20 transition group flex flex-col justify-between"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-xs text-gray-900 group-hover:text-brand-700 truncate mr-2">
+                        {dept.name}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                        dept.pct === 100
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : dept.pct > 0
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {dept.pct === 100 ? 'Ready' : dept.pct > 0 ? `${dept.pct}%` : 'Pending'}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-[11px] text-gray-400 mb-1">
+                        <span>{dept.completed}/{dept.total} items</span>
+                        <span>{dept.pct}%</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            dept.pct === 100 ? 'bg-emerald-500' : 'bg-brand-500'
+                          }`}
+                          style={{ width: `${dept.pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mb-6 card border border-brand-100/70 bg-gradient-to-r from-brand-50/50 via-white to-white p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center flex-shrink-0">
+              <CheckSquare size={20} />
+            </div>
+            <div>
+              <h4 className="font-display font-bold text-gray-900 text-sm">Sunday & Midweek Service Readiness</h4>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Equip your department heads (Media, Sound, Choir, Ushers) with pre-service checklists and automated preparation reminders.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/departments"
+            className="px-3.5 py-2 rounded-xl text-xs font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200/60 transition whitespace-nowrap flex items-center gap-1.5 flex-shrink-0"
+          >
+            Manage Readiness <ArrowRight size={13} />
+          </Link>
         </div>
       )}
 

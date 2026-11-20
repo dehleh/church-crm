@@ -9,7 +9,7 @@ const getDashboard = async (req, res) => {
   const eventBranchCond = branchId ? ' AND e.branch_id = $2' : '';
 
   try {
-    const [members, firstTimers, events, finance, recentActivity, attendance] = await Promise.all([
+    const [members, firstTimers, events, finance, recentActivity, attendance, readinessRows] = await Promise.all([
       // Member stats
       query(
         `SELECT
@@ -67,7 +67,22 @@ const getDashboard = async (req, res) => {
          WHERE e.church_id = $1 AND e.status = 'completed' AND e.actual_attendance IS NOT NULL${eventBranchCond}
          ORDER BY e.start_datetime DESC LIMIT 8`,
         baseParams
-      )
+      ),
+      // Upcoming Pre-Service Readiness Checklists
+      query(
+        `SELECT cl.id, cl.service_title, cl.service_date, cl.service_time, cl.status,
+                d.name as department_name, d.category as department_category,
+                COUNT(ci.id)::int as total_items,
+                COUNT(ci.id) FILTER (WHERE ci.is_completed = true)::int as completed_items
+         FROM department_service_checklists cl
+         JOIN departments d ON d.id = cl.department_id
+         LEFT JOIN department_checklist_items ci ON ci.checklist_id = cl.id
+         WHERE cl.church_id = $1 AND cl.service_date >= CURRENT_DATE - INTERVAL '1 day'
+         GROUP BY cl.id, d.name, d.category
+         ORDER BY cl.service_date ASC, d.name ASC
+         LIMIT 6`,
+        [churchId]
+      ).catch(() => ({ rows: [] }))
     ]);
 
     const userRole = req.user?.role;
@@ -80,6 +95,33 @@ const getDashboard = async (req, res) => {
       ? recentActivity.rows
       : recentActivity.rows.filter(a => a.type !== 'transaction');
 
+    // Calculate overall service readiness metric if any checklists exist
+    const checklists = readinessRows.rows || [];
+    let serviceReadiness = null;
+    if (checklists.length > 0) {
+      const first = checklists[0];
+      const sameServiceLists = checklists.filter(c => c.service_title === first.service_title && String(c.service_date) === String(first.service_date));
+      const totalTasks = sameServiceLists.reduce((sum, c) => sum + (c.total_items || 0), 0);
+      const completedTasks = sameServiceLists.reduce((sum, c) => sum + (c.completed_items || 0), 0);
+      serviceReadiness = {
+        serviceTitle: first.service_title,
+        serviceDate: first.service_date,
+        serviceTime: first.service_time,
+        totalTasks,
+        completedTasks,
+        progressPct: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+        departments: sameServiceLists.map(c => ({
+          id: c.id,
+          name: c.department_name,
+          category: c.department_category,
+          status: c.status,
+          total: c.total_items || 0,
+          completed: c.completed_items || 0,
+          pct: c.total_items > 0 ? Math.round(((c.completed_items || 0) / c.total_items) * 100) : 0,
+        }))
+      };
+    }
+
     return res.json({
       success: true,
       data: {
@@ -88,7 +130,8 @@ const getDashboard = async (req, res) => {
         events: events.rows[0],
         finance: canViewFinance ? finance.rows[0] : null,
         recentActivity: filteredActivity,
-        attendanceTrend: attendance.rows
+        attendanceTrend: attendance.rows,
+        serviceReadiness,
       }
     });
   } catch (err) {

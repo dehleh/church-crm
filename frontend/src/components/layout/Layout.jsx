@@ -76,6 +76,22 @@ export default function Layout() {
     document.documentElement.style.setProperty('--brand-accent', accent);
   }, [user?.theme]);
 
+  // Dynamic Browser Tab Title & Favicon White-Labeling
+  useEffect(() => {
+    if (user?.churchName) {
+      document.title = `${user.churchName} — ChurchOS`;
+    }
+    if (user?.churchLogoUrl) {
+      let link = document.querySelector("link[rel*='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = getAssetUrl(user.churchLogoUrl);
+    }
+  }, [user?.churchName, user?.churchLogoUrl]);
+
   // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e) => {
@@ -91,6 +107,14 @@ export default function Layout() {
     navigate('/login');
   };
 
+  const sidebarTheme = user?.theme?.sidebarTheme || 'light';
+  const isDarkSidebar = sidebarTheme === 'dark_slate' || sidebarTheme === 'midnight_navy';
+  const sidebarBg = sidebarTheme === 'midnight_navy'
+    ? 'bg-[#090d16] border-r border-gray-800'
+    : sidebarTheme === 'dark_slate'
+    ? 'bg-slate-900 border-r border-slate-800'
+    : 'bg-white border-r border-gray-100';
+
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Mobile overlay */}
@@ -100,13 +124,22 @@ export default function Layout() {
 
       {/* Sidebar */}
       <aside className={clsx(
-        'flex flex-col bg-white border-r border-gray-100 flex-shrink-0 transition-all duration-200 z-50',
+        'flex flex-col flex-shrink-0 transition-all duration-200 z-50',
+        sidebarBg,
+        `sidebar-${sidebarTheme}`,
         'fixed lg:relative inset-y-0 left-0',
         collapsed ? 'w-16' : 'w-60',
         mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       )}>
         {/* Brand */}
-        <div className={clsx('flex items-center border-b border-gray-100 flex-shrink-0 cursor-pointer', collapsed ? 'p-3 justify-center' : 'p-4 gap-3')} onClick={() => navigate('/dashboard')}>
+        <div
+          className={clsx(
+            'flex items-center border-b flex-shrink-0 cursor-pointer',
+            isDarkSidebar ? (sidebarTheme === 'midnight_navy' ? 'border-gray-800' : 'border-slate-800') : 'border-gray-100',
+            collapsed ? 'p-3 justify-center' : 'p-4 gap-3'
+          )}
+          onClick={() => navigate('/dashboard')}
+        >
           {user?.churchLogoUrl ? (
             <img
               src={getAssetUrl(user.churchLogoUrl)}
@@ -118,10 +151,10 @@ export default function Layout() {
           )}
           {!collapsed && (
             <div className="min-w-0 flex-1">
-              <div className="font-display font-bold text-gray-900 text-base leading-tight truncate">
+              <div className={clsx('font-display font-bold text-base leading-tight truncate', isDarkSidebar ? 'text-white' : 'text-gray-900')}>
                 {user?.churchName || 'ChurchOS'}
               </div>
-              <div className="text-[10px] text-gray-400 font-body leading-tight truncate max-w-[140px]">
+              <div className={clsx('text-[10px] font-body leading-tight truncate max-w-[140px]', isDarkSidebar ? 'text-gray-400' : 'text-gray-400')}>
                 {user?.churchTagline || 'Operating System'}
               </div>
             </div>
@@ -141,7 +174,10 @@ export default function Layout() {
             return (
             <div key={group.group} className="mb-1">
               {!collapsed && (
-                <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                <div className={clsx(
+                  'px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest',
+                  isDarkSidebar ? 'text-gray-400' : 'text-gray-400'
+                )}>
                   {group.group}
                 </div>
               )}
@@ -153,6 +189,11 @@ export default function Layout() {
                   className={({ isActive }) => clsx(
                     'nav-item mb-0.5',
                     collapsed && 'justify-center px-2',
+                    isDarkSidebar
+                      ? (sidebarTheme === 'dark_slate'
+                          ? 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                          : 'text-gray-300 hover:bg-white/10 hover:text-white')
+                      : 'text-gray-600 hover:bg-brand-50 hover:text-brand-700',
                     isActive && 'active'
                   )}
                 >
@@ -166,28 +207,28 @@ export default function Layout() {
         </nav>
 
         {/* User footer */}
-        <div className="border-t border-gray-100 p-2 flex-shrink-0">
+        <div className={clsx('border-t p-2 flex-shrink-0', isDarkSidebar ? (sidebarTheme === 'midnight_navy' ? 'border-gray-800' : 'border-slate-800') : 'border-gray-100')}>
           {!collapsed ? (
-            <div className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+            <div className={clsx('flex items-center gap-2 px-2 py-2 rounded-lg transition-colors', isDarkSidebar ? 'hover:bg-white/5' : 'hover:bg-gray-50')}>
               <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 text-xs font-bold flex-shrink-0">
                 {getInitials(user?.firstName, user?.lastName)}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-gray-800 truncate">{user?.firstName} {user?.lastName}</div>
-                <div className="text-xs text-gray-400 truncate">{getRoleTitle(user?.role)}</div>
+                <div className={clsx('text-sm font-medium truncate', isDarkSidebar ? 'text-gray-200' : 'text-gray-800')}>{user?.firstName} {user?.lastName}</div>
+                <div className={clsx('text-xs truncate', isDarkSidebar ? 'text-gray-400' : 'text-gray-400')}>{getRoleTitle(user?.role)}</div>
               </div>
-              <button onClick={handleLogout} title="Logout" className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+              <button onClick={handleLogout} title="Logout" className={clsx('p-1 rounded transition-colors', isDarkSidebar ? 'text-gray-400 hover:text-red-400 hover:bg-white/10' : 'text-gray-400 hover:text-red-500 hover:bg-red-50')}>
                 <LogOut size={15} />
               </button>
             </div>
           ) : (
-            <button onClick={handleLogout} title="Logout" className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+            <button onClick={handleLogout} title="Logout" className={clsx('w-full flex items-center justify-center p-2 rounded-lg transition-colors', isDarkSidebar ? 'text-gray-400 hover:text-red-400 hover:bg-white/10' : 'text-gray-400 hover:text-red-500 hover:bg-red-50')}>
               <LogOut size={16} />
             </button>
           )}
           <button
             onClick={() => setCollapsed(v => !v)}
-            className="hidden lg:flex w-full items-center justify-center p-1.5 mt-1 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+            className={clsx('hidden lg:flex w-full items-center justify-center p-1.5 mt-1 rounded-lg transition-colors', isDarkSidebar ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-gray-100 text-gray-400')}
           >
             {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
           </button>
