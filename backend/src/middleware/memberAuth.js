@@ -14,7 +14,7 @@ const authenticateMember = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid token' });
     }
     const { rows } = await query(
-      `SELECT m.*, c.name as church_name, c.slug as church_slug, c.settings as church_settings
+      `SELECT m.*, c.name as church_name, c.slug as church_slug, c.logo_url as church_logo_url, c.banner_url as church_banner_url, c.tagline as church_tagline, c.settings as church_settings
        FROM members m JOIN churches c ON c.id = m.church_id
        WHERE m.id = $1 AND c.is_active = true`,
       [decoded.memberId]

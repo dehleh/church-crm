@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --brand-primary: #1d4ed8;
+  --brand-accent: #3b82f6;
+}
+
 @layer base {
   * { box-sizing: border-box; }
   
@@ -19,9 +24,13 @@
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 
+    @apply inline-flex items-center gap-2 px-4 py-2.5 
            text-white text-sm font-medium rounded-lg transition-all duration-150 
            shadow-sm hover:shadow-md active:scale-95 font-body;
+    background-color: var(--brand-primary, #1d4ed8) !important;
+  }
+  .btn-primary:hover {
+    filter: brightness(0.92);
   }
   .btn-secondary {
     @apply inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-gray-50 
@@ -75,10 +84,11 @@
            transition-all duration-150 cursor-pointer select-none;
   }
   .nav-item.active {
-    @apply bg-brand-600 text-white shadow-sm;
+    @apply text-white shadow-sm;
+    background-color: var(--brand-primary, #1d4ed8) !important;
   }
   .nav-item.active:hover {
-    @apply bg-brand-700 text-white;
+    filter: brightness(0.92);
   }
 
   /* Table */

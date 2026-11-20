@@ -41,6 +41,10 @@ const THEME_PRESETS = [
   { name: 'Midnight Charcoal', primary: '#0f172a', accent: '#475569', bgGradient: 'from-slate-800 via-slate-900 to-black', desc: 'Modern, minimalist & sleek' },
   { name: 'Ocean Teal',       primary: '#0f766e', accent: '#14b8a6', bgGradient: 'from-teal-700 via-teal-800 to-slate-950', desc: 'Peace, renewal & mission vision' },
   { name: 'Rose Gold',        primary: '#be185d', accent: '#ec4899', bgGradient: 'from-pink-700 via-rose-800 to-slate-950', desc: 'Love, grace & community care' },
+  { name: 'Golden Ark',       primary: '#d97706', accent: '#fbbf24', bgGradient: 'from-amber-700 via-yellow-800 to-stone-950', desc: 'Glory, consecration & kingdom covenant' },
+  { name: 'Sanctuary Navy',   primary: '#1e3a8a', accent: '#60a5fa', bgGradient: 'from-blue-900 via-indigo-950 to-slate-950', desc: 'Deep reverence, heritage & wisdom' },
+  { name: 'Celestial Sky',    primary: '#0284c7', accent: '#38bdf8', bgGradient: 'from-sky-700 via-blue-800 to-slate-950', desc: 'Grace, peace & boundless outreach' },
+  { name: 'Living Olive',     primary: '#4d7c0f', accent: '#84cc16', bgGradient: 'from-lime-800 via-emerald-900 to-stone-950', desc: 'Anointing, peace & spiritual fruitfulness' },
 ];
 
 const FONT_OPTIONS = [
@@ -77,7 +81,7 @@ function TabButton({ tab, active, onClick }) {
 }
 
 export default function Settings() {
-  const { user, login } = useAuth();
+  const { user, login, updateUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'church');
 
@@ -143,6 +147,12 @@ export default function Settings() {
   const [coreValues, setCoreValues] = useState(['Faith', 'Love', 'Excellence', 'Integrity', 'Community', 'Discipleship']);
   const [newValueInput, setNewValueInput] = useState('');
 
+  // Church Sanctuary & Media Gallery State
+  const [gallery, setGallery] = useState([]);
+  const [newGalleryPhoto, setNewGalleryPhoto] = useState({ url: '', caption: '' });
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [showGalleryUrlInput, setShowGalleryUrlInput] = useState(false);
+
   // Pastors management state
   const [pastorModal, setPastorModal] = useState({ open: false, index: null, data: {} });
 
@@ -192,8 +202,10 @@ export default function Settings() {
       if (uploadedUrl) {
         if (type === 'logo') {
           setChurch(prev => ({ ...prev, logoUrl: uploadedUrl }));
+          if (updateUser) updateUser({ churchLogoUrl: uploadedUrl });
         } else if (type === 'banner') {
           setChurch(prev => ({ ...prev, bannerUrl: uploadedUrl }));
+          if (updateUser) updateUser({ churchBannerUrl: uploadedUrl });
         }
         toast.success(`${type === 'logo' ? 'Logo' : 'Banner'} uploaded and saved in storage!`);
       }
@@ -257,6 +269,9 @@ export default function Settings() {
       });
       if (Array.isArray(s.coreValues) && s.coreValues.length > 0) {
         setCoreValues(s.coreValues);
+      }
+      if (Array.isArray(s.gallery) && s.gallery.length > 0) {
+        setGallery(s.gallery);
       }
 
       setChurch({
@@ -350,6 +365,9 @@ export default function Settings() {
           ...updatedSettingsPatch
         }
       }));
+      if (updatedSettingsPatch?.theme && updateUser) {
+        updateUser({ theme: updatedSettingsPatch.theme });
+      }
       toast.success(successMsg || 'Customization saved successfully!');
     } catch {
       toast.error('Failed to save settings');
@@ -370,9 +388,19 @@ export default function Settings() {
           serviceSchedule: services,
           publicConnect,
           coreValues,
+          gallery,
         }
       };
       await api.put('/settings/church', payload);
+      if (updateUser) {
+        updateUser({
+          churchName: payload.name,
+          churchTagline: payload.tagline,
+          churchLogoUrl: payload.logoUrl,
+          churchBannerUrl: payload.bannerUrl,
+          theme,
+        });
+      }
       toast.success('Church profile & branding saved!');
     } catch {
       toast.error('Failed to save settings');
@@ -510,6 +538,52 @@ export default function Settings() {
 
   const handleRemoveCoreValue = (idx) => {
     setCoreValues(coreValues.filter((_, i) => i !== idx));
+  };
+
+  // Gallery Handlers
+  const handleUploadGalleryPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) return toast.error('File size must be under 15MB');
+    setUploadingGallery(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('assetType', 'general');
+      const res = await settingsAPI.uploadBranding(formData);
+      const url = res.data?.data?.url;
+      if (url) {
+        const item = { id: `img_${Date.now()}`, url, caption: file.name.replace(/\.[^/.]+$/, '') };
+        const updated = [...gallery, item];
+        setGallery(updated);
+        saveCustomization({ gallery: updated }, 'Photo uploaded to church gallery!');
+      }
+    } catch {
+      toast.error('Failed to upload photo');
+    } finally {
+      setUploadingGallery(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleAddGalleryUrl = () => {
+    if (!newGalleryPhoto.url?.trim()) return toast.error('Please enter a photo URL');
+    const item = {
+      id: `img_${Date.now()}`,
+      url: newGalleryPhoto.url.trim(),
+      caption: newGalleryPhoto.caption?.trim() || 'Sanctuary View',
+    };
+    const updated = [...gallery, item];
+    setGallery(updated);
+    setNewGalleryPhoto({ url: '', caption: '' });
+    setShowGalleryUrlInput(false);
+    saveCustomization({ gallery: updated }, 'Photo added to church gallery!');
+  };
+
+  const handleRemoveGalleryPhoto = (idx) => {
+    const updated = gallery.filter((_, i) => i !== idx);
+    setGallery(updated);
+    saveCustomization({ gallery: updated }, 'Photo removed');
   };
 
   const savePaymentSettings = async () => {
@@ -893,21 +967,6 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Mission & Vision */}
-              <div className="pt-4 border-t border-gray-100">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3">Mission & Vision</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="label">Mission Statement</label>
-                    <textarea className="input min-h-[90px]" placeholder="To preach the gospel of grace..." value={church.mission || ''} onChange={setC('mission')} />
-                  </div>
-                  <div>
-                    <label className="label">Vision Statement</label>
-                    <textarea className="input min-h-[90px]" placeholder="To raise passionate disciples..." value={church.vision || ''} onChange={setC('vision')} />
-                  </div>
-                </div>
-              </div>
-
               {/* General Church Profile Details */}
               <div className="pt-2">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3">General Information</h3>
@@ -934,6 +993,10 @@ export default function Settings() {
                   <div>
                     <label className="label">Official Email</label>
                     <input type="email" className="input" value={church.email || ''} onChange={setC('email')} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="label">Legal Registration / CAC / Tax Exemption ID</label>
+                    <input className="input" placeholder="e.g. CAC/IT/NO 12345 or 501(c)(3)" value={church.registrationNumber || ''} onChange={setC('registrationNumber')} />
                   </div>
                   <div className="col-span-2">
                     <label className="label">Official Website</label>
@@ -1044,6 +1107,102 @@ export default function Settings() {
                     <input className="input" placeholder="https://open.spotify.com/show/..." value={church.socialLinks?.spotify || ''} onChange={setSocial('spotify')} />
                   </div>
                 </div>
+              </div>
+
+              {/* Church Sanctuary & Media Gallery */}
+              <div className="pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                      <Image size={16} className="text-brand-600" /> Sanctuary & Church Media Gallery
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Showcase pictures of your auditorium, worship services, altar, and community.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowGalleryUrlInput(v => !v)}
+                      className="text-xs text-brand-600 hover:underline"
+                    >
+                      {showGalleryUrlInput ? 'Cancel URL' : '+ Paste URL'}
+                    </button>
+                    <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 rounded-lg text-xs font-semibold transition-colors border border-brand-200">
+                      {uploadingGallery ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" /> Uploading…
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={13} /> Upload Picture
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        disabled={uploadingGallery}
+                        onChange={handleUploadGalleryPhoto}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {showGalleryUrlInput && (
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 mb-3 flex flex-col sm:flex-row gap-2">
+                    <input
+                      className="input text-xs flex-1"
+                      placeholder="Photo URL (e.g. https://.../sanctuary.jpg)"
+                      value={newGalleryPhoto.url}
+                      onChange={e => setNewGalleryPhoto(p => ({ ...p, url: e.target.value }))}
+                    />
+                    <input
+                      className="input text-xs sm:w-48"
+                      placeholder="Caption (e.g. Main Altar)"
+                      value={newGalleryPhoto.caption}
+                      onChange={e => setNewGalleryPhoto(p => ({ ...p, caption: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddGalleryUrl}
+                      className="btn-primary text-xs shrink-0 px-3"
+                    >
+                      Add Photo
+                    </button>
+                  </div>
+                )}
+
+                {gallery.length === 0 ? (
+                  <div className="text-center py-6 border-2 border-dashed border-gray-100 rounded-xl bg-gray-50/50">
+                    <Image size={28} className="mx-auto text-gray-300 mb-1" />
+                    <p className="text-xs text-gray-500 font-medium">No church photos uploaded yet</p>
+                    <p className="text-[11px] text-gray-400">Upload pictures of your auditorium, choir, and services to enrich your church's presence</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+                    {gallery.map((photo, idx) => (
+                      <div key={photo.id || idx} className="relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-900 aspect-video shadow-xs">
+                        <img
+                          src={getAssetUrl(photo.url)}
+                          alt={photo.caption || 'Church photo'}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 text-white">
+                          <p className="text-[10px] font-medium truncate">{photo.caption || 'Church Sanctuary'}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveGalleryPhoto(idx)}
+                          className="absolute top-1.5 right-1.5 bg-red-600/90 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
+                          title="Remove Photo"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end pt-3">
@@ -1621,7 +1780,7 @@ export default function Settings() {
 
           {/* TAB 3: MESSAGING (WHATSAPP, EMAIL, SMS) */}
           {activeTab === 'messaging' && (
-            <div className="space-y-5">
+            <div className="space-y-6">
               {/* WhatsApp Configuration */}
               <div className="card">
                 <div className="flex items-center justify-between mb-4">
@@ -1629,7 +1788,7 @@ export default function Settings() {
                     <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600"><MessageCircle size={22} /></div>
                     <div>
                       <h3 className="font-display font-bold text-gray-900">WhatsApp Broadcast & Reminders</h3>
-                      <p className="text-xs text-gray-400">Direct Meta WhatsApp Business Cloud API or Twilio WhatsApp</p>
+                      <p className="text-xs text-gray-400">Direct Meta WhatsApp Business Cloud API, Twilio, or Custom Gateway</p>
                     </div>
                   </div>
                   <button onClick={() => setMessaging(m => ({ ...m, whatsapp: { ...m.whatsapp, enabled: !m.whatsapp?.enabled } }))}
@@ -1643,12 +1802,13 @@ export default function Settings() {
                   <div>
                     <label className="label">WhatsApp Integration Provider</label>
                     <select className="input" value={messaging.whatsapp?.provider || 'meta'} onChange={setM('whatsapp', 'provider')}>
-                      <option value="meta">Meta WhatsApp Cloud API (Recommended — 1,000 free conversations/month)</option>
+                      <option value="meta">Meta WhatsApp Cloud API (Direct Official — 1,000 free conversations/month)</option>
                       <option value="twilio">Twilio WhatsApp Business API</option>
+                      <option value="custom">Custom HTTP / Webhook Gateway (UltraMsg, Waboxapp, Wasapi, etc.)</option>
                     </select>
                   </div>
 
-                  {messaging.whatsapp?.provider === 'meta' ? (
+                  {messaging.whatsapp?.provider === 'meta' && (
                     <div className="space-y-3 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
                       <div className="flex items-start gap-2 text-xs text-emerald-800">
                         <AlertCircle size={15} className="flex-shrink-0 mt-0.5 text-emerald-600" />
@@ -1671,7 +1831,9 @@ export default function Settings() {
                         </div>
                       </div>
                     </div>
-                  ) : (
+                  )}
+
+                  {messaging.whatsapp?.provider === 'twilio' && (
                     <div className="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
                       <p className="text-xs text-gray-500">Twilio WhatsApp uses your Twilio Account SID, Auth Token, and registered WhatsApp Sender Number.</p>
                       <div className="grid grid-cols-2 gap-3">
@@ -1682,6 +1844,33 @@ export default function Settings() {
                         <div>
                           <label className="label">Twilio Auth Token</label>
                           <input type="password" className="input font-mono text-sm" value={messaging.whatsapp?.twilioAuthToken || ''} onChange={setM('whatsapp', 'twilioAuthToken')} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {messaging.whatsapp?.provider === 'custom' && (
+                    <div className="space-y-3 bg-indigo-50/40 p-4 rounded-xl border border-indigo-100">
+                      <p className="text-xs text-indigo-900 font-medium">Connect any WhatsApp API service or custom HTTP webhook gateway.</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-2">
+                          <label className="label">Gateway Webhook URL *</label>
+                          <input className="input font-mono text-xs" placeholder="https://api.ultramsg.com/instance123/messages/chat" value={messaging.whatsapp?.customWebhookUrl || ''} onChange={setM('whatsapp', 'customWebhookUrl')} />
+                        </div>
+                        <div>
+                          <label className="label">HTTP Method</label>
+                          <select className="input text-xs" value={messaging.whatsapp?.httpMethod || 'POST'} onChange={setM('whatsapp', 'httpMethod')}>
+                            <option value="POST">POST</option>
+                            <option value="GET">GET</option>
+                          </select>
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="label">Custom Headers (JSON)</label>
+                          <input className="input font-mono text-xs" placeholder='{"Authorization": "Bearer token", "Content-Type": "application/json"}' value={messaging.whatsapp?.customHeaders || ''} onChange={setM('whatsapp', 'customHeaders')} />
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="label">Request Body Template (JSON with &#123;to&#125; and &#123;body&#125; placeholders)</label>
+                          <textarea className="input font-mono text-xs min-h-[60px]" placeholder='{"to": "{to}", "body": "{body}"}' value={messaging.whatsapp?.bodyTemplate || ''} onChange={setM('whatsapp', 'bodyTemplate')} />
                         </div>
                       </div>
                     </div>
@@ -1712,7 +1901,7 @@ export default function Settings() {
                     <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600"><Mail size={20} /></div>
                     <div>
                       <h3 className="font-display font-bold text-gray-900">Email Notifications & Broadcasts</h3>
-                      <p className="text-xs text-gray-400">SendGrid or custom SMTP for automated email delivery</p>
+                      <p className="text-xs text-gray-400">Custom SMTP, SendGrid, or Modern Resend API</p>
                     </div>
                   </div>
                   <button onClick={() => setMessaging(m => ({ ...m, email: { ...m.email, enabled: !m.email?.enabled } }))}
@@ -1721,50 +1910,83 @@ export default function Settings() {
                     {messaging.email?.enabled ? 'Enabled' : 'Disabled'}
                   </button>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
-                    <label className="label">Provider</label>
+                    <label className="label">Email Delivery Provider</label>
                     <select className="input" value={messaging.email?.provider || 'smtp'} onChange={setM('email', 'provider')}>
-                      <option value="smtp">SMTP (Google Workspace, Zoho, Microsoft 365, Mailgun)</option>
-                      <option value="sendgrid">SendGrid</option>
+                      <option value="smtp">Custom SMTP (Google Workspace, Zoho, Microsoft 365, Mailgun, cPanel)</option>
+                      <option value="resend">Resend API (Modern, Fast & Highly Reliable API)</option>
+                      <option value="sendgrid">SendGrid API</option>
                     </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="label">From Email Address</label>
-                      <input className="input" placeholder="noreply@mychurch.org" value={messaging.email?.fromEmail || ''} onChange={setM('email', 'fromEmail')} />
-                    </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="label">From Display Name</label>
-                      <input className="input" placeholder="My Church" value={messaging.email?.fromName || ''} onChange={setM('email', 'fromName')} />
+                      <input className="input" placeholder="Grace Community Church" value={messaging.email?.fromName || ''} onChange={setM('email', 'fromName')} />
+                    </div>
+                    <div>
+                      <label className="label">From Email Address</label>
+                      <input className="input" placeholder="notifications@mychurch.org" value={messaging.email?.fromEmail || ''} onChange={setM('email', 'fromEmail')} />
                     </div>
                   </div>
-                  {messaging.email?.provider === 'sendgrid' ? (
-                    <div>
-                      <label className="label">SendGrid API Key</label>
-                      <input type="password" className="input font-mono text-sm" placeholder="SG.xxxxxxxxxx" value={messaging.email?.sendgridApiKey || ''} onChange={setM('email', 'sendgridApiKey')} />
-                      <p className="text-xs text-gray-400 mt-1">Get your API key from <a href="https://app.sendgrid.com/settings/api_keys" target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline">SendGrid Dashboard</a></p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="label">SMTP Host</label>
-                        <input className="input" placeholder="smtp.gmail.com" value={messaging.email?.smtpHost || ''} onChange={setM('email', 'smtpHost')} />
+
+                  {messaging.email?.provider === 'resend' && (
+                    <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100 space-y-3">
+                      <div className="text-xs text-blue-900">
+                        <strong>Resend API</strong> delivers high inbox rates with modern developer tooling. Obtain your API key from <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline font-semibold">resend.com/api-keys</a>.
                       </div>
                       <div>
-                        <label className="label">SMTP Port</label>
-                        <input className="input" placeholder="587" value={messaging.email?.smtpPort || ''} onChange={setM('email', 'smtpPort')} />
-                      </div>
-                      <div>
-                        <label className="label">SMTP Username</label>
-                        <input className="input" value={messaging.email?.smtpUser || ''} onChange={setM('email', 'smtpUser')} />
-                      </div>
-                      <div>
-                        <label className="label">SMTP Password</label>
-                        <input type="password" className="input" value={messaging.email?.smtpPass || ''} onChange={setM('email', 'smtpPass')} />
+                        <label className="label">Resend API Key *</label>
+                        <input type="password" className="input font-mono text-sm" placeholder="re_xxxxxxxxxxxx" value={messaging.email?.resendApiKey || ''} onChange={setM('email', 'resendApiKey')} />
                       </div>
                     </div>
                   )}
+
+                  {messaging.email?.provider === 'sendgrid' && (
+                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+                      <div>
+                        <label className="label">SendGrid API Key *</label>
+                        <input type="password" className="input font-mono text-sm" placeholder="SG.xxxxxxxxxx" value={messaging.email?.sendgridApiKey || ''} onChange={setM('email', 'sendgridApiKey')} />
+                        <p className="text-xs text-gray-400 mt-1">Get your API key from <a href="https://app.sendgrid.com/settings/api_keys" target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline">SendGrid Dashboard</a></p>
+                      </div>
+                    </div>
+                  )}
+
+                  {messaging.email?.provider === 'smtp' && (
+                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-2">
+                          <label className="label">SMTP Host *</label>
+                          <input className="input" placeholder="smtp.gmail.com or mail.mychurch.org" value={messaging.email?.smtpHost || ''} onChange={setM('email', 'smtpHost')} />
+                        </div>
+                        <div>
+                          <label className="label">SMTP Port</label>
+                          <input className="input" placeholder="587" value={messaging.email?.smtpPort || ''} onChange={setM('email', 'smtpPort')} />
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(messaging.email?.smtpSecure)}
+                              onChange={setM('email', 'smtpSecure')}
+                              className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                            />
+                            <span>Use SSL/TLS secure connection (port 465)</span>
+                          </label>
+                        </div>
+                        <div className="sm:col-span-1">
+                          <label className="label">SMTP Username</label>
+                          <input className="input" placeholder="notifications@mychurch.org" value={messaging.email?.smtpUser || ''} onChange={setM('email', 'smtpUser')} />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="label">SMTP Password</label>
+                          <input type="password" className="input" placeholder="••••••••" value={messaging.email?.smtpPass || ''} onChange={setM('email', 'smtpPass')} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Test email */}
                   <div className="flex items-end gap-2 pt-2 border-t border-gray-100">
                     <div className="flex-1">
@@ -1784,8 +2006,8 @@ export default function Settings() {
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-600"><Phone size={20} /></div>
                     <div>
-                      <h3 className="font-display font-bold text-gray-900">SMS Notifications</h3>
-                      <p className="text-xs text-gray-400">Twilio for quick SMS delivery</p>
+                      <h3 className="font-display font-bold text-gray-900">SMS Notifications & Broadcasts</h3>
+                      <p className="text-xs text-gray-400">Termii (Africa/Nigeria), Twilio (Global), or Custom Gateway</p>
                     </div>
                   </div>
                   <button onClick={() => setMessaging(m => ({ ...m, sms: { ...m.sms, enabled: !m.sms?.enabled } }))}
@@ -1794,24 +2016,100 @@ export default function Settings() {
                     {messaging.sms?.enabled ? 'Enabled' : 'Disabled'}
                   </button>
                 </div>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="label">Twilio Account SID</label>
-                      <input className="input font-mono text-sm" placeholder="ACxxxxxxxxxxxxxxxx" value={messaging.sms?.twilioSid || ''} onChange={setM('sms', 'twilioSid')} />
-                    </div>
-                    <div>
-                      <label className="label">Twilio Auth Token</label>
-                      <input type="password" className="input font-mono text-sm" value={messaging.sms?.twilioAuthToken || ''} onChange={setM('sms', 'twilioAuthToken')} />
-                    </div>
-                  </div>
+                <div className="space-y-4">
                   <div>
-                    <label className="label">Twilio Phone Number</label>
-                    <input className="input" placeholder="+1234567890" value={messaging.sms?.twilioPhone || ''} onChange={setM('sms', 'twilioPhone')} />
+                    <label className="label">SMS Delivery Gateway Provider</label>
+                    <select className="input" value={messaging.sms?.provider || 'termii'} onChange={setM('sms', 'provider')}>
+                      <option value="termii">Termii SMS (Recommended for Africa & Nigeria — Alphanumeric Sender IDs)</option>
+                      <option value="twilio">Twilio SMS (Global Standard)</option>
+                      <option value="custom">Custom HTTP / Webhook Gateway (Connect ANY Global or Local SMS Vendor)</option>
+                    </select>
                   </div>
+
+                  {messaging.sms?.provider === 'termii' && (
+                    <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 space-y-3">
+                      <div className="flex items-start gap-2 text-xs text-emerald-800">
+                        <AlertCircle size={15} className="flex-shrink-0 mt-0.5 text-emerald-600" />
+                        <div>
+                          <strong>Termii SMS</strong> delivers 99%+ deliverability across African networks with custom alphanumeric Sender IDs (e.g. <code>CHURCH_NAME</code>). Obtain your API key from <a href="https://termii.com" target="_blank" rel="noopener noreferrer" className="underline font-semibold">termii.com</a>.
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-2">
+                          <label className="label">Termii API Key *</label>
+                          <input type="password" className="input font-mono text-sm" placeholder="TLxxxxxxxxxxxx" value={messaging.sms?.termiiApiKey || ''} onChange={setM('sms', 'termiiApiKey')} />
+                        </div>
+                        <div>
+                          <label className="label">Sender ID *</label>
+                          <input className="input font-semibold" placeholder="CHURCH" maxLength={11} value={messaging.sms?.termiiSenderId || ''} onChange={setM('sms', 'termiiSenderId')} />
+                          <p className="text-[10px] text-gray-400 mt-1">Up to 11 characters registered on Termii</p>
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="label">Delivery Channel</label>
+                          <select className="input text-xs" value={messaging.sms?.termiiChannel || 'generic'} onChange={setM('sms', 'termiiChannel')}>
+                            <option value="generic">Generic (Recommended for standard SMS broadcasts)</option>
+                            <option value="dnd">DND / Priority (Direct route for urgent OTPs and notifications)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {messaging.sms?.provider === 'twilio' && (
+                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="label">Twilio Account SID</label>
+                          <input className="input font-mono text-sm" placeholder="ACxxxxxxxxxxxxxxxx" value={messaging.sms?.twilioSid || ''} onChange={setM('sms', 'twilioSid')} />
+                        </div>
+                        <div>
+                          <label className="label">Twilio Auth Token</label>
+                          <input type="password" className="input font-mono text-sm" value={messaging.sms?.twilioAuthToken || ''} onChange={setM('sms', 'twilioAuthToken')} />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="label">Twilio Sender Phone Number</label>
+                          <input className="input" placeholder="+1234567890" value={messaging.sms?.twilioPhone || ''} onChange={setM('sms', 'twilioPhone')} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {messaging.sms?.provider === 'custom' && (
+                    <div className="p-4 rounded-xl bg-purple-50/40 border border-purple-100 space-y-3">
+                      <p className="text-xs text-purple-900 font-medium">
+                        Plug in ANY SMS aggregator (Infobip, Africa's Talking, BulkSMS Nigeria, MSG91, Textlocal, Sinch, etc.) via universal HTTP REST request.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-2">
+                          <label className="label">Gateway Webhook URL *</label>
+                          <input className="input font-mono text-xs" placeholder="https://api.bulksmsnigeria.com/api/v1/sms/create" value={messaging.sms?.customWebhookUrl || ''} onChange={setM('sms', 'customWebhookUrl')} />
+                        </div>
+                        <div>
+                          <label className="label">HTTP Method</label>
+                          <select className="input text-xs" value={messaging.sms?.httpMethod || 'POST'} onChange={setM('sms', 'httpMethod')}>
+                            <option value="POST">POST</option>
+                            <option value="GET">GET</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="label">Sender Name / ID</label>
+                          <input className="input text-xs" placeholder="CHURCH" value={messaging.sms?.senderId || ''} onChange={setM('sms', 'senderId')} />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="label">Custom Headers (JSON)</label>
+                          <input className="input font-mono text-xs" placeholder='{"Authorization": "Bearer KEY", "Accept": "application/json"}' value={messaging.sms?.customHeaders || ''} onChange={setM('sms', 'customHeaders')} />
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="label">Request Body Template (JSON with &#123;to&#125;, &#123;body&#125;, and &#123;sender&#125; placeholders)</label>
+                          <textarea className="input font-mono text-xs min-h-[60px]" placeholder='{"to": "{to}", "text": "{body}", "from": "{sender}"}' value={messaging.sms?.bodyTemplate || ''} onChange={setM('sms', 'bodyTemplate')} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-end gap-2 pt-2 border-t border-gray-100">
                     <div className="flex-1">
-                      <label className="label">Test SMS</label>
+                      <label className="label">Test SMS Recipient</label>
                       <input type="tel" className="input" placeholder="+2348012345678" value={testRecipient.sms} onChange={e => setTestRecipient(r => ({ ...r, sms: e.target.value }))} />
                     </div>
                     <button onClick={() => handleTest('sms')} disabled={testing === 'sms'} className="btn-secondary h-[42px] whitespace-nowrap">

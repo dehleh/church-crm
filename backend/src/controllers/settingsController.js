@@ -145,23 +145,34 @@ const getMessagingConfig = async (req, res) => {
         fromName: messaging.email.fromName || '',
         smtpHost: messaging.email.smtpHost || '',
         smtpPort: messaging.email.smtpPort || '587',
+        smtpSecure: messaging.email.smtpSecure ?? false,
         smtpUser: messaging.email.smtpUser || '',
         smtpPass: messaging.email.smtpPass ? '••••••••' : '',
         sendgridApiKey: messaging.email.sendgridApiKey ? '••••••••' : '',
+        resendApiKey: messaging.email.resendApiKey ? '••••••••' : '',
         enabled: messaging.email.enabled ?? false,
       };
     } else {
-      masked.email = { provider: 'smtp', fromEmail: '', fromName: '', smtpHost: '', smtpPort: '587', smtpUser: '', smtpPass: '', sendgridApiKey: '', enabled: false };
+      masked.email = { provider: 'smtp', fromEmail: '', fromName: '', smtpHost: '', smtpPort: '587', smtpSecure: false, smtpUser: '', smtpPass: '', sendgridApiKey: '', resendApiKey: '', enabled: false };
     }
     if (messaging.sms) {
       masked.sms = {
+        provider: messaging.sms.provider || (messaging.sms.termiiApiKey ? 'termii' : (messaging.sms.twilioSid ? 'twilio' : (messaging.sms.customWebhookUrl ? 'custom' : 'termii'))),
+        termiiApiKey: messaging.sms.termiiApiKey ? '••••••••' : '',
+        termiiSenderId: messaging.sms.termiiSenderId || '',
+        termiiChannel: messaging.sms.termiiChannel || 'generic',
         twilioSid: messaging.sms.twilioSid ? messaging.sms.twilioSid.substring(0, 8) + '••••••••' : '',
         twilioAuthToken: messaging.sms.twilioAuthToken ? '••••••••' : '',
         twilioPhone: messaging.sms.twilioPhone || '',
+        customWebhookUrl: messaging.sms.customWebhookUrl || '',
+        httpMethod: messaging.sms.httpMethod || 'POST',
+        customHeaders: messaging.sms.customHeaders || '',
+        bodyTemplate: messaging.sms.bodyTemplate || '',
+        senderId: messaging.sms.senderId || '',
         enabled: messaging.sms.enabled ?? false,
       };
     } else {
-      masked.sms = { twilioSid: '', twilioAuthToken: '', twilioPhone: '', enabled: false };
+      masked.sms = { provider: 'termii', termiiApiKey: '', termiiSenderId: '', termiiChannel: 'generic', twilioSid: '', twilioAuthToken: '', twilioPhone: '', customWebhookUrl: '', httpMethod: 'POST', customHeaders: '', bodyTemplate: '', senderId: '', enabled: false };
     }
     if (messaging.whatsapp) {
       masked.whatsapp = {
@@ -172,6 +183,10 @@ const getMessagingConfig = async (req, res) => {
         whatsappNumber: messaging.whatsapp.whatsappNumber || '',
         twilioSid: messaging.whatsapp.twilioSid ? messaging.whatsapp.twilioSid.substring(0, 8) + '••••••••' : '',
         twilioAuthToken: messaging.whatsapp.twilioAuthToken ? '••••••••' : '',
+        customWebhookUrl: messaging.whatsapp.customWebhookUrl || '',
+        httpMethod: messaging.whatsapp.httpMethod || 'POST',
+        customHeaders: messaging.whatsapp.customHeaders || '',
+        bodyTemplate: messaging.whatsapp.bodyTemplate || '',
         enabled: messaging.whatsapp.enabled ?? false,
       };
     } else {
@@ -183,6 +198,10 @@ const getMessagingConfig = async (req, res) => {
         whatsappNumber: '',
         twilioSid: '',
         twilioAuthToken: '',
+        customWebhookUrl: '',
+        httpMethod: 'POST',
+        customHeaders: '',
+        bodyTemplate: '',
         enabled: false,
       };
     }
@@ -211,9 +230,11 @@ const updateMessagingConfig = async (req, res) => {
         fromName: email.fromName ?? prev.fromName,
         smtpHost: email.smtpHost ?? prev.smtpHost,
         smtpPort: email.smtpPort ?? prev.smtpPort,
+        smtpSecure: email.smtpSecure !== undefined ? Boolean(email.smtpSecure) : (prev.smtpSecure ?? false),
         smtpUser: email.smtpUser ?? prev.smtpUser,
         smtpPass: (email.smtpPass && !email.smtpPass.includes('••')) ? email.smtpPass : prev.smtpPass,
         sendgridApiKey: (email.sendgridApiKey && !email.sendgridApiKey.includes('••')) ? email.sendgridApiKey : prev.sendgridApiKey,
+        resendApiKey: (email.resendApiKey && !email.resendApiKey.includes('••')) ? email.resendApiKey : prev.resendApiKey,
         enabled: email.enabled ?? prev.enabled ?? false,
       };
     } else {
@@ -222,9 +243,18 @@ const updateMessagingConfig = async (req, res) => {
     if (sms) {
       const prev = currentMessaging.sms || {};
       newMessaging.sms = {
+        provider: sms.provider || prev.provider || 'termii',
+        termiiApiKey: (sms.termiiApiKey && !sms.termiiApiKey.includes('••')) ? sms.termiiApiKey : prev.termiiApiKey,
+        termiiSenderId: sms.termiiSenderId ?? prev.termiiSenderId,
+        termiiChannel: sms.termiiChannel ?? prev.termiiChannel,
         twilioSid: (sms.twilioSid && !sms.twilioSid.includes('••')) ? sms.twilioSid : prev.twilioSid,
         twilioAuthToken: (sms.twilioAuthToken && !sms.twilioAuthToken.includes('••')) ? sms.twilioAuthToken : prev.twilioAuthToken,
         twilioPhone: sms.twilioPhone ?? prev.twilioPhone,
+        customWebhookUrl: sms.customWebhookUrl ?? prev.customWebhookUrl,
+        httpMethod: sms.httpMethod ?? prev.httpMethod,
+        customHeaders: sms.customHeaders ?? prev.customHeaders,
+        bodyTemplate: sms.bodyTemplate ?? prev.bodyTemplate,
+        senderId: sms.senderId ?? prev.senderId,
         enabled: sms.enabled ?? prev.enabled ?? false,
       };
     } else {
@@ -240,6 +270,10 @@ const updateMessagingConfig = async (req, res) => {
         whatsappNumber: whatsapp.whatsappNumber ?? prev.whatsappNumber,
         twilioSid: (whatsapp.twilioSid && !whatsapp.twilioSid.includes('••')) ? whatsapp.twilioSid : prev.twilioSid,
         twilioAuthToken: (whatsapp.twilioAuthToken && !whatsapp.twilioAuthToken.includes('••')) ? whatsapp.twilioAuthToken : prev.twilioAuthToken,
+        customWebhookUrl: whatsapp.customWebhookUrl ?? prev.customWebhookUrl,
+        httpMethod: whatsapp.httpMethod ?? prev.httpMethod,
+        customHeaders: whatsapp.customHeaders ?? prev.customHeaders,
+        bodyTemplate: whatsapp.bodyTemplate ?? prev.bodyTemplate,
         enabled: whatsapp.enabled ?? prev.enabled ?? false,
       };
     } else {
@@ -264,32 +298,45 @@ const testMessaging = async (req, res) => {
 
   try {
     const { rows } = await query('SELECT settings, name FROM churches WHERE id = $1', [req.churchId]);
-    const churchSettings = rows[0]?.settings?.messaging || {};
+    const churchFullSettings = rows[0]?.settings || {};
+    const churchSettings = {
+      ...churchFullSettings,
+      messaging: churchFullSettings?.messaging || {},
+      email: churchFullSettings?.messaging?.email || {},
+      sms: churchFullSettings?.messaging?.sms || {},
+      whatsapp: churchFullSettings?.messaging?.whatsapp || {},
+    };
     const churchName = rows[0]?.name || 'ChurchOS';
 
     if (channel === 'email') {
-      await sendEmail({
+      const result = await sendEmail({
         to: recipient,
         subject: `Test Email from ${churchName}`,
         html: `<h2>Hello from ${churchName}!</h2><p>This is a test email sent from your ChurchOS messaging settings. If you received this, your email configuration is working correctly.</p><p><em>Sent at ${new Date().toLocaleString()}</em></p>`,
       }, churchSettings);
-      return res.json({ success: true, message: `Test email sent to ${recipient}` });
+      return res.json({ success: true, message: `Test email sent successfully to ${recipient}`, data: result });
     }
 
     if (channel === 'sms') {
-      await sendSMS({
+      const result = await sendSMS({
         to: recipient,
-        body: `Test SMS from ${churchName} (ChurchOS). Your SMS configuration is working! Sent at ${new Date().toLocaleString()}.`,
+        body: `Test SMS from ${churchName} (ChurchOS). Your SMS configuration is active and working! Sent at ${new Date().toLocaleString()}.`,
       }, churchSettings);
-      return res.json({ success: true, message: `Test SMS sent to ${recipient}` });
+      if (result && result.sent === 0 && result.failed > 0) {
+        return res.status(400).json({ success: false, message: `SMS delivery failed via ${result.provider || 'provider'}. Please verify your API key, Sender ID, or account balance.` });
+      }
+      return res.json({ success: true, message: `Test SMS sent successfully to ${recipient}`, data: result });
     }
 
     if (channel === 'whatsapp') {
-      await sendWhatsApp({
+      const result = await sendWhatsApp({
         to: recipient,
-        body: `Test WhatsApp message from ${churchName} (ChurchOS). Your WhatsApp configuration is working! Sent at ${new Date().toLocaleString()}.`,
+        body: `Test WhatsApp message from ${churchName} (ChurchOS). Your WhatsApp configuration is active and working! Sent at ${new Date().toLocaleString()}.`,
       }, churchSettings);
-      return res.json({ success: true, message: `Test WhatsApp sent to ${recipient}` });
+      if (result && result.sent === 0 && result.failed > 0) {
+        return res.status(400).json({ success: false, message: `WhatsApp message failed via ${result.provider || 'provider'}. Please check your access token or recipient number.` });
+      }
+      return res.json({ success: true, message: `Test WhatsApp sent successfully to ${recipient}`, data: result });
     }
 
     return res.status(400).json({ success: false, message: 'Invalid channel. Use email, sms, or whatsapp.' });

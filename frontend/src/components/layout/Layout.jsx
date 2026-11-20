@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { hasRole, getRoleTitle } from '../../utils/rbac';
 import GlobalSearch from '../ui/GlobalSearch';
+import { getAssetUrl } from '../../api/client';
 import clsx from 'clsx';
 
 const NAV = [
@@ -67,6 +68,14 @@ export default function Layout() {
   const notifRef = useRef(null);
   const profileRef = useRef(null);
 
+  // Apply church's custom brand colors & theme dynamically across the app
+  useEffect(() => {
+    const primary = user?.theme?.primaryColor || '#1d4ed8';
+    const accent = user?.theme?.accentColor || '#3b82f6';
+    document.documentElement.style.setProperty('--brand-primary', primary);
+    document.documentElement.style.setProperty('--brand-accent', accent);
+  }, [user?.theme]);
+
   // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e) => {
@@ -98,11 +107,23 @@ export default function Layout() {
       )}>
         {/* Brand */}
         <div className={clsx('flex items-center border-b border-gray-100 flex-shrink-0 cursor-pointer', collapsed ? 'p-3 justify-center' : 'p-4 gap-3')} onClick={() => navigate('/dashboard')}>
-          <img src="/logo.png" alt="TMM" className="w-9 h-9 object-contain flex-shrink-0" />
+          {user?.churchLogoUrl ? (
+            <img
+              src={getAssetUrl(user.churchLogoUrl)}
+              alt={user.churchName || 'Church Logo'}
+              className="w-9 h-9 object-contain rounded-lg flex-shrink-0 bg-white shadow-xs border border-gray-100 p-0.5"
+            />
+          ) : (
+            <img src="/logo.png" alt="ChurchOS" className="w-9 h-9 object-contain flex-shrink-0" />
+          )}
           {!collapsed && (
-            <div>
-              <div className="font-display font-bold text-gray-900 text-base leading-tight">ChurchOS</div>
-              <div className="text-[10px] text-gray-400 font-body leading-tight truncate max-w-[120px]">{user?.churchName || 'The Mobile Missionaries'}</div>
+            <div className="min-w-0 flex-1">
+              <div className="font-display font-bold text-gray-900 text-base leading-tight truncate">
+                {user?.churchName || 'ChurchOS'}
+              </div>
+              <div className="text-[10px] text-gray-400 font-body leading-tight truncate max-w-[140px]">
+                {user?.churchTagline || 'Operating System'}
+              </div>
             </div>
           )}
         </div>

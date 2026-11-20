@@ -1,5 +1,7 @@
 const logger = require('../config/logger');
 const https = require('https');
+const http = require('http');
+const url = require('url');
 
 let twilioClient = null;
 
@@ -21,7 +23,6 @@ function normalizePhoneNumber(raw, defaultCountryCode = '+234') {
   if (cleaned.startsWith('0')) {
     return `${defaultCountryCode}${cleaned.slice(1)}`;
   }
-  // If only digits without leading 0 or +, prepend default country code
   return `${defaultCountryCode}${cleaned}`;
 }
 
@@ -48,11 +49,143 @@ function getTwilioClient(cfg) {
 }
 
 /**
+ * Send SMS via Termii API (Leading African provider for church communications).
+ */
+async function sendTermiiSMS({ to, body, from, apiKey, channel = 'generic' }) {
+  const cleanTo = to.replace(/[^0-9]/g, '');
+  const payload = JSON.stringify({
+    to: cleanTo,
+    from: from || 'ChurchOS',
+    sms: body,
+    type: 'plain',
+    channel: channel || 'generic',
+    api_key: apiKey,
+  });
+
+  return new Promise((resolve) => {
+    const req = https.request(
+      'https://api.ng.termii.com/api/sms/send',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+        timeout: 12000,
+      },
+      (res) => {
+        let resData = '';
+        res.on('data', d => { resData += d; });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(resData);
+            if (res.statusCode >= 200 && res.statusCode < 300 && (parsed.message === 'Successfully Sent' || parsed.code === 'ok')) {
+              resolve({ success: true, messageId: parsed.message_id || 'termii-sent' });
+            } else {
+              logger.warn('Termii SMS API warning', { statusCode: res.statusCode, response: resData });
+              resolve({ success: false, error: parsed.message || resData });
+            }
+          } catch {
+            resolve({ success: res.statusCode === 200, error: resData });
+          }
+        });
+      }
+    );
+    req.on('timeout', () => { req.destroy(new Error('Termii request timed out after 12000ms')); });
+    req.on('error', (e) => {
+      logger.error('Termii SMS request error', { error: e.message });
+      resolve({ success: false, error: e.message });
+    });
+    req.write(payload);
+    req.end();
+  });
+}
+
+/**
+ * Send SMS or WhatsApp via Custom HTTP REST / Webhook Gateway.
+ * Supports any global or local SMS vendor by interpolating {to}, {body}, {sender}, and {apiKey}.
+ */
+async function sendCustomGateway({ to, body }, cfg) {
+  const targetUrl = cfg.customWebhookUrl || cfg.webhookUrl;
+  if (!targetUrl) return { success: false, error: 'Custom webhook URL not provided' };
+
+  const cleanTo = to.replace(/[^0-9]/g, '');
+  const sender = cfg.senderId || cfg.from || 'ChurchOS';
+  const apiKey = cfg.apiKey || '';
+
+  const method = (cfg.httpMethod || 'POST').toUpperCase();
+  const parsedUrl = new url.URL(targetUrl);
+  const clientLib = parsedUrl.protocol === 'https:' ? https : http;
+
+  let headers = {
+    'Content-Type': 'application/json',
+    'User-Agent': 'ChurchOS-Messenger/1.0',
+  };
+
+  if (cfg.customHeaders) {
+    try {
+      const customH = typeof cfg.customHeaders === 'string' ? JSON.parse(cfg.customHeaders) : cfg.customHeaders;
+      headers = { ...headers, ...customH };
+    } catch {}
+  }
+
+  let postBody = '';
+  if (method === 'POST') {
+    if (cfg.bodyTemplate) {
+      let rawTpl = typeof cfg.bodyTemplate === 'string' ? cfg.bodyTemplate : JSON.stringify(cfg.bodyTemplate);
+      rawTpl = rawTpl
+        .replace(/\{to\}/g, cleanTo)
+        .replace(/\{body\}/g, JSON.stringify(body).slice(1, -1))
+        .replace(/\{message\}/g, JSON.stringify(body).slice(1, -1))
+        .replace(/\{sender\}/g, sender)
+        .replace(/\{apiKey\}/g, apiKey);
+      postBody = rawTpl;
+    } else {
+      postBody = JSON.stringify({
+        to: cleanTo,
+        message: body,
+        body,
+        from: sender,
+        sender,
+        apiKey,
+      });
+    }
+    headers['Content-Length'] = Buffer.byteLength(postBody);
+  }
+
+  return new Promise((resolve) => {
+    const req = clientLib.request(
+      parsedUrl,
+      {
+        method,
+        headers,
+        timeout: 12000,
+      },
+      (res) => {
+        let resData = '';
+        res.on('data', d => { resData += d; });
+        res.on('end', () => {
+          const ok = res.statusCode >= 200 && res.statusCode < 300;
+          resolve({ success: ok, response: resData, error: ok ? null : resData });
+        });
+      }
+    );
+    req.on('timeout', () => { req.destroy(new Error('Custom gateway request timed out after 12000ms')); });
+    req.on('error', (e) => {
+      logger.error('Custom gateway request error', { error: e.message });
+      resolve({ success: false, error: e.message });
+    });
+    if (method === 'POST') req.write(postBody);
+    req.end();
+  });
+}
+
+/**
  * Send WhatsApp message using Meta WhatsApp Cloud API directly.
  */
 async function sendMetaWhatsAppMessage({ to, body, mediaUrl }, cfg) {
-  const token = cfg.whatsappCloudToken || process.env.WHATSAPP_CLOUD_TOKEN;
-  const phoneId = cfg.whatsappPhoneNumberId || process.env.WHATSAPP_PHONE_ID;
+  const token = cfg.metaAccessToken || cfg.whatsappCloudToken || process.env.WHATSAPP_CLOUD_TOKEN;
+  const phoneId = cfg.metaPhoneNumberId || cfg.whatsappPhoneNumberId || process.env.WHATSAPP_PHONE_ID;
   if (!token || !phoneId) return false;
 
   const formattedTo = to.replace(/[^0-9]/g, '');
@@ -110,15 +243,54 @@ async function sendMetaWhatsAppMessage({ to, body, mediaUrl }, cfg) {
 }
 
 /**
- * Send an SMS message.
+ * Send an SMS message through Termii, Twilio, or Custom Gateway.
  * @param {{ to: string | string[], body: string }} options
  * @param {object} [churchSettings] - messaging config from church settings JSONB
  */
 async function sendSMS({ to, body }, churchSettings) {
-  const cfg = churchSettings?.sms || {};
-  const client = getTwilioClient(cfg.twilioSid ? cfg : null);
+  const cfg = churchSettings?.messaging?.sms || churchSettings?.sms || {};
   const rawNumbers = Array.isArray(to) ? to : [to];
   const numbers = rawNumbers.map(n => normalizePhoneNumber(n)).filter(Boolean);
+
+  const provider = cfg.provider || (cfg.termiiApiKey ? 'termii' : (cfg.twilioSid ? 'twilio' : (cfg.customWebhookUrl ? 'custom' : 'twilio')));
+
+  // ── 1. Termii SMS (Africa & Nigeria Church Standard) ──
+  if (provider === 'termii' || cfg.termiiApiKey) {
+    const apiKey = cfg.termiiApiKey || process.env.TERMII_API_KEY;
+    const sender = cfg.senderId || cfg.termiiSenderId || 'ChurchOS';
+    const channel = cfg.termiiChannel || 'generic';
+
+    if (!apiKey) {
+      logger.info('Termii SMS (dry run — no API key)', { recipientsCount: numbers.length, body: body.substring(0, 80) });
+      return { sent: numbers.length, failed: 0, provider: 'termii', sid: 'dry-run' };
+    }
+
+    const results = await Promise.allSettled(
+      numbers.map(num => sendTermiiSMS({ to: num, body, from: sender, apiKey, channel }))
+    );
+    const sent = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+    const failed = numbers.length - sent;
+    logger.info('Termii SMS batch dispatched', { sent, failed, total: numbers.length });
+    return { sent, failed, provider: 'termii' };
+  }
+
+  // ── 2. Custom Webhook / HTTP REST Gateway (Any Global SMS Vendor) ──
+  if (provider === 'custom' || cfg.customWebhookUrl) {
+    if (!cfg.customWebhookUrl) {
+      logger.info('Custom SMS Gateway (dry run — no URL provided)', { recipientsCount: numbers.length });
+      return { sent: numbers.length, failed: 0, provider: 'custom', sid: 'dry-run' };
+    }
+    const results = await Promise.allSettled(
+      numbers.map(num => sendCustomGateway({ to: num, body }, cfg))
+    );
+    const sent = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+    const failed = numbers.length - sent;
+    logger.info('Custom Gateway SMS batch dispatched', { sent, failed, total: numbers.length });
+    return { sent, failed, provider: 'custom' };
+  }
+
+  // ── 3. Twilio SMS (Global Standard) ──
+  const client = getTwilioClient(cfg.twilioSid ? cfg : null);
   const fromPhone = cfg.twilioPhone || process.env.TWILIO_PHONE;
 
   if (!client || !fromPhone) {
@@ -138,27 +310,29 @@ async function sendSMS({ to, body }, churchSettings) {
 
   const sent = results.filter((r) => r.status === 'fulfilled').length;
   const failed = results.filter((r) => r.status === 'rejected').length;
-  logger.info('SMS batch sent', { sent, failed, total: numbers.length });
+  logger.info('Twilio SMS batch sent', { sent, failed, total: numbers.length });
 
-  return { sent, failed };
+  return { sent, failed, provider: 'twilio' };
 }
 
 /**
  * Send a WhatsApp broadcast or reminder.
- * Supports both Meta WhatsApp Cloud API and Twilio WhatsApp API with automatic phone normalization.
+ * Supports Meta WhatsApp Cloud API, Twilio WhatsApp, Termii WhatsApp, or Custom Gateway.
  * @param {{ to: string | string[], body: string, mediaUrl?: string }} options
  * @param {object} [churchSettings] - messaging config from church settings JSONB
  */
 async function sendWhatsApp({ to, body, mediaUrl }, churchSettings) {
-  const cfg = churchSettings?.whatsapp || churchSettings?.sms || {};
+  const cfg = churchSettings?.messaging?.whatsapp || churchSettings?.whatsapp || churchSettings?.messaging?.sms || churchSettings?.sms || {};
   const rawNumbers = Array.isArray(to) ? to : [to];
   const numbers = rawNumbers.map(n => normalizePhoneNumber(n)).filter(Boolean);
 
-  // Check for Meta WhatsApp Cloud API first
-  const hasMeta = (cfg.whatsappCloudToken || process.env.WHATSAPP_CLOUD_TOKEN) &&
-                  (cfg.whatsappPhoneNumberId || process.env.WHATSAPP_PHONE_ID);
+  const provider = cfg.provider || (cfg.metaAccessToken || cfg.whatsappCloudToken ? 'meta' : (cfg.customWebhookUrl ? 'custom' : 'twilio'));
 
-  if (hasMeta) {
+  // ── 1. Meta WhatsApp Cloud API ──
+  const hasMeta = (cfg.metaAccessToken || cfg.whatsappCloudToken || process.env.WHATSAPP_CLOUD_TOKEN) &&
+                  (cfg.metaPhoneNumberId || cfg.whatsappPhoneNumberId || process.env.WHATSAPP_PHONE_ID);
+
+  if (hasMeta && (provider === 'meta' || !cfg.provider)) {
     const results = await Promise.allSettled(
       numbers.map(num => sendMetaWhatsAppMessage({ to: num, body, mediaUrl }, cfg))
     );
@@ -168,7 +342,22 @@ async function sendWhatsApp({ to, body, mediaUrl }, churchSettings) {
     return { sent, failed, provider: 'meta_cloud' };
   }
 
-  // Twilio WhatsApp fallback
+  // ── 2. Custom WhatsApp Gateway (UltraMsg, GreenAPI, Waboxapp, etc.) ──
+  if (provider === 'custom' || cfg.customWebhookUrl) {
+    if (!cfg.customWebhookUrl) {
+      logger.info('Custom WhatsApp Gateway (dry run — no URL)', { recipientsCount: numbers.length });
+      return { sent: numbers.length, failed: 0, provider: 'custom', sid: 'dry-run' };
+    }
+    const results = await Promise.allSettled(
+      numbers.map(num => sendCustomGateway({ to: num, body }, cfg))
+    );
+    const sent = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+    const failed = numbers.length - sent;
+    logger.info('Custom WhatsApp batch sent', { sent, failed, total: numbers.length });
+    return { sent, failed, provider: 'custom' };
+  }
+
+  // ── 3. Twilio WhatsApp fallback ──
   const client = getTwilioClient(cfg.twilioSid ? cfg : null);
   const fromWA = cfg.whatsappNumber || cfg.twilioPhone || process.env.TWILIO_WHATSAPP || process.env.TWILIO_PHONE;
 
@@ -200,4 +389,10 @@ async function sendWhatsApp({ to, body, mediaUrl }, churchSettings) {
   return { sent, failed, provider: 'twilio' };
 }
 
-module.exports = { sendSMS, sendWhatsApp, normalizePhoneNumber };
+module.exports = {
+  sendSMS,
+  sendWhatsApp,
+  normalizePhoneNumber,
+  sendTermiiSMS,
+  sendCustomGateway,
+};

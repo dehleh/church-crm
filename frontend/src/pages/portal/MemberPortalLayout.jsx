@@ -6,6 +6,7 @@ import {
   Cake, Film, Bell
 } from 'lucide-react';
 import { memberPortalAPI } from '../../api/memberClient';
+import { getAssetUrl } from '../../api/client';
 
 const NAV = [
   { to: 'home',          label: 'Home',                 icon: Home },
@@ -71,6 +72,13 @@ export default function MemberPortalLayout() {
           background: `linear-gradient(135deg, ${primaryColor} 0%, #090d16 100%)`
         }}
       >
+        {me.churchLogoUrl && (
+          <img
+            src={getAssetUrl(me.churchLogoUrl)}
+            alt={me.churchName}
+            className="w-10 h-10 object-contain rounded-xl bg-white/95 p-1 mb-2.5 shadow-sm border border-white/20"
+          />
+        )}
         <div className="text-[10px] uppercase tracking-widest text-brand-200 font-semibold opacity-90">Member Portal</div>
         <div className="font-bold mt-1 truncate">{me.churchName}</div>
         <div className="flex items-center gap-3 mt-4">

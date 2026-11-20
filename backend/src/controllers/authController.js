@@ -173,6 +173,7 @@ const login = async (req, res) => {
     const { rows } = await query(
       `SELECT u.*,
          c.name as church_name, c.slug as church_slug, c.is_active as church_active, c.currency as church_currency,
+         c.logo_url as church_logo_url, c.banner_url as church_banner_url, c.tagline as church_tagline, c.settings as church_settings,
          c.multi_branch_enabled, c.is_whitelisted, c.subscription_plan, c.subscription_expires_at,
          c.branch_limit, c.member_limit
        FROM users u LEFT JOIN churches c ON c.id = u.church_id
@@ -261,6 +262,10 @@ const login = async (req, res) => {
           churchId: user.church_id,
           churchName: user.church_name,
           churchSlug: user.church_slug,
+          churchLogoUrl: user.church_logo_url || null,
+          churchBannerUrl: user.church_banner_url || null,
+          churchTagline: user.church_tagline || '',
+          theme: user.church_settings?.theme || null,
           currency: user.church_currency || 'NGN',
           avatarUrl: user.avatar_url,
           branchId: user.branch_id,
@@ -344,6 +349,10 @@ const getMe = async (req, res) => {
     churchId: u.church_id,
     churchName: u.church_name,
     churchSlug: u.church_slug,
+    churchLogoUrl: u.church_logo_url || null,
+    churchBannerUrl: u.church_banner_url || null,
+    churchTagline: u.church_tagline || '',
+    theme: u.church_settings?.theme || null,
     currency: u.church_currency || 'NGN',
     branchId: u.branch_id,
     avatarUrl: u.avatar_url,
