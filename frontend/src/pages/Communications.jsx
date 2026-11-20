@@ -18,16 +18,23 @@ const CHANNEL_BADGE = { email: 'badge-blue', sms: 'badge-green', whatsapp: 'badg
 const STATUS_BADGE = { draft: 'badge-gray', scheduled: 'badge-yellow', sent: 'badge-green', failed: 'badge-red' };
 
 const AUDIENCE_OPTIONS = [
-  { value: 'all',            label: 'All active members' },
-  { value: 'first_timers',   label: 'First timers' },
-  { value: 'male_members',   label: 'All male members' },
-  { value: 'female_members', label: 'All female members' },
-  { value: 'parents',        label: 'Parents (married or with children)' },
-  { value: 'department',     label: 'Members of a department' },
-  { value: 'group',          label: 'Members of a group' },
-  { value: 'branch',         label: 'Members of a branch' },
-  { value: 'birthday',       label: 'Birthday on a specific date' },
-  { value: 'anniversary',    label: 'Wedding anniversary on a specific date' },
+  { value: 'all',               label: 'All Active Members' },
+  { value: 'all_leaders',       label: '🌟 All Leaders (Pastors, Directors, HODs, Cell & Group Leaders)' },
+  { value: 'hods',              label: '👑 Heads of Department (HODs) & Unit Heads' },
+  { value: 'directors',         label: '🏛️ Church Directors' },
+  { value: 'pastors_ministers', label: '✝️ Pastors & Ministers' },
+  { value: 'cell_leaders',      label: '🏡 House Fellowship & Cell Leaders' },
+  { value: 'workers',           label: '🤝 Church Workforce / Active Servants' },
+  { value: 'designation',       label: '🎯 Specific Leadership Designation…' },
+  { value: 'department',        label: '🏢 Members of a Department' },
+  { value: 'group',             label: '👥 Members of a Group' },
+  { value: 'branch',            label: '📍 Members of a Branch' },
+  { value: 'first_timers',      label: '🌱 First Timers' },
+  { value: 'male_members',      label: '👨 All Male Members' },
+  { value: 'female_members',    label: '👩 All Female Members' },
+  { value: 'parents',           label: '👪 Parents (Married or with Children)' },
+  { value: 'birthday',          label: '🎂 Birthday on a Specific Date' },
+  { value: 'anniversary',       label: '💍 Wedding Anniversary on a Specific Date' },
 ];
 
 const AUDIENCE_LABEL = Object.fromEntries(AUDIENCE_OPTIONS.map(o => [o.value, o.label]));
@@ -148,6 +155,7 @@ export default function Communications() {
     if (audience === 'department' && !filter.departmentId) { setAudiencePreview(null); return; }
     if (audience === 'group' && !filter.groupId) { setAudiencePreview(null); return; }
     if (audience === 'branch' && !filter.branchId) { setAudiencePreview(null); return; }
+    if (audience === 'designation' && !filter.designation) { setAudiencePreview(null); return; }
     let cancelled = false;
     setPreviewLoading(true);
     communicationsAPI.previewAudience({ audience, audienceFilter: filter })
@@ -752,8 +760,29 @@ export default function Communications() {
           </div>
 
           {/* Audience filter selectors */}
-          {form.audience === 'department' && (
+          {form.audience === 'designation' && (
             <div>
+              <label className="label">Target Designation *</label>
+              <select
+                className="input"
+                value={form.audienceFilter?.designation || ''}
+                onChange={e => setForm(f => ({ ...f, audienceFilter: { ...(f.audienceFilter || {}), designation: e.target.value } }))}
+              >
+                <option value="">Select leadership designation</option>
+                <option value="hod">Head of Department (HOD) / Unit Head</option>
+                <option value="director">Director</option>
+                <option value="pastor">Pastor</option>
+                <option value="minister">Minister</option>
+                <option value="elder">Elder / Presbyter</option>
+                <option value="deacon">Deacon / Deaconess</option>
+                <option value="leader">Leader / Coordinator</option>
+                <option value="worker">Church Worker</option>
+              </select>
+            </div>
+          )}
+
+          {form.audience === 'department' && (
+            <div className="space-y-2">
               <label className="label">Department *</label>
               <select
                 className="input"
@@ -763,6 +792,15 @@ export default function Communications() {
                 <option value="">Select department</option>
                 {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-700 pt-1">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.audienceFilter?.leadersOnly)}
+                  onChange={e => setForm(f => ({ ...f, audienceFilter: { ...(f.audienceFilter || {}), leadersOnly: e.target.checked } }))}
+                  className="rounded text-brand-600 focus:ring-brand-500"
+                />
+                <span>Target only HOD &amp; unit leaders of this department</span>
+              </label>
             </div>
           )}
           {form.audience === 'group' && (

@@ -51,21 +51,21 @@ const createCommunication = async (req, res) => {
   }
 };
 
-// Resolve communication audience -> [{ email, phone, first_name, last_name }]
+// Resolve communication audience -> [{ id, email, phone, first_name, last_name }]
 const resolveAudience = async (churchId, audience, filter = {}) => {
   const f = filter || {};
   const today = new Date().toISOString().slice(5, 10); // MM-DD
   switch (audience) {
     case 'first_timers': {
       const r = await query(
-        `SELECT email, phone, first_name, last_name FROM first_timers WHERE church_id=$1`,
+        `SELECT id, email, phone, first_name, last_name FROM first_timers WHERE church_id=$1`,
         [churchId]
       );
       return r.rows;
     }
     case 'male_members': {
       const r = await query(
-        `SELECT email, phone, first_name, last_name FROM members
+        `SELECT id, email, phone, first_name, last_name FROM members
          WHERE church_id=$1 AND membership_status='active' AND gender='male'`,
         [churchId]
       );
@@ -73,7 +73,7 @@ const resolveAudience = async (churchId, audience, filter = {}) => {
     }
     case 'female_members': {
       const r = await query(
-        `SELECT email, phone, first_name, last_name FROM members
+        `SELECT id, email, phone, first_name, last_name FROM members
          WHERE church_id=$1 AND membership_status='active' AND gender='female'`,
         [churchId]
       );
@@ -81,17 +81,164 @@ const resolveAudience = async (churchId, audience, filter = {}) => {
     }
     case 'parents': {
       const r = await query(
-        `SELECT email, phone, first_name, last_name FROM members
+        `SELECT id, email, phone, first_name, last_name FROM members
          WHERE church_id=$1 AND membership_status='active'
            AND (COALESCE(num_children,0) > 0 OR marital_status='married')`,
         [churchId]
       );
       return r.rows;
     }
+    // ── Targeted Leadership & Category Audiences ───────────────────
+    case 'hods': {
+      // Heads of Department / Unit Heads
+      const r = await query(
+        `SELECT DISTINCT m.id, m.email, m.phone, m.first_name, m.last_name
+         FROM members m
+         LEFT JOIN departments d ON d.head_member_id = m.id AND d.is_active = true
+         LEFT JOIN member_departments md ON md.member_id = m.id AND md.is_active = true AND md.role IN ('leader', 'coordinator', 'head')
+         LEFT JOIN users u ON u.member_id = m.id
+         WHERE m.church_id = $1 AND m.membership_status = 'active'
+           AND (
+             d.id IS NOT NULL
+             OR md.id IS NOT NULL
+             OR LOWER(COALESCE(m.designation, '')) IN ('hod', 'unit_head')
+             OR LOWER(COALESCE(u.role, '')) = 'hod'
+             OR m.leadership_title ILIKE '%hod%'
+             OR m.leadership_title ILIKE '%unit head%'
+             OR m.worker_role ILIKE '%hod%'
+             OR m.worker_role ILIKE '%unit head%'
+           )`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'directors': {
+      // Church Directors
+      const r = await query(
+        `SELECT DISTINCT m.id, m.email, m.phone, m.first_name, m.last_name
+         FROM members m
+         LEFT JOIN users u ON u.member_id = m.id
+         WHERE m.church_id = $1 AND m.membership_status = 'active'
+           AND (
+             LOWER(COALESCE(m.designation, '')) = 'director'
+             OR LOWER(COALESCE(u.role, '')) = 'director'
+             OR m.leadership_title ILIKE '%director%'
+           )`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'pastors_ministers': {
+      // Pastors and Ministers
+      const r = await query(
+        `SELECT DISTINCT m.id, m.email, m.phone, m.first_name, m.last_name
+         FROM members m
+         LEFT JOIN users u ON u.member_id = m.id
+         WHERE m.church_id = $1 AND m.membership_status = 'active'
+           AND (
+             LOWER(COALESCE(m.designation, '')) IN ('pastor', 'minister')
+             OR LOWER(COALESCE(u.role, '')) IN ('head_pastor', 'pastor')
+             OR m.leadership_title ILIKE '%pastor%'
+             OR m.leadership_title ILIKE '%minister%'
+             OR m.worker_role ILIKE '%pastor%'
+           )`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'all_leaders': {
+      // All Leaders (Pastors, Directors, HODs, Cell & Group Leaders)
+      const r = await query(
+        `SELECT DISTINCT m.id, m.email, m.phone, m.first_name, m.last_name
+         FROM members m
+         LEFT JOIN departments d ON d.head_member_id = m.id AND d.is_active = true
+         LEFT JOIN member_departments md ON md.member_id = m.id AND md.is_active = true AND md.role IN ('leader', 'coordinator', 'head', 'assistant')
+         LEFT JOIN member_groups mg ON mg.member_id = m.id AND mg.role IN ('leader', 'coordinator')
+         LEFT JOIN fellowship_cells fc ON (fc.leader_member_id = m.id OR fc.assistant_leader_member_id = m.id) AND fc.is_active = true
+         LEFT JOIN users u ON u.member_id = m.id
+         WHERE m.church_id = $1 AND m.membership_status = 'active'
+           AND (
+             d.id IS NOT NULL
+             OR md.id IS NOT NULL
+             OR mg.id IS NOT NULL
+             OR fc.id IS NOT NULL
+             OR LOWER(COALESCE(m.designation, '')) IN ('pastor', 'director', 'hod', 'minister', 'elder', 'deacon', 'leader', 'unit_head')
+             OR LOWER(COALESCE(u.role, '')) IN ('head_pastor', 'pastor', 'director', 'hod')
+             OR m.leadership_title IS NOT NULL
+             OR m.worker_role ILIKE '%leader%'
+             OR m.worker_role ILIKE '%head%'
+           )`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'cell_leaders': {
+      // House Fellowship & Cell Leaders
+      const r = await query(
+        `SELECT DISTINCT m.id, m.email, m.phone, m.first_name, m.last_name
+         FROM members m
+         JOIN fellowship_cells fc ON (fc.leader_member_id = m.id OR fc.assistant_leader_member_id = m.id) AND fc.is_active = true
+         WHERE m.church_id = $1 AND m.membership_status = 'active'`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'workers': {
+      // Church Workforce / Active Servants
+      const r = await query(
+        `SELECT DISTINCT m.id, m.email, m.phone, m.first_name, m.last_name
+         FROM members m
+         LEFT JOIN member_departments md ON md.member_id = m.id AND md.is_active = true
+         WHERE m.church_id = $1 AND m.membership_status = 'active'
+           AND (
+             m.is_worker = true
+             OR LOWER(COALESCE(m.designation, '')) IN ('worker', 'hod', 'pastor', 'minister', 'director', 'elder')
+             OR md.id IS NOT NULL
+             OR m.worker_role IS NOT NULL
+           )`,
+        [churchId]
+      );
+      return r.rows;
+    }
+    case 'designation': {
+      // By specific designation passed in filter
+      if (!f.designation) return [];
+      const des = String(f.designation).toLowerCase().trim();
+      const r = await query(
+        `SELECT DISTINCT m.id, m.email, m.phone, m.first_name, m.last_name
+         FROM members m
+         LEFT JOIN users u ON u.member_id = m.id
+         WHERE m.church_id = $1 AND m.membership_status = 'active'
+           AND (
+             LOWER(COALESCE(m.designation, '')) = $2
+             OR LOWER(COALESCE(u.role, '')) = $2
+             OR m.leadership_title ILIKE '%' || $2 || '%'
+           )`,
+        [churchId, des]
+      );
+      return r.rows;
+    }
     case 'department': {
       if (!f.departmentId) return [];
+      if (f.leadersOnly) {
+        // Only HOD and leaders of this specific department
+        const r = await query(
+          `SELECT DISTINCT m.id, m.email, m.phone, m.first_name, m.last_name
+           FROM members m
+           JOIN member_departments md ON md.member_id = m.id AND md.is_active = true
+           LEFT JOIN departments d ON d.id = md.department_id
+           WHERE m.church_id = $1 AND m.membership_status = 'active' AND md.department_id = $2
+             AND (
+               d.head_member_id = m.id
+               OR md.role IN ('leader', 'coordinator', 'head', 'assistant')
+               OR LOWER(COALESCE(m.designation, '')) = 'hod'
+             )`,
+          [churchId, f.departmentId]
+        );
+        return r.rows;
+      }
       const r = await query(
-        `SELECT m.email, m.phone, m.first_name, m.last_name
+        `SELECT m.id, m.email, m.phone, m.first_name, m.last_name
          FROM members m
          JOIN member_departments md ON md.member_id=m.id AND md.is_active=true
          WHERE m.church_id=$1 AND m.membership_status='active' AND md.department_id=$2`,
@@ -102,7 +249,7 @@ const resolveAudience = async (churchId, audience, filter = {}) => {
     case 'group': {
       if (!f.groupId) return [];
       const r = await query(
-        `SELECT m.email, m.phone, m.first_name, m.last_name
+        `SELECT m.id, m.email, m.phone, m.first_name, m.last_name
          FROM members m
          JOIN member_groups mg ON mg.member_id=m.id
          WHERE m.church_id=$1 AND m.membership_status='active' AND mg.group_id=$2`,
@@ -113,7 +260,7 @@ const resolveAudience = async (churchId, audience, filter = {}) => {
     case 'branch': {
       if (!f.branchId) return [];
       const r = await query(
-        `SELECT email, phone, first_name, last_name FROM members
+        `SELECT id, email, phone, first_name, last_name FROM members
          WHERE church_id=$1 AND membership_status='active' AND branch_id=$2`,
         [churchId, f.branchId]
       );
@@ -122,7 +269,7 @@ const resolveAudience = async (churchId, audience, filter = {}) => {
     case 'birthday': {
       const md = (f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date)) ? f.date.slice(5, 10) : today;
       const r = await query(
-        `SELECT email, phone, first_name, last_name FROM members
+        `SELECT id, email, phone, first_name, last_name FROM members
          WHERE church_id=$1 AND membership_status='active'
            AND date_of_birth IS NOT NULL
            AND to_char(date_of_birth, 'MM-DD') = $2`,
@@ -133,7 +280,7 @@ const resolveAudience = async (churchId, audience, filter = {}) => {
     case 'anniversary': {
       const md = (f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date)) ? f.date.slice(5, 10) : today;
       const r = await query(
-        `SELECT email, phone, first_name, last_name FROM members
+        `SELECT id, email, phone, first_name, last_name FROM members
          WHERE church_id=$1 AND membership_status='active'
            AND wedding_anniversary_date IS NOT NULL
            AND to_char(wedding_anniversary_date, 'MM-DD') = $2`,
@@ -145,7 +292,7 @@ const resolveAudience = async (churchId, audience, filter = {}) => {
     case 'members':
     default: {
       const r = await query(
-        `SELECT email, phone, first_name, last_name FROM members
+        `SELECT id, email, phone, first_name, last_name FROM members
          WHERE church_id=$1 AND membership_status='active'`,
         [churchId]
       );
@@ -194,6 +341,19 @@ const sendCommunication = async (req, res) => {
       } else if (c.channel === 'sms') {
         const phones = recipients.map((r) => r.phone).filter(Boolean);
         if (phones.length) await sendSMS({ to: phones, body: `${c.title}\n\n${c.body}` }, churchSettings);
+      } else if (c.channel === 'in_app' || c.channel === 'push') {
+        const pushNotificationService = require('../services/pushNotificationService');
+        for (const r of recipients) {
+          if (r.id) {
+            try {
+              await pushNotificationService.sendPushToMember(r.id, {
+                title: c.title,
+                body: c.body,
+                data: { type: 'communication', communicationId: c.id }
+              });
+            } catch {}
+          }
+        }
       }
     } catch (deliveryErr) {
       logger.error('Communication delivery error', { id, channel: c.channel, error: deliveryErr.message });

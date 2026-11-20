@@ -61,7 +61,11 @@ router.post('/', authorize('admin', 'pastor', 'director', 'hod'), [
   body('title').notEmpty().trim().escape(),
   body('body').notEmpty(),
   body('channel').notEmpty().isIn(['email', 'sms', 'whatsapp', 'push', 'in_app']),
-  body('audience').optional().isIn(['all', 'members', 'first_timers', 'male_members', 'female_members', 'parents', 'department', 'group', 'branch', 'birthday', 'anniversary', 'custom']),
+  body('audience').optional().isIn([
+    'all', 'members', 'first_timers', 'male_members', 'female_members', 'parents',
+    'department', 'group', 'branch', 'birthday', 'anniversary', 'custom',
+    'hods', 'directors', 'pastors_ministers', 'all_leaders', 'workers', 'cell_leaders', 'designation'
+  ]),
 ], handleValidationErrors, c.createCommunication);
 
 // Preview audience size before sending

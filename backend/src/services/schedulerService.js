@@ -69,6 +69,18 @@ async function processScheduledCommunications() {
           if (phones.length) {
             await sendSMS({ to: phones, body: `${comm.title}\n\n${comm.body}` }, churchSettings);
           }
+        } else if (comm.channel === 'in_app' || comm.channel === 'push') {
+          for (const r of recipients) {
+            if (r.id) {
+              try {
+                await pushNotificationService.sendPushToMember(r.id, {
+                  title: comm.title,
+                  body: comm.body,
+                  data: { type: 'broadcast', communicationId: comm.id }
+                });
+              } catch {}
+            }
+          }
         }
 
         await query(
