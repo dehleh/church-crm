@@ -172,6 +172,11 @@ export const reportsAPI = {
   finance: (params) => api.get('/reports/finance', { params }),
   attendance: (params) => api.get('/reports/attendance', { params }),
   firstTimers: (params) => api.get('/reports/first-timers', { params }),
+  friendshipUnit: (params) => api.get('/reports/friendship-unit', { params }),
+  hangoutAssimilation: (params) => api.get('/reports/hangout-assimilation', { params }),
+  financeExecutive: (params) => api.get('/reports/finance-executive', { params }),
+  budgetPerformance: (params) => api.get('/reports/budget-performance', { params }),
+  procurementAudit: (params) => api.get('/reports/procurement-audit', { params }),
 };
 
 export const budgetsAPI = {

@@ -27,12 +27,22 @@ const createFirstTimerRecord = async ({ churchId, data }) => {
     howDidYouHear, visitDate, serviceAttended, prayerRequest, branchId,
     wantsToJoinChurch, wants_to_join_church, decision,
     photoUrl, photo_url, profilePhotoUrl, profile_photo_url,
+    serviceAspectEnjoyed, service_aspect_enjoyed,
+    bornAgainStatus, born_again_status,
+    attendedHangout, attended_hangout,
+    doneKic, done_kic,
+    tribeName, tribe_name
   } = data;
 
   const safeBranchId = await ensureBranchBelongsToChurch(churchId, branchId || null);
   const finalWantsToJoin = Boolean(wantsToJoinChurch || wants_to_join_church || decision === 'join_church');
   const finalDecision = decision || (finalWantsToJoin ? 'join_church' : 'considering');
   const finalPhotoUrl = photoUrl || photo_url || profilePhotoUrl || profile_photo_url || null;
+  const finalServiceAspect = serviceAspectEnjoyed || service_aspect_enjoyed || 'The Message';
+  const finalBornAgain = bornAgainStatus || born_again_status || 'Yes';
+  const finalAttendedHangout = Boolean(attendedHangout || attended_hangout);
+  const finalDoneKic = Boolean(doneKic || done_kic);
+  const finalTribeName = tribeName || tribe_name || null;
 
   // 1. Auto-assign to a volunteer in the Friendship Team / Follow-up Ministry
   let assignedUserId = null;
@@ -85,14 +95,16 @@ const createFirstTimerRecord = async ({ churchId, data }) => {
       id, church_id, branch_id, first_name, last_name, email, phone, address,
       gender, date_of_birth, how_did_you_hear, visit_date, service_attended, prayer_request,
       wants_to_join_church, decision, photo_url, profile_photo_url,
+      service_aspect_enjoyed, born_again_status, attended_hangout, done_kic, tribe_name,
       follow_up_assigned_to, assigned_member_id, assigned_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20, CASE WHEN $19 IS NOT NULL OR $20 IS NOT NULL THEN NOW() ELSE NULL END)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25, CASE WHEN $24 IS NOT NULL OR $25 IS NOT NULL THEN NOW() ELSE NULL END)
     RETURNING *`,
     [
       uuidv4(), churchId, safeBranchId, firstName, lastName, email || null,
       phone || null, address || null, gender || null, dateOfBirth || null,
       howDidYouHear || null, visitDate || new Date(), serviceAttended || null, prayerRequest || null,
       finalWantsToJoin, finalDecision, finalPhotoUrl, finalPhotoUrl,
+      finalServiceAspect, finalBornAgain, finalAttendedHangout, finalDoneKic, finalTribeName,
       assignedUserId, assignedMemberId
     ]
   );

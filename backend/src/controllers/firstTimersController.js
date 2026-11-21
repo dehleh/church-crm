@@ -211,15 +211,27 @@ const updateFirstTimer = async (req, res) => {
   const {
     firstName, lastName, email, phone, address, gender, dateOfBirth,
     howDidYouHear, visitDate, serviceAttended, prayerRequest, branchId,
-    wantsToJoinChurch, decision, photoUrl
+    wantsToJoinChurch, decision, photoUrl,
+    serviceAspectEnjoyed, service_aspect_enjoyed,
+    bornAgainStatus, born_again_status,
+    attendedHangout, attended_hangout,
+    doneKic, done_kic,
+    tribeName, tribe_name
   } = req.body;
   try {
     const effectiveBranchId = req.branchId ? req.branchId : (branchId || null);
     const finalWantsToJoin = wantsToJoinChurch !== undefined ? Boolean(wantsToJoinChurch) : null;
+    const finalHangout = attendedHangout !== undefined ? Boolean(attendedHangout) : (attended_hangout !== undefined ? Boolean(attended_hangout) : null);
+    const finalKic = doneKic !== undefined ? Boolean(doneKic) : (done_kic !== undefined ? Boolean(done_kic) : null);
     const params = [
       id, req.churchId, firstName, lastName, email, phone, address, gender,
       dateOfBirth || null, howDidYouHear, visitDate, serviceAttended, prayerRequest, effectiveBranchId,
-      finalWantsToJoin, decision || null, photoUrl || null
+      finalWantsToJoin, decision || null, photoUrl || null,
+      serviceAspectEnjoyed || service_aspect_enjoyed || null,
+      bornAgainStatus || born_again_status || null,
+      finalHangout,
+      finalKic,
+      tribeName || tribe_name || null
     ];
     let branchWhere = '';
     if (req.branchId) {
@@ -244,6 +256,11 @@ const updateFirstTimer = async (req, res) => {
         decision = COALESCE($16, decision),
         photo_url = COALESCE($17, photo_url),
         profile_photo_url = COALESCE($17, profile_photo_url),
+        service_aspect_enjoyed = COALESCE($18, service_aspect_enjoyed),
+        born_again_status = COALESCE($19, born_again_status),
+        attended_hangout = COALESCE($20, attended_hangout),
+        done_kic = COALESCE($21, done_kic),
+        tribe_name = COALESCE($22, tribe_name),
         updated_at = NOW()
        WHERE id = $1 AND church_id = $2${branchWhere} RETURNING *`,
       params

@@ -207,6 +207,11 @@ export default function FirstTimers() {
       decision: item.decision || (item.wants_to_join_church ? 'join_church' : 'considering'),
       photoUrl: item.photo_url || item.profile_photo_url || '',
       assignedMemberId: item.assigned_member_id || '',
+      serviceAspectEnjoyed: item.service_aspect_enjoyed || 'The Message',
+      bornAgainStatus: item.born_again_status || 'Yes',
+      attendedHangout: Boolean(item.attended_hangout),
+      doneKic: Boolean(item.done_kic),
+      tribeName: item.tribe_name || '',
     });
     setFormErrors({});
     setModal('edit');
@@ -657,6 +662,62 @@ export default function FirstTimers() {
             </select>
             {formErrors.howDidYouHear && <p className="text-xs text-red-500 mt-1">{formErrors.howDidYouHear}</p>}
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Part of Service Enjoyed</label>
+              <select className="input text-xs" value={form.serviceAspectEnjoyed || 'The Message'} onChange={set('serviceAspectEnjoyed')}>
+                <option value="The Message">The Message / Sermon</option>
+                <option value="Music">Music / Praise & Worship</option>
+                <option value="Hospitality/Fellowship/Warmth">Hospitality / Fellowship / Warmth</option>
+                <option value="Choir">Choir Ministration</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Born Again Status</label>
+              <select className="input text-xs" value={form.bornAgainStatus || 'Yes'} onChange={set('bornAgainStatus')}>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+                <option value="Rededicated">Rededicated</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 space-y-2.5">
+            <p className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+              <Users size={13} className="text-indigo-600" /> Hangout, Discipleship & Tribe Integration
+            </p>
+            <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-700">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.attendedHangout || false}
+                  onChange={e => setForm(f => ({ ...f, attendedHangout: e.target.checked }))}
+                  className="rounded text-brand-600 focus:ring-brand-500"
+                />
+                Attended Hangout
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.doneKic || false}
+                  onChange={e => setForm(f => ({ ...f, doneKic: e.target.checked }))}
+                  className="rounded text-brand-600 focus:ring-brand-500"
+                />
+                Done KIC / Believers Class
+              </label>
+            </div>
+            <div>
+              <label className="label text-[11px] mb-1">Assigned Tribe / House Cell</label>
+              <input
+                className="input text-xs bg-white"
+                placeholder="e.g. Conclave, Ennova, CreateX, Sage Hub…"
+                value={form.tribeName || ''}
+                onChange={set('tribeName')}
+              />
+            </div>
+          </div>
+
           <div><label className="label">Address</label><input className="input" value={form.address || ''} onChange={set('address')} /></div>
           <div>
             <label className="label">Branch</label>

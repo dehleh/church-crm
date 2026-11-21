@@ -31,6 +31,8 @@ export default function PublicFirstTimerForm() {
     decision: 'considering', // 'join_church' | 'considering' | 'visiting'
     photoUrl: '',
     profilePhotoUrl: '',
+    serviceAspectEnjoyed: 'The Message',
+    bornAgainStatus: 'Yes',
   });
 
   useEffect(() => {
@@ -281,6 +283,27 @@ export default function PublicFirstTimerForm() {
                   <select required className="input" value={form.howDidYouHear} onChange={set('howDidYouHear')}>
                     <option value="">Select</option>
                     {HEAR_OPTIONS.map((option) => <option key={option} value={option}>{option.replace(/_/g, ' ')}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Part of service you enjoyed most</label>
+                  <select className="input" value={form.serviceAspectEnjoyed || 'The Message'} onChange={set('serviceAspectEnjoyed')}>
+                    <option value="The Message">The Message / Sermon</option>
+                    <option value="Music">Music / Praise & Worship</option>
+                    <option value="Hospitality/Fellowship/Warmth">Hospitality & Warmth</option>
+                    <option value="Choir">Choir Ministration</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Born Again Status</label>
+                  <select className="input" value={form.bornAgainStatus || 'Yes'} onChange={set('bornAgainStatus')}>
+                    <option value="Yes">Yes, I am born again</option>
+                    <option value="No">No, would like to know more</option>
+                    <option value="Rededicated">Rededicated my life today</option>
                   </select>
                 </div>
               </div>
