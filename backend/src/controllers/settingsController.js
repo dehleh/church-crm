@@ -362,8 +362,8 @@ const testMessaging = async (req, res) => {
   } catch (err) {
     logger.error('testMessaging error', { channel, error: err.message });
     let friendlyMessage = err.message;
-    if (channel === 'email' && (err.message?.includes('timeout') || err.code === 'ETIMEDOUT')) {
-      friendlyMessage = `Connection timed out connecting to your mail server. On cloud platforms (like Railway), outbound port 25 and 587 are restricted. Please ensure you select Port 465 with SSL/TLS enabled, or use Resend / SendGrid API.`;
+    if (channel === 'email' && (err.message?.includes('timeout') || err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED')) {
+      friendlyMessage = `Connection timed out connecting to mail.tbclekki.org. Railway blocks all raw outbound socket ports (25, 465, 587) on standard tiers. Please switch Email Delivery Provider to "Resend API" (uses HTTPS port 443 which is never blocked) or use SendGrid API.`;
     } else if (channel === 'email' && (err.message?.includes('Invalid login') || err.responseCode === 535 || err.message?.includes('BadCredentials'))) {
       friendlyMessage = `Mail authentication rejected: Your SMTP username or password was not accepted by the host.`;
     }

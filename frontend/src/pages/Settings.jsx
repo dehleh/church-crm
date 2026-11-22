@@ -19,55 +19,55 @@ import api, { getAssetUrl } from '../api/client';
 import { applyChurchTheme } from '../utils/theme';
 
 const TABS = [
-  { id: 'subscription', label: 'Subscription & Plans',   icon: Sparkles },
-  { id: 'church',    label: 'Profile & Brand Identity',  icon: Building2 },
-  { id: 'theme',     label: 'Visual Theme & Colors',     icon: Palette },
-  { id: 'services',  label: 'Service Times & Schedule',  icon: Clock },
-  { id: 'portal',    label: 'Member Portal Experience',  icon: LayoutDashboard },
-  { id: 'public',    label: 'Public Connect & Forms',    icon: Globe },
-  { id: 'pastors',   label: 'Pastoral Leadership',       icon: Users },
-  { id: 'messaging', label: 'Messaging & WhatsApp',      icon: Mail },
-  { id: 'giving',    label: 'Online Giving & Payments',  icon: CreditCard },
-  { id: 'security',  label: 'Security & 2FA',            icon: Shield },
-  { id: 'profile',   label: 'My Profile',                icon: User },
-  { id: 'password',  label: 'Change Password',           icon: Lock },
+  { id: 'subscription', label: 'Subscription & Plans', icon: Sparkles },
+  { id: 'church', label: 'Profile & Brand Identity', icon: Building2 },
+  { id: 'theme', label: 'Visual Theme & Colors', icon: Palette },
+  { id: 'services', label: 'Service Times & Schedule', icon: Clock },
+  { id: 'portal', label: 'Member Portal Experience', icon: LayoutDashboard },
+  { id: 'public', label: 'Public Connect & Forms', icon: Globe },
+  { id: 'pastors', label: 'Pastoral Leadership', icon: Users },
+  { id: 'messaging', label: 'Messaging & WhatsApp', icon: Mail },
+  { id: 'giving', label: 'Online Giving & Payments', icon: CreditCard },
+  { id: 'security', label: 'Security & 2FA', icon: Shield },
+  { id: 'profile', label: 'My Profile', icon: User },
+  { id: 'password', label: 'Change Password', icon: Lock },
 ];
 
 const THEME_PRESETS = [
-  { name: 'Royal Sapphire',   primary: '#1d4ed8', accent: '#3b82f6', bgGradient: 'from-blue-700 via-blue-800 to-indigo-950', desc: 'Authoritative, trustworthy & global' },
+  { name: 'Royal Sapphire', primary: '#1d4ed8', accent: '#3b82f6', bgGradient: 'from-blue-700 via-blue-800 to-indigo-950', desc: 'Authoritative, trustworthy & global' },
   { name: 'Emerald Cathedral', primary: '#047857', accent: '#10b981', bgGradient: 'from-emerald-700 via-emerald-800 to-slate-950', desc: 'Growth, flourishing & eternal life' },
-  { name: 'Grace Purple',     primary: '#7c3aed', accent: '#8b5cf6', bgGradient: 'from-purple-700 via-purple-800 to-indigo-950', desc: 'Divine majesty, worship & royalty' },
-  { name: 'Crimson Flame',    primary: '#b91c1c', accent: '#ef4444', bgGradient: 'from-rose-700 via-red-800 to-slate-950', desc: 'Pentecostal fire, prayer & zeal' },
-  { name: 'Warm Amber',       primary: '#b45309', accent: '#f59e0b', bgGradient: 'from-amber-600 via-orange-700 to-stone-950', desc: 'Harvest, kingdom warmth & fellowship' },
+  { name: 'Grace Purple', primary: '#7c3aed', accent: '#8b5cf6', bgGradient: 'from-purple-700 via-purple-800 to-indigo-950', desc: 'Divine majesty, worship & royalty' },
+  { name: 'Crimson Flame', primary: '#b91c1c', accent: '#ef4444', bgGradient: 'from-rose-700 via-red-800 to-slate-950', desc: 'Pentecostal fire, prayer & zeal' },
+  { name: 'Warm Amber', primary: '#b45309', accent: '#f59e0b', bgGradient: 'from-amber-600 via-orange-700 to-stone-950', desc: 'Harvest, kingdom warmth & fellowship' },
   { name: 'Midnight Charcoal', primary: '#0f172a', accent: '#475569', bgGradient: 'from-slate-800 via-slate-900 to-black', desc: 'Modern, minimalist & sleek' },
-  { name: 'Ocean Teal',       primary: '#0f766e', accent: '#14b8a6', bgGradient: 'from-teal-700 via-teal-800 to-slate-950', desc: 'Peace, renewal & mission vision' },
-  { name: 'Rose Gold',        primary: '#be185d', accent: '#ec4899', bgGradient: 'from-pink-700 via-rose-800 to-slate-950', desc: 'Love, grace & community care' },
-  { name: 'Golden Ark',       primary: '#d97706', accent: '#fbbf24', bgGradient: 'from-amber-700 via-yellow-800 to-stone-950', desc: 'Glory, consecration & kingdom covenant' },
-  { name: 'Sanctuary Navy',   primary: '#1e3a8a', accent: '#60a5fa', bgGradient: 'from-blue-900 via-indigo-950 to-slate-950', desc: 'Deep reverence, heritage & wisdom' },
-  { name: 'Celestial Sky',    primary: '#0284c7', accent: '#38bdf8', bgGradient: 'from-sky-700 via-blue-800 to-slate-950', desc: 'Grace, peace & boundless outreach' },
-  { name: 'Living Olive',     primary: '#4d7c0f', accent: '#84cc16', bgGradient: 'from-lime-800 via-emerald-900 to-stone-950', desc: 'Anointing, peace & spiritual fruitfulness' },
+  { name: 'Ocean Teal', primary: '#0f766e', accent: '#14b8a6', bgGradient: 'from-teal-700 via-teal-800 to-slate-950', desc: 'Peace, renewal & mission vision' },
+  { name: 'Rose Gold', primary: '#be185d', accent: '#ec4899', bgGradient: 'from-pink-700 via-rose-800 to-slate-950', desc: 'Love, grace & community care' },
+  { name: 'Golden Ark', primary: '#d97706', accent: '#fbbf24', bgGradient: 'from-amber-700 via-yellow-800 to-stone-950', desc: 'Glory, consecration & kingdom covenant' },
+  { name: 'Sanctuary Navy', primary: '#1e3a8a', accent: '#60a5fa', bgGradient: 'from-blue-900 via-indigo-950 to-slate-950', desc: 'Deep reverence, heritage & wisdom' },
+  { name: 'Celestial Sky', primary: '#0284c7', accent: '#38bdf8', bgGradient: 'from-sky-700 via-blue-800 to-slate-950', desc: 'Grace, peace & boundless outreach' },
+  { name: 'Living Olive', primary: '#4d7c0f', accent: '#84cc16', bgGradient: 'from-lime-800 via-emerald-900 to-stone-950', desc: 'Anointing, peace & spiritual fruitfulness' },
 ];
 
 const FONT_OPTIONS = [
-  { id: 'Inter',            name: 'Inter (Modern & Clean)' },
-  { id: 'Plus Jakarta Sans',name: 'Plus Jakarta Sans (Contemporary)' },
-  { id: 'Outfit',           name: 'Outfit (Geometric & Bold)' },
-  { id: 'Poppins',          name: 'Poppins (Friendly & Welcoming)' },
+  { id: 'Inter', name: 'Inter (Modern & Clean)' },
+  { id: 'Plus Jakarta Sans', name: 'Plus Jakarta Sans (Contemporary)' },
+  { id: 'Outfit', name: 'Outfit (Geometric & Bold)' },
+  { id: 'Poppins', name: 'Poppins (Friendly & Welcoming)' },
 ];
 
 const PORTAL_MODULES = [
-  { key: 'devotionals',   label: 'Daily Devotionals',       icon: BookOpen,      desc: 'Daily word of faith, scripture & audio stream' },
-  { key: 'discipleship',  label: 'Discipleship School',     icon: GraduationCap, desc: 'Interactive lessons, milestones & certificates' },
-  { key: 'announcements', label: 'Broadcast Notices',       icon: Bell,          desc: 'Official broadcasts and pastoral announcements' },
-  { key: 'media',         label: 'Media & Sermons',         icon: Film,          desc: 'Audio sermon library, video streams & podcasts' },
-  { key: 'birthdays',     label: 'Birthday Celebrations',   icon: Cake,          desc: "Today's celebrants & family congratulations" },
-  { key: 'giving',        label: 'Online Giving & Tithes',  icon: DollarSign,    desc: 'Offerings, building pledges & payment receipts' },
-  { key: 'events',        label: 'Events & Church Calendar',icon: Calendar,      desc: 'Upcoming programs, registration & QR check-in' },
-  { key: 'fellowship',    label: 'Cell Fellowship / Centers',icon: MapPin,       desc: 'Home fellowship cells and neighborhood centers' },
-  { key: 'groups',        label: 'Ministries & Units',      icon: Users,         desc: 'Choir, ushering, youth and department groups' },
-  { key: 'counseling',    label: 'Pastoral Counseling',     icon: MessageCircle, desc: 'Confidential appointment booking with ministers' },
-  { key: 'welfare',       label: 'Welfare & Benevolence',   icon: Heart,         desc: 'Emergency assistance requests and welfare packages' },
-  { key: 'prayer',        label: 'Prayer Requests',         icon: HeartHandshake,desc: 'Submit private or church-wide prayer petitions' },
+  { key: 'devotionals', label: 'Daily Devotionals', icon: BookOpen, desc: 'Daily word of faith, scripture & audio stream' },
+  { key: 'discipleship', label: 'Discipleship School', icon: GraduationCap, desc: 'Interactive lessons, milestones & certificates' },
+  { key: 'announcements', label: 'Broadcast Notices', icon: Bell, desc: 'Official broadcasts and pastoral announcements' },
+  { key: 'media', label: 'Media & Sermons', icon: Film, desc: 'Audio sermon library, video streams & podcasts' },
+  { key: 'birthdays', label: 'Birthday Celebrations', icon: Cake, desc: "Today's celebrants & family congratulations" },
+  { key: 'giving', label: 'Online Giving & Tithes', icon: DollarSign, desc: 'Offerings, building pledges & payment receipts' },
+  { key: 'events', label: 'Events & Church Calendar', icon: Calendar, desc: 'Upcoming programs, registration & QR check-in' },
+  { key: 'fellowship', label: 'Cell Fellowship / Centers', icon: MapPin, desc: 'Home fellowship cells and neighborhood centers' },
+  { key: 'groups', label: 'Ministries & Units', icon: Users, desc: 'Choir, ushering, youth and department groups' },
+  { key: 'counseling', label: 'Pastoral Counseling', icon: MessageCircle, desc: 'Confidential appointment booking with ministers' },
+  { key: 'welfare', label: 'Welfare & Benevolence', icon: Heart, desc: 'Emergency assistance requests and welfare packages' },
+  { key: 'prayer', label: 'Prayer Requests', icon: HeartHandshake, desc: 'Submit private or church-wide prayer petitions' },
 ];
 
 function TabButton({ tab, active, onClick }) {
@@ -1173,7 +1173,7 @@ export default function Settings() {
                   <Tag size={16} /> Church Core Values & Pillars
                 </h3>
                 <p className="text-xs text-gray-400 mb-3">Define the spiritual pillars and cultural values of your ministry</p>
-                
+
                 <div className="flex flex-wrap gap-2 mb-3">
                   {coreValues.map((val, idx) => (
                     <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 border border-brand-200">
@@ -1576,11 +1576,10 @@ export default function Settings() {
                           setTheme(newT);
                           applyChurchTheme(newT, church);
                         }}
-                        className={`p-3 rounded-xl border text-left transition-all relative ${
-                          isSelected
+                        className={`p-3 rounded-xl border text-left transition-all relative ${isSelected
                             ? 'border-brand-600 ring-2 ring-brand-500/20 bg-brand-50/20 shadow-sm'
                             : 'border-gray-200 hover:border-gray-300 bg-white'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-2 mb-2">
                           <span className="w-5 h-5 rounded-full shadow-xs border border-white" style={{ backgroundColor: p.primary }} />
@@ -1680,11 +1679,10 @@ export default function Settings() {
                           setTheme(newT);
                           applyChurchTheme(newT, church);
                         }}
-                        className={`p-3.5 rounded-xl border text-left transition-all ${
-                          isSelected
+                        className={`p-3.5 rounded-xl border text-left transition-all ${isSelected
                             ? 'border-brand-600 ring-2 ring-brand-500/20 bg-brand-50/20 shadow-sm'
                             : 'border-gray-200 hover:border-gray-300 bg-white'
-                        }`}
+                          }`}
                       >
                         <div className={`h-10 rounded-lg ${sb.bg} border ${sb.border} p-2 flex items-center gap-2 mb-2`}>
                           <div className={`w-4 h-4 rounded-md ${sb.accent} shrink-0`} />
@@ -1711,11 +1709,10 @@ export default function Settings() {
                       key={f.id}
                       type="button"
                       onClick={() => setTheme(t => ({ ...t, fontFamily: f.id }))}
-                      className={`p-3 rounded-xl border text-left transition-all ${
-                        theme.fontFamily === f.id
+                      className={`p-3 rounded-xl border text-left transition-all ${theme.fontFamily === f.id
                           ? 'border-brand-600 ring-2 ring-brand-500/20 bg-brand-50/20'
                           : 'border-gray-200 hover:border-gray-300 bg-white'
-                      }`}
+                        }`}
                     >
                       <div className="font-bold text-gray-900 text-sm">{f.id}</div>
                       <div className="text-[11px] text-gray-500 mt-0.5">{f.name}</div>
@@ -1999,9 +1996,8 @@ export default function Settings() {
                     <button
                       type="button"
                       onClick={() => setPortalConfig(p => ({ ...p, bannerNoticeActive: !p.bannerNoticeActive }))}
-                      className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full transition ${
-                        portalConfig.bannerNoticeActive ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-600'
-                      }`}
+                      className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full transition ${portalConfig.bannerNoticeActive ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}
                     >
                       {portalConfig.bannerNoticeActive ? 'Active on Portal' : 'Disabled'}
                     </button>
@@ -2043,23 +2039,20 @@ export default function Settings() {
                             [key]: !isEnabled
                           }
                         }))}
-                        className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                          isEnabled
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${isEnabled
                             ? 'border-brand-200 bg-brand-50/20 shadow-xs'
                             : 'border-gray-200 bg-gray-50/40 opacity-60'
-                        }`}
+                          }`}
                       >
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                          isEnabled ? 'bg-brand-100 text-brand-700' : 'bg-gray-200 text-gray-500'
-                        }`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isEnabled ? 'bg-brand-100 text-brand-700' : 'bg-gray-200 text-gray-500'
+                          }`}>
                           <Icon size={16} />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-gray-900 text-xs truncate">{label}</span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                              isEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
-                            }`}>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
+                              }`}>
                               {isEnabled ? 'Enabled' : 'Hidden'}
                             </span>
                           </div>
@@ -2393,12 +2386,31 @@ export default function Settings() {
                 <div className="space-y-4">
                   <div>
                     <label className="label">Email Delivery Provider</label>
-                    <select className="input" value={messaging.email?.provider || 'smtp'} onChange={setM('email', 'provider')}>
-                      <option value="smtp">Custom SMTP (Google Workspace, Zoho, Microsoft 365, Mailgun, cPanel)</option>
-                      <option value="resend">Resend API (Modern, Fast & Highly Reliable API)</option>
+                    <select className="input font-medium" value={messaging.email?.provider || 'smtp'} onChange={setM('email', 'provider')}>
+                      <option value="resend">Resend API (Recommended for Cloud Hosting — Uses HTTPS Port 443)</option>
+                      <option value="smtp">Custom SMTP (cPanel, Google Workspace, Zoho, Microsoft 365, Mailgun)</option>
                       <option value="sendgrid">SendGrid API</option>
                     </select>
                   </div>
+
+                  {messaging.email?.provider === 'smtp' && (
+                    <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
+                      <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={16} />
+                      <div className="space-y-1">
+                        <strong className="text-amber-950 block">Cloud Hosting Outbound Port Notice (Railway / Render / AWS):</strong>
+                        <p className="text-amber-800 leading-relaxed">
+                          Cloud containers on Railway block all outbound raw socket ports (25, 465, 587) to prevent spam. If your SMTP server connection times out, switch to <strong>Resend API</strong> (free, communicates over HTTPS Port 443 with 0ms port blocks) or upgrade your Railway plan to Pro.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setMessaging(m => ({ ...m, email: { ...m.email, provider: 'resend' } }))}
+                          className="mt-1 text-xs font-semibold text-brand-700 hover:text-brand-900 underline flex items-center gap-1 cursor-pointer"
+                        >
+                          Switch to Resend API (Instant 1-Click Fix) →
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
@@ -2971,11 +2983,10 @@ export default function Settings() {
                     ].map(opt => (
                       <label
                         key={opt.id}
-                        className={`cursor-pointer p-3 rounded-xl border text-xs flex flex-col justify-between transition-all ${
-                          paymentSettings.defaultGateway === opt.id
+                        className={`cursor-pointer p-3 rounded-xl border text-xs flex flex-col justify-between transition-all ${paymentSettings.defaultGateway === opt.id
                             ? 'bg-brand-50 border-brand-500 shadow-sm text-brand-900'
                             : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-2 font-semibold">
                           <input
@@ -3008,11 +3019,10 @@ export default function Settings() {
                         </p>
                       </div>
                     </div>
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
-                      paymentSettings.flutterwavePublicKey
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${paymentSettings.flutterwavePublicKey
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : 'bg-amber-50 text-amber-700 border-amber-200'
-                    }`}>
+                      }`}>
                       {paymentSettings.flutterwavePublicKey ? 'Configured' : 'Test / Simulation Mode'}
                     </span>
                   </div>
@@ -3068,11 +3078,10 @@ export default function Settings() {
                         </p>
                       </div>
                     </div>
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
-                      paymentSettings.paystackPublicKey
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${paymentSettings.paystackPublicKey
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : 'bg-amber-50 text-amber-700 border-amber-200'
-                    }`}>
+                      }`}>
                       {paymentSettings.paystackPublicKey ? 'Configured' : 'Test / Simulation Mode'}
                     </span>
                   </div>
@@ -3118,17 +3127,15 @@ export default function Settings() {
               <div className="card">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-100">
                   <div className="flex items-start gap-3">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
-                      twoFactorEnabled ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-amber-50 text-amber-600 border border-amber-200'
-                    }`}>
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${twoFactorEnabled ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-amber-50 text-amber-600 border border-amber-200'
+                      }`}>
                       <Shield size={24} />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <h2 className="font-display font-bold text-gray-900 text-lg">Two-Factor Authentication (2FA)</h2>
-                        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize ${
-                          twoFactorEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'
-                        }`}>
+                        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize ${twoFactorEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'
+                          }`}>
                           {twoFactorEnabled ? 'Active & Protected' : 'Not Configured'}
                         </span>
                       </div>
