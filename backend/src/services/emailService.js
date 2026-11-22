@@ -8,21 +8,25 @@ function getSmtpTransporter(cfg) {
   const host = cfg?.smtpHost || process.env.SMTP_HOST;
   const user = cfg?.smtpUser || process.env.SMTP_USER;
   const pass = cfg?.smtpPass || process.env.SMTP_PASS;
-  const port = parseInt(cfg?.smtpPort || process.env.SMTP_PORT || '587', 10);
-  const secure = cfg?.smtpSecure !== undefined ? Boolean(cfg.smtpSecure) : (port === 465);
+  const rawPort = cfg?.smtpPort || process.env.SMTP_PORT;
+  const port = parseInt(rawPort || (cfg?.smtpSecure ? '465' : '465'), 10);
+  // Port 465 is always direct TLS/SSL in nodemailer. Port 587/25 use STARTTLS (secure = false).
+  const isDirectSsl = port === 465 || Boolean(cfg?.smtpSecure && port !== 587);
+  const secure = isDirectSsl;
+  const effectivePort = isDirectSsl ? 465 : port;
 
   if (!host || !user) return null;
 
   const transportOptions = {
     host,
-    port,
+    port: effectivePort,
     secure,
     auth: { user, pass },
     tls: {
       rejectUnauthorized: false, // Prevents failures with private church mail servers or self-signed certs
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
   };
 
   // If using env vars, cache the transporter
@@ -157,6 +161,31 @@ async function sendEmail({ to, subject, html, text }, churchSettings) {
     logger.info('Email sent via SMTP', { messageId: info.messageId, to: recipients.length, subject });
     return info;
   } catch (err) {
+    // If it's a timeout error and port 587 was attempted, cloud firewalls (like Railway) likely dropped the packet.
+    // Automatically retry over Port 465 (Direct SSL/TLS) which passes through cloud egress filters cleanly.
+    const attemptedPort = parseInt(cfg?.smtpPort || '587', 10);
+    if ((err.message?.includes('timeout') || err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED') && cfg?.smtpHost && attemptedPort !== 465) {
+      logger.warn(`SMTP connection timed out on port ${attemptedPort}. Auto-retrying via Port 465 (Direct SSL/TLS)...`, { host: cfg.smtpHost });
+      try {
+        const fallbackTransport = getSmtpTransporter({
+          ...cfg,
+          smtpPort: 465,
+          smtpSecure: true,
+        });
+        const fallbackInfo = await fallbackTransport.sendMail({
+          from: formattedFrom,
+          to: recipients.join(', '),
+          subject,
+          html,
+          text: text || html.replace(/<[^>]+>/g, ''),
+        });
+        logger.info('Email sent successfully via SMTP failover (Port 465 SSL/TLS)', { messageId: fallbackInfo.messageId, to: recipients.length, subject });
+        return fallbackInfo;
+      } catch (fallbackErr) {
+        logger.error('SMTP failover to Port 465 also failed', { error: fallbackErr.message, host: cfg.smtpHost });
+      }
+    }
+
     logger.error('SMTP send error', { error: err.message, host: cfg.smtpHost });
     throw err;
   }

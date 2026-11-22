@@ -531,10 +531,11 @@ export default function Settings() {
     if (!recipient) return toast.error(`Enter a ${channel === 'email' ? 'email address' : 'phone number'} to test`);
     setTesting(channel);
     try {
-      const res = await api.post('/settings/messaging/test', { channel, recipient });
+      const config = messaging[channel] || {};
+      const res = await api.post('/settings/messaging/test', { channel, recipient, config });
       toast.success(res.data.message || 'Test sent!');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Test failed');
+      toast.error(err.response?.data?.message || 'Test failed', { duration: 6000 });
     } finally {
       setTesting('');
     }
@@ -2263,34 +2264,140 @@ export default function Settings() {
                   )}
 
                   {messaging.email?.provider === 'smtp' && (
-                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+                    <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-4">
+                      {/* Presets */}
+                      <div>
+                        <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2 flex items-center justify-between">
+                          <span>Quick SMTP Presets</span>
+                          <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">
+                            Port 465 SSL Recommended on Railway
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMessaging(m => ({
+                                ...m,
+                                email: {
+                                  ...m.email,
+                                  smtpPort: '465',
+                                  smtpSecure: true,
+                                }
+                              }));
+                              toast.success('Configured for Port 465 (SSL/TLS)');
+                            }}
+                            className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 font-medium text-gray-700 transition-colors"
+                          >
+                            🔒 Port 465 SSL (Direct Cloud SSL)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMessaging(m => ({
+                                ...m,
+                                email: {
+                                  ...m.email,
+                                  smtpHost: 'smtp.gmail.com',
+                                  smtpPort: '465',
+                                  smtpSecure: true,
+                                }
+                              }));
+                              toast.success('Gmail SMTP preset applied');
+                            }}
+                            className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 font-medium text-gray-700 transition-colors"
+                          >
+                            Google Workspace / Gmail
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMessaging(m => ({
+                                ...m,
+                                email: {
+                                  ...m.email,
+                                  smtpHost: 'smtp.office365.com',
+                                  smtpPort: '587',
+                                  smtpSecure: false,
+                                }
+                              }));
+                              toast.success('Microsoft 365 preset applied');
+                            }}
+                            className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 font-medium text-gray-700 transition-colors"
+                          >
+                            Microsoft 365 / Outlook
+                          </button>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-2">
                           <label className="label">SMTP Host *</label>
-                          <input className="input" placeholder="smtp.gmail.com or mail.mychurch.org" value={messaging.email?.smtpHost || ''} onChange={setM('email', 'smtpHost')} />
+                          <input
+                            className="input"
+                            placeholder="mail.tbclekki.org or smtp.gmail.com"
+                            value={messaging.email?.smtpHost || ''}
+                            onChange={setM('email', 'smtpHost')}
+                          />
                         </div>
                         <div>
-                          <label className="label">SMTP Port</label>
-                          <input className="input" placeholder="587" value={messaging.email?.smtpPort || ''} onChange={setM('email', 'smtpPort')} />
+                          <label className="label">SMTP Port *</label>
+                          <input
+                            className="input"
+                            placeholder="465"
+                            value={messaging.email?.smtpPort || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setMessaging(m => ({
+                                ...m,
+                                email: {
+                                  ...m.email,
+                                  smtpPort: val,
+                                  smtpSecure: val === '465' ? true : m.email?.smtpSecure
+                                }
+                              }));
+                            }}
+                          />
                         </div>
                         <div className="sm:col-span-3">
                           <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-700">
                             <input
                               type="checkbox"
-                              checked={Boolean(messaging.email?.smtpSecure)}
-                              onChange={setM('email', 'smtpSecure')}
+                              checked={Boolean(messaging.email?.smtpSecure ?? (messaging.email?.smtpPort === '465'))}
+                              onChange={e => {
+                                const checked = e.target.checked;
+                                setMessaging(m => ({
+                                  ...m,
+                                  email: {
+                                    ...m.email,
+                                    smtpSecure: checked,
+                                    smtpPort: checked ? '465' : (m.email?.smtpPort === '465' ? '587' : m.email?.smtpPort || '587')
+                                  }
+                                }));
+                              }}
                               className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                             />
-                            <span>Use SSL/TLS secure connection (port 465)</span>
+                            <span className="font-medium">Use SSL/TLS direct secure connection (Port 465 — Recommended for Railway cloud deployment)</span>
                           </label>
                         </div>
                         <div className="sm:col-span-1">
-                          <label className="label">SMTP Username</label>
-                          <input className="input" placeholder="notifications@mychurch.org" value={messaging.email?.smtpUser || ''} onChange={setM('email', 'smtpUser')} />
+                          <label className="label">SMTP Username *</label>
+                          <input
+                            className="input"
+                            placeholder="notifications@tbclekki.org"
+                            value={messaging.email?.smtpUser || ''}
+                            onChange={setM('email', 'smtpUser')}
+                          />
                         </div>
                         <div className="sm:col-span-2">
-                          <label className="label">SMTP Password</label>
-                          <input type="password" className="input" placeholder="••••••••" value={messaging.email?.smtpPass || ''} onChange={setM('email', 'smtpPass')} />
+                          <label className="label">SMTP Password *</label>
+                          <input
+                            type="password"
+                            className="input"
+                            placeholder="••••••••"
+                            value={messaging.email?.smtpPass || ''}
+                            onChange={setM('email', 'smtpPass')}
+                          />
                         </div>
                       </div>
                     </div>

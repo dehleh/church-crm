@@ -293,7 +293,7 @@ const updateMessagingConfig = async (req, res) => {
 };
 
 const testMessaging = async (req, res) => {
-  const { channel, recipient } = req.body;
+  const { channel, recipient, config } = req.body;
   if (!channel || !recipient) return res.status(400).json({ success: false, message: 'Channel and recipient required' });
 
   try {
@@ -301,10 +301,22 @@ const testMessaging = async (req, res) => {
     const churchFullSettings = rows[0]?.settings || {};
     const churchSettings = {
       ...churchFullSettings,
-      messaging: churchFullSettings?.messaging || {},
-      email: churchFullSettings?.messaging?.email || {},
-      sms: churchFullSettings?.messaging?.sms || {},
-      whatsapp: churchFullSettings?.messaging?.whatsapp || {},
+      messaging: {
+        ...(churchFullSettings?.messaging || {}),
+        ...(config ? { [channel]: { ...(churchFullSettings?.messaging?.[channel] || {}), ...config } } : {})
+      },
+      email: {
+        ...(churchFullSettings?.messaging?.email || {}),
+        ...(channel === 'email' && config ? config : {})
+      },
+      sms: {
+        ...(churchFullSettings?.messaging?.sms || {}),
+        ...(channel === 'sms' && config ? config : {})
+      },
+      whatsapp: {
+        ...(churchFullSettings?.messaging?.whatsapp || {}),
+        ...(channel === 'whatsapp' && config ? config : {})
+      },
     };
     const churchName = rows[0]?.name || 'ChurchOS';
 
@@ -342,7 +354,13 @@ const testMessaging = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid channel. Use email, sms, or whatsapp.' });
   } catch (err) {
     logger.error('testMessaging error', { channel, error: err.message });
-    return res.status(500).json({ success: false, message: `Test failed: ${err.message}` });
+    let friendlyMessage = err.message;
+    if (channel === 'email' && (err.message?.includes('timeout') || err.code === 'ETIMEDOUT')) {
+      friendlyMessage = `Connection timed out connecting to your mail server. On cloud platforms (like Railway), outbound port 25 and 587 are restricted. Please ensure you select Port 465 with SSL/TLS enabled, or use Resend / SendGrid API.`;
+    } else if (channel === 'email' && (err.message?.includes('Invalid login') || err.responseCode === 535 || err.message?.includes('BadCredentials'))) {
+      friendlyMessage = `Mail authentication rejected: Your SMTP username or password was not accepted by the host.`;
+    }
+    return res.status(500).json({ success: false, message: friendlyMessage });
   }
 };
 
