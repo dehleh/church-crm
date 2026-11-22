@@ -16,6 +16,7 @@ import PublicIntakeShareModal from '../components/ui/PublicIntakeShareModal';
 import SubscriptionBillingView from '../components/subscription/SubscriptionBillingView';
 import toast from 'react-hot-toast';
 import api, { getAssetUrl } from '../api/client';
+import { applyChurchTheme } from '../utils/theme';
 
 const TABS = [
   { id: 'subscription', label: 'Subscription & Plans',   icon: Sparkles },
@@ -372,6 +373,13 @@ export default function Settings() {
       if (updatedSettingsPatch?.theme && updateUser) {
         updateUser({ theme: updatedSettingsPatch.theme });
       }
+      applyChurchTheme(updatedSettingsPatch?.theme || theme, {
+        name: church.name,
+        tagline: church.tagline,
+        logoUrl: church.logoUrl,
+        bannerUrl: church.bannerUrl,
+        slug: church.slug,
+      });
       if (refreshUser) refreshUser();
       toast.success(successMsg || 'Customization saved successfully!');
     } catch {
@@ -450,6 +458,13 @@ export default function Settings() {
           theme,
         });
       }
+      applyChurchTheme(theme, {
+        name: payload.name,
+        tagline: payload.tagline,
+        logoUrl: payload.logoUrl,
+        bannerUrl: payload.bannerUrl,
+        slug: payload.slug || church.slug,
+      });
       toast.success('Church profile & branding saved!');
     } catch {
       toast.error('Failed to save settings');
@@ -1016,6 +1031,61 @@ export default function Settings() {
                 </div>
               </div>
 
+              {/* White-Label Church Links & Direct URLs */}
+              <div className="pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                      <Globe size={16} className="text-brand-600" /> Branded Church Access Links & White-Label URLs
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Share these customized links with your leaders, workers, members, and first-time guests:
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                  {[
+                    { label: 'Staff & Leadership Login', url: `${window.location.origin}/login/${church.slug || ''}`, desc: 'Direct branded sign-in for church staff & ministers' },
+                    { label: 'Member Self-Service Portal', url: `${window.location.origin}/portal/${church.slug || ''}/login`, desc: 'Giving, sermon media, devotionals, profiles & cells' },
+                    { label: 'First-Timer Welcome Intake', url: `${window.location.origin}/connect/${church.slug || ''}/first-timer`, desc: 'Sunday visitors registration & friendship team intake' },
+                    { label: 'Public Online Giving', url: `${window.location.origin}/give/${church.slug || ''}`, desc: 'Direct tithes, offerings, project pledges & building fund' },
+                    { label: 'New Member Registration', url: `${window.location.origin}/connect/${church.slug || ''}/member`, desc: 'Full membership onboarding with family & demographics' },
+                    { label: 'Prayer Requests Wall', url: `${window.location.origin}/connect/${church.slug || ''}/prayer`, desc: 'Public prayer petition & pastor care form' },
+                  ].map((link) => (
+                    <div key={link.label} className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/60 hover:bg-white transition-all flex flex-col justify-between">
+                      <div>
+                        <div className="text-xs font-bold text-gray-900">{link.label}</div>
+                        <div className="text-[11px] text-gray-500 mb-2">{link.desc}</div>
+                        <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono text-gray-600 truncate select-all">
+                          <span className="truncate flex-1">{link.url}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-2 mt-2.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(link.url);
+                            toast.success(`${link.label} copied!`);
+                          }}
+                          className="px-2.5 py-1 rounded-lg text-xs font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-100 inline-flex items-center gap-1 transition-colors"
+                        >
+                          <Copy size={12} /> Copy Link
+                        </button>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2.5 py-1 rounded-lg text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 inline-flex items-center gap-1 transition-colors"
+                        >
+                          <ExternalLink size={12} /> Open Page
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* General Church Profile Details */}
               <div className="pt-2">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 mb-3">General Information</h3>
@@ -1330,7 +1400,11 @@ export default function Settings() {
                       <button
                         key={p.name}
                         type="button"
-                        onClick={() => setTheme(t => ({ ...t, primaryColor: p.primary, accentColor: p.accent, presetName: p.name }))}
+                        onClick={() => {
+                          const newT = { ...theme, primaryColor: p.primary, accentColor: p.accent, presetName: p.name };
+                          setTheme(newT);
+                          applyChurchTheme(newT, church);
+                        }}
                         className={`p-3 rounded-xl border text-left transition-all relative ${
                           isSelected
                             ? 'border-brand-600 ring-2 ring-brand-500/20 bg-brand-50/20 shadow-sm'
@@ -1362,13 +1436,21 @@ export default function Settings() {
                       <input
                         type="color"
                         value={theme.primaryColor}
-                        onChange={e => setTheme(t => ({ ...t, primaryColor: e.target.value, presetName: 'Custom' }))}
+                        onChange={e => {
+                          const newT = { ...theme, primaryColor: e.target.value, presetName: 'Custom' };
+                          setTheme(newT);
+                          applyChurchTheme(newT, church);
+                        }}
                         className="w-10 h-10 rounded-xl cursor-pointer border border-gray-200 p-0.5 bg-white shrink-0"
                       />
                       <input
                         className="input font-mono uppercase text-sm"
                         value={theme.primaryColor}
-                        onChange={e => setTheme(t => ({ ...t, primaryColor: e.target.value, presetName: 'Custom' }))}
+                        onChange={e => {
+                          const newT = { ...theme, primaryColor: e.target.value, presetName: 'Custom' };
+                          setTheme(newT);
+                          applyChurchTheme(newT, church);
+                        }}
                         placeholder="#1D4ED8"
                       />
                     </div>
@@ -1381,13 +1463,21 @@ export default function Settings() {
                       <input
                         type="color"
                         value={theme.accentColor}
-                        onChange={e => setTheme(t => ({ ...t, accentColor: e.target.value }))}
+                        onChange={e => {
+                          const newT = { ...theme, accentColor: e.target.value };
+                          setTheme(newT);
+                          applyChurchTheme(newT, church);
+                        }}
                         className="w-10 h-10 rounded-xl cursor-pointer border border-gray-200 p-0.5 bg-white shrink-0"
                       />
                       <input
                         className="input font-mono uppercase text-sm"
                         value={theme.accentColor}
-                        onChange={e => setTheme(t => ({ ...t, accentColor: e.target.value }))}
+                        onChange={e => {
+                          const newT = { ...theme, accentColor: e.target.value };
+                          setTheme(newT);
+                          applyChurchTheme(newT, church);
+                        }}
                         placeholder="#3B82F6"
                       />
                     </div>
@@ -1402,18 +1492,23 @@ export default function Settings() {
                   <Layers size={16} className="text-brand-600" /> Sidebar & Navigation Layout Style
                 </h3>
                 <p className="text-xs text-gray-500 mb-3">Choose the aesthetic style of your main admin navigation:</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {[
-                    { id: 'light', name: 'Crisp Light', desc: 'Modern bright white with soft gray borders', bg: 'bg-white', border: 'border-gray-200' },
-                    { id: 'dark_slate', name: 'Executive Slate', desc: 'Deep slate #0f172a contrast aesthetic', bg: 'bg-slate-900', border: 'border-slate-800' },
-                    { id: 'midnight_navy', name: 'Royal Midnight', desc: 'Deep midnight navy with church brand accents', bg: 'bg-[#090d16]', border: 'border-gray-800' },
+                    { id: 'light', name: 'Crisp Light', desc: 'Modern bright white with soft gray borders', bg: 'bg-white', border: 'border-gray-200', accent: 'bg-brand-600' },
+                    { id: 'church_tint', name: 'Church Signature', desc: 'Deep custom shade of your brand color', bg: 'bg-brand-950', border: 'border-brand-900', accent: 'bg-brand-400' },
+                    { id: 'dark_slate', name: 'Executive Slate', desc: 'Deep slate #0f172a contrast aesthetic', bg: 'bg-slate-900', border: 'border-slate-800', accent: 'bg-slate-400' },
+                    { id: 'midnight_navy', name: 'Royal Midnight', desc: 'Deep midnight navy with church brand accents', bg: 'bg-[#090d16]', border: 'border-gray-800', accent: 'bg-brand-500' },
                   ].map(sb => {
                     const isSelected = (theme.sidebarTheme || 'light') === sb.id;
                     return (
                       <button
                         key={sb.id}
                         type="button"
-                        onClick={() => setTheme(t => ({ ...t, sidebarTheme: sb.id }))}
+                        onClick={() => {
+                          const newT = { ...theme, sidebarTheme: sb.id };
+                          setTheme(newT);
+                          applyChurchTheme(newT, church);
+                        }}
                         className={`p-3.5 rounded-xl border text-left transition-all ${
                           isSelected
                             ? 'border-brand-600 ring-2 ring-brand-500/20 bg-brand-50/20 shadow-sm'
@@ -1421,7 +1516,7 @@ export default function Settings() {
                         }`}
                       >
                         <div className={`h-10 rounded-lg ${sb.bg} border ${sb.border} p-2 flex items-center gap-2 mb-2`}>
-                          <div className="w-4 h-4 rounded-md bg-brand-600 shrink-0" />
+                          <div className={`w-4 h-4 rounded-md ${sb.accent} shrink-0`} />
                           <div className="space-y-1 flex-1">
                             <div className="h-1.5 w-14 bg-gray-400/40 rounded" />
                             <div className="h-1.5 w-8 bg-gray-400/20 rounded" />
@@ -1546,6 +1641,61 @@ export default function Settings() {
                     <label className="label">Church Tagline / Motto</label>
                     <input className="input" placeholder="Transforming Lives, Impacting Nations" value={church.tagline || ''} onChange={setC('tagline')} />
                   </div>
+                </div>
+              </div>
+
+              {/* White-Label Church Links & Direct URLs */}
+              <div className="pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                      <Globe size={16} className="text-brand-600" /> Branded Church Access Links & White-Label URLs
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Share these customized links with your leaders, workers, members, and first-time guests:
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                  {[
+                    { label: 'Staff & Leadership Login', url: `${window.location.origin}/login/${church.slug || ''}`, desc: 'Direct branded sign-in for church staff & ministers' },
+                    { label: 'Member Self-Service Portal', url: `${window.location.origin}/portal/${church.slug || ''}/login`, desc: 'Giving, sermon media, devotionals, profiles & cells' },
+                    { label: 'First-Timer Welcome Intake', url: `${window.location.origin}/connect/${church.slug || ''}/first-timer`, desc: 'Sunday visitors registration & friendship team intake' },
+                    { label: 'Public Online Giving', url: `${window.location.origin}/give/${church.slug || ''}`, desc: 'Direct tithes, offerings, project pledges & building fund' },
+                    { label: 'New Member Registration', url: `${window.location.origin}/connect/${church.slug || ''}/member`, desc: 'Full membership onboarding with family & demographics' },
+                    { label: 'Prayer Requests Wall', url: `${window.location.origin}/connect/${church.slug || ''}/prayer`, desc: 'Public prayer petition & pastor care form' },
+                  ].map((link) => (
+                    <div key={link.label} className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/60 hover:bg-white transition-all flex flex-col justify-between">
+                      <div>
+                        <div className="text-xs font-bold text-gray-900">{link.label}</div>
+                        <div className="text-[11px] text-gray-500 mb-2">{link.desc}</div>
+                        <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs font-mono text-gray-600 truncate select-all">
+                          <span className="truncate flex-1">{link.url}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-2 mt-2.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(link.url);
+                            toast.success(`${link.label} copied!`);
+                          }}
+                          className="px-2.5 py-1 rounded-lg text-xs font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-100 inline-flex items-center gap-1 transition-colors"
+                        >
+                          <Copy size={12} /> Copy Link
+                        </button>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2.5 py-1 rounded-lg text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 inline-flex items-center gap-1 transition-colors"
+                        >
+                          <ExternalLink size={12} /> Open Page
+                        </a>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 

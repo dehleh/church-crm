@@ -5,6 +5,7 @@ import {
   KeyRound, Copy, CheckCircle2, ArrowRight, Smartphone, Baby, Plus, Trash2, AlertCircle
 } from 'lucide-react';
 import { publicIntakeAPI } from '../api/services';
+import { applyChurchTheme } from '../utils/theme';
 import toast from 'react-hot-toast';
 
 export default function PublicMemberForm() {
@@ -69,7 +70,12 @@ export default function PublicMemberForm() {
     setLoading(true);
     publicIntakeAPI.getContext(churchSlug)
       .then((res) => {
-        if (active) setMeta(res.data.data);
+        if (active) {
+          const data = res.data.data;
+          setMeta(data);
+          const church = data.church || data;
+          applyChurchTheme(church.settings?.theme, church);
+        }
       })
       .catch(() => {
         if (active) toast.error('Unable to load church form');

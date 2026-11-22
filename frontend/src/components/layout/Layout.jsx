@@ -13,6 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 import { hasRole, getRoleTitle } from '../../utils/rbac';
 import GlobalSearch from '../ui/GlobalSearch';
 import { getAssetUrl } from '../../api/client';
+import { applyChurchTheme } from '../../utils/theme';
 import clsx from 'clsx';
 
 const NAV = [
@@ -70,27 +71,14 @@ export default function Layout() {
 
   // Apply church's custom brand colors & theme dynamically across the app
   useEffect(() => {
-    const primary = user?.theme?.primaryColor || '#1d4ed8';
-    const accent = user?.theme?.accentColor || '#3b82f6';
-    document.documentElement.style.setProperty('--brand-primary', primary);
-    document.documentElement.style.setProperty('--brand-accent', accent);
-  }, [user?.theme]);
-
-  // Dynamic Browser Tab Title & Favicon White-Labeling
-  useEffect(() => {
-    if (user?.churchName) {
-      document.title = `${user.churchName} — ChurchOS`;
-    }
-    if (user?.churchLogoUrl) {
-      let link = document.querySelector("link[rel*='icon']");
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'icon';
-        document.head.appendChild(link);
-      }
-      link.href = getAssetUrl(user.churchLogoUrl);
-    }
-  }, [user?.churchName, user?.churchLogoUrl]);
+    applyChurchTheme(user?.theme, {
+      name: user?.churchName,
+      logoUrl: user?.churchLogoUrl,
+      tagline: user?.churchTagline,
+      bannerUrl: user?.churchBannerUrl,
+      slug: user?.churchSlug,
+    });
+  }, [user?.theme, user?.churchName, user?.churchLogoUrl, user?.churchTagline, user?.churchBannerUrl, user?.churchSlug]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -108,11 +96,13 @@ export default function Layout() {
   };
 
   const sidebarTheme = user?.theme?.sidebarTheme || 'light';
-  const isDarkSidebar = sidebarTheme === 'dark_slate' || sidebarTheme === 'midnight_navy';
+  const isDarkSidebar = sidebarTheme === 'dark_slate' || sidebarTheme === 'midnight_navy' || sidebarTheme === 'church_tint';
   const sidebarBg = sidebarTheme === 'midnight_navy'
     ? 'bg-[#090d16] border-r border-gray-800'
     : sidebarTheme === 'dark_slate'
     ? 'bg-slate-900 border-r border-slate-800'
+    : sidebarTheme === 'church_tint'
+    ? 'bg-brand-950 border-r border-brand-900/60 text-white'
     : 'bg-white border-r border-gray-100';
 
   return (
@@ -242,6 +232,28 @@ export default function Layout() {
           <button className="lg:hidden p-1.5 rounded-lg hover:bg-gray-100" onClick={() => setMobileOpen(v => !v)}>
             <Menu size={20} className="text-gray-600" />
           </button>
+
+          {/* Prominent Church Identity Badge */}
+          <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-gray-50/80 border border-gray-200/70 shadow-2xs">
+            {user?.churchLogoUrl ? (
+              <img
+                src={getAssetUrl(user.churchLogoUrl)}
+                alt={user.churchName}
+                className="w-5 h-5 object-contain rounded-md bg-white p-0.5 border border-gray-200 shrink-0"
+              />
+            ) : (
+              <Building2 size={16} className="text-brand-600 shrink-0" />
+            )}
+            <span className="text-xs font-bold text-gray-900 truncate max-w-[200px]">
+              {user?.churchName || 'ChurchOS'}
+            </span>
+            {user?.branchName && (
+              <span className="text-[10px] text-gray-500 bg-white px-1.5 py-0.5 rounded border border-gray-200">
+                {user.branchName}
+              </span>
+            )}
+          </div>
+
           <div className="flex-1 flex items-center gap-3 hidden md:flex">
             <GlobalSearch />
           </div>
@@ -317,6 +329,9 @@ export default function Layout() {
                       <Globe size={15} /> Platform Console
                     </button>
                   )}
+                  <button onClick={() => { setShowProfileMenu(false); navigate('/settings?tab=theme'); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-brand-700 bg-brand-50/50 hover:bg-brand-50 font-medium transition-colors">
+                    <Sparkles size={15} /> Church Branding & Theme
+                  </button>
                   <button onClick={() => { setShowProfileMenu(false); navigate('/settings'); }} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                     <User size={15} /> My Profile
                   </button>

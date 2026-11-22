@@ -6,6 +6,8 @@ import Layout from './components/layout/Layout';
 import RoleRoute from './components/auth/RoleRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import { getCachedChurchBranding } from './utils/theme';
+import { getAssetUrl } from './api/client';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const GetStarted = lazy(() => import('./pages/GetStarted'));
@@ -85,14 +87,25 @@ function L({ children }) {
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-3">
-      <img src="/logo.png" alt="The Mobile Missionaries" className="w-20 h-20 object-contain" />
-      <div className="font-display font-bold text-gray-900 text-xl">The Mobile Missionaries</div>
-      <div className="text-xs uppercase tracking-[0.2em] text-brand-600 font-semibold">Powered by ChurchOS</div>
-      <div className="w-5 h-5 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin mt-1"></div>
-    </div>
-  );
+  if (loading) {
+    const cached = getCachedChurchBranding();
+    const churchName = cached?.name || 'ChurchOS';
+    const logoUrl = cached?.logoUrl ? getAssetUrl(cached.logoUrl) : '/logo.png';
+    const tagline = cached?.tagline || 'Church Management Platform';
+
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-3 p-4 text-center">
+        <img
+          src={logoUrl}
+          alt={churchName}
+          className="w-20 h-20 object-contain rounded-2xl bg-white p-2 border border-gray-100 shadow-sm"
+        />
+        <div className="font-display font-bold text-gray-900 text-xl">{churchName}</div>
+        <div className="text-xs uppercase tracking-[0.18em] text-brand-600 font-semibold">{tagline}</div>
+        <div className="w-5 h-5 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin mt-2"></div>
+      </div>
+    );
+  }
   return user ? children : <Navigate to="/login" replace />;
 }
 
@@ -125,6 +138,7 @@ export default function App() {
     <AuthProvider>
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/login/:churchSlug" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/platform/login" element={<PublicRoute><PlatformLogin /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
           <Route path="/get-started" element={<L><GetStarted /></L>} />

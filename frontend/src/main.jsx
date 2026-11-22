@@ -4,6 +4,10 @@ import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import App from './App';
 import './index.css';
+import { initializeCachedTheme } from './utils/theme';
+
+// Initialize cached church branding & color variables before React mount
+initializeCachedTheme();
 
 // Optional Sentry init (only if DSN provided at build time)
 if (import.meta.env.VITE_SENTRY_DSN) {

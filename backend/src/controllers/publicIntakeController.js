@@ -7,7 +7,7 @@ const getChurchBySlug = async (slug) => {
   const { rows } = await query(
     `SELECT id, name, slug, logo_url, banner_url, tagline, city, state, country, settings, is_active
      FROM churches
-     WHERE slug = $1`,
+     WHERE LOWER(slug) = LOWER($1) OR LOWER(REPLACE(slug, '-', '')) = LOWER(REPLACE($1, '-', ''))`,
     [slug]
   );
 

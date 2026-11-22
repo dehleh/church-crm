@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Church, HeartHandshake, Loader2, Send } from 'lucide-react';
 import { publicIntakeAPI } from '../api/services';
+import { applyChurchTheme } from '../utils/theme';
 import toast from 'react-hot-toast';
 
 export default function PublicPrayerForm() {
@@ -15,7 +16,13 @@ export default function PublicPrayerForm() {
   useEffect(() => {
     let active = true;
     publicIntakeAPI.getContext(churchSlug)
-      .then((res) => active && setMeta(res.data.data))
+      .then((res) => {
+        if (!active) return;
+        const data = res.data.data;
+        setMeta(data);
+        const church = data.church || data;
+        applyChurchTheme(church.settings?.theme, church);
+      })
       .catch(() => active && toast.error('Unable to load church form'))
       .finally(() => active && setLoading(false));
     return () => { active = false; };

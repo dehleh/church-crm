@@ -1,3 +1,12 @@
+function withOpacity(variableName) {
+  return ({ opacityValue }) => {
+    if (opacityValue !== undefined) {
+      return `rgba(var(${variableName}), ${opacityValue})`;
+    }
+    return `rgb(var(${variableName}))`;
+  };
+}
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
@@ -10,17 +19,18 @@ export default {
       },
       colors: {
         brand: {
-          50:  '#f0f4ff',
-          100: '#e0eaff',
-          200: '#c2d4fe',
-          300: '#93b4fd',
-          400: '#6090fa',
-          500: '#3b6ef6',
-          600: '#2450eb',
-          700: '#1c3dd8',
-          800: '#1c34af',
-          900: '#1c318a',
-          950: '#151f55',
+          DEFAULT: withOpacity('--brand-600-rgb'),
+          50:  withOpacity('--brand-50-rgb'),
+          100: withOpacity('--brand-100-rgb'),
+          200: withOpacity('--brand-200-rgb'),
+          300: withOpacity('--brand-300-rgb'),
+          400: withOpacity('--brand-400-rgb'),
+          500: withOpacity('--brand-500-rgb'),
+          600: withOpacity('--brand-600-rgb'),
+          700: withOpacity('--brand-700-rgb'),
+          800: withOpacity('--brand-800-rgb'),
+          900: withOpacity('--brand-900-rgb'),
+          950: withOpacity('--brand-950-rgb'),
         },
         gold: {
           400: '#fbbf24',

@@ -5,6 +5,31 @@
 :root {
   --brand-primary: #1d4ed8;
   --brand-accent: #3b82f6;
+
+  --brand-50: #f0f4ff;
+  --brand-100: #e0eaff;
+  --brand-200: #c2d4fe;
+  --brand-300: #93b4fd;
+  --brand-400: #6090fa;
+  --brand-500: #3b6ef6;
+  --brand-600: #1d4ed8;
+  --brand-700: #1c3dd8;
+  --brand-800: #1c34af;
+  --brand-900: #1c318a;
+  --brand-950: #151f55;
+
+  --brand-50-rgb: 240, 244, 255;
+  --brand-100-rgb: 224, 234, 255;
+  --brand-200-rgb: 194, 212, 254;
+  --brand-300-rgb: 147, 180, 253;
+  --brand-400-rgb: 96, 144, 250;
+  --brand-500-rgb: 59, 110, 246;
+  --brand-600-rgb: 29, 78, 216;
+  --brand-700-rgb: 28, 61, 216;
+  --brand-800-rgb: 28, 52, 175;
+  --brand-900-rgb: 28, 49, 138;
+  --brand-950-rgb: 21, 31, 85;
+  --brand-accent-rgb: 59, 130, 246;
 }
 
 @layer base {

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { givingAPI } from '../api/services';
 import { getAssetUrl } from '../api/client';
+import { applyChurchTheme } from '../utils/theme';
 import toast from 'react-hot-toast';
 
 const PRESET_AMOUNTS = [2000, 5000, 10000, 25000, 50000, 100000];
@@ -94,6 +95,9 @@ export default function PublicGiving() {
       .then((res) => {
         const data = res.data?.data;
         setChurch(data?.church);
+        if (data?.church) {
+          applyChurchTheme(data.church.settings?.theme, data.church);
+        }
         setCategories(data?.categories || []);
         const camps = data?.campaigns || [];
         setCampaigns(camps);

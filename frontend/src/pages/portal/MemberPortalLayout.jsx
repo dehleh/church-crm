@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { memberPortalAPI } from '../../api/memberClient';
 import { getAssetUrl } from '../../api/client';
+import { applyChurchTheme } from '../../utils/theme';
 
 const NAV = [
   { to: 'home',          label: 'Home',                 icon: Home },
@@ -42,6 +43,19 @@ export default function MemberPortalLayout() {
       .catch(() => { localStorage.removeItem('memberToken'); })
       .finally(() => setLoading(false));
   }, [token]);
+
+  useEffect(() => {
+    if (me) {
+      applyChurchTheme(me.churchSettings?.theme, {
+        name: me.churchName,
+        logoUrl: me.churchLogoUrl,
+        bannerUrl: me.churchBannerUrl,
+        tagline: me.churchTagline,
+        portal: true,
+        slug: churchSlug,
+      });
+    }
+  }, [me, churchSlug]);
 
   if (!token) return <Navigate to={`/portal/${churchSlug}/login`} replace />;
   if (loading) {

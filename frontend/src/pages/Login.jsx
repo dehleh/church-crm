@@ -1,12 +1,19 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Loader2, AlertCircle, Shield, KeyRound, ArrowLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Eye, EyeOff, Loader2, AlertCircle, Shield, KeyRound, ArrowLeft, Church, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { authAPI, twoFactorAPI } from '../api/services';
+import { authAPI, twoFactorAPI, publicIntakeAPI } from '../api/services';
 import toast from 'react-hot-toast';
 import { validateForm, required, email } from '../utils/validation';
+import { applyChurchTheme, getCachedChurchBranding } from '../utils/theme';
+import { getAssetUrl } from '../api/client';
 
 export default function Login() {
+  const { churchSlug: paramSlug } = useParams();
+  const [searchParams] = useSearchParams();
+  const querySlug = searchParams.get('church') || '';
+  const activeSlug = paramSlug || querySlug;
+
   const { login } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: '', password: '' });
@@ -15,10 +22,50 @@ export default function Login() {
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
 
+  // Church White-Label State
+  const [churchMeta, setChurchMeta] = useState(() => getCachedChurchBranding());
+
   // 2FA Challenge State
   const [twoFactorChallenge, setTwoFactorChallenge] = useState(null);
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [isBackupCode, setIsBackupCode] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    if (activeSlug) {
+      publicIntakeAPI.getContext(activeSlug)
+        .then((res) => {
+          if (!active) return;
+          const church = res.data.data;
+          setChurchMeta(church);
+          applyChurchTheme(church.settings?.theme, {
+            name: church.name,
+            logoUrl: church.logo_url || church.logoUrl,
+            bannerUrl: church.banner_url || church.bannerUrl,
+            tagline: church.tagline,
+            slug: church.slug,
+          });
+        })
+        .catch(() => {
+          // Keep cached if error
+        });
+    } else if (churchMeta?.theme) {
+      applyChurchTheme(churchMeta.theme, churchMeta);
+    }
+
+    return () => { active = false; };
+  }, [activeSlug]);
+
+  const handleClearChurch = () => {
+    try {
+      localStorage.removeItem('churchos_cached_branding');
+    } catch {}
+    setChurchMeta(null);
+    applyChurchTheme({}, {});
+    if (paramSlug || querySlug) {
+      navigate('/login', { replace: true });
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,6 +93,16 @@ export default function Login() {
       if (!user) {
         throw new Error('Login failed: Invalid response received from server.');
       }
+
+      // Apply and cache church branding
+      applyChurchTheme(user.theme, {
+        name: user.churchName,
+        logoUrl: user.churchLogoUrl,
+        bannerUrl: user.churchBannerUrl,
+        tagline: user.churchTagline,
+        slug: user.churchSlug,
+      });
+
       login(user, payload);
       if (payload.forcePasswordChange) {
         toast('Please change your temporary password', { icon: '🔑' });
@@ -79,6 +136,16 @@ export default function Login() {
       const payload = res?.data?.data || res?.data;
       const user = payload?.user;
       if (!user) throw new Error('2FA verification failed.');
+
+      // Apply and cache church branding
+      applyChurchTheme(user.theme, {
+        name: user.churchName,
+        logoUrl: user.churchLogoUrl,
+        bannerUrl: user.churchBannerUrl,
+        tagline: user.churchTagline,
+        slug: user.churchSlug,
+      });
+
       login(user, payload);
       toast.success(`Welcome back, ${user.firstName}!`);
       navigate(user.isSuperAdmin ? '/platform' : '/dashboard');
@@ -89,16 +156,39 @@ export default function Login() {
     }
   };
 
+  const churchName = churchMeta?.name || 'ChurchOS';
+  const churchLogo = churchMeta?.logo_url || churchMeta?.logoUrl;
+  const churchBanner = churchMeta?.banner_url || churchMeta?.bannerUrl;
+  const churchTagline = churchMeta?.tagline || 'Multi-Branch Church Operating System';
+  const isCustomBranded = Boolean(churchMeta?.name && churchMeta?.name !== 'ChurchOS');
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-950 via-brand-900 to-brand-800 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-white shadow-xl mb-4 p-2">
-            <img src="/logo.png" alt="ChurchOS" className="w-full h-full object-contain" />
+    <div className="min-h-screen relative flex items-center justify-center p-4 bg-gradient-to-br from-brand-950 via-brand-900 to-brand-800">
+      {/* Sanctuary Backdrop Cover Photo */}
+      {churchBanner && (
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-25 filter blur-[1px] transition-opacity duration-700 pointer-events-none"
+          style={{ backgroundImage: `url(${getAssetUrl(churchBanner)})` }}
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-brand-950/40 to-transparent pointer-events-none" />
+
+      <div className="w-full max-w-md relative z-10">
+        {/* Church / Platform Header */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white shadow-xl mb-3.5 p-2 border border-white/20">
+            {churchLogo ? (
+              <img
+                src={getAssetUrl(churchLogo)}
+                alt={churchName}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <img src="/logo.png" alt="ChurchOS" className="w-full h-full object-contain" />
+            )}
           </div>
-          <h1 className="font-display text-3xl font-bold text-white">ChurchOS</h1>
-          <p className="text-brand-300 text-sm mt-1">Multi-Branch Church Management Platform</p>
+          <h1 className="font-display text-2xl font-bold text-white drop-shadow-sm">{churchName}</h1>
+          <p className="text-brand-200 text-xs mt-1 max-w-xs mx-auto drop-shadow-xs">{churchTagline}</p>
         </div>
 
         {/* Card */}
@@ -182,7 +272,19 @@ export default function Login() {
           ) : (
             /* Standard Email + Password Form */
             <>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Sign in to your account</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xl font-bold text-gray-900">Sign in to your account</h2>
+                {isCustomBranded && (
+                  <button
+                    type="button"
+                    onClick={handleClearChurch}
+                    title="Sign into a different church"
+                    className="text-[11px] text-gray-400 hover:text-brand-600 flex items-center gap-1 transition-colors"
+                  >
+                    <RefreshCw size={11} /> Switch Church
+                  </button>
+                )}
+              </div>
               <p className="text-gray-500 text-sm mb-6">Welcome back. Enter your credentials to continue.</p>
 
               {serverError && (
@@ -244,14 +346,28 @@ export default function Login() {
                 </button>
               </form>
 
-              <div className="mt-6 pt-4 border-t border-gray-100 text-center text-xs text-gray-500">
-                Don't have an account?{' '}
-                <Link to="/register" className="text-brand-600 hover:text-brand-700 font-semibold">
-                  Register your church
-                </Link>
+              <div className="mt-6 pt-4 border-t border-gray-100 flex flex-col items-center gap-2 text-center text-xs text-gray-500">
+                <div>
+                  Don't have an account?{' '}
+                  <Link to="/register" className="text-brand-600 hover:text-brand-700 font-semibold">
+                    Register your church
+                  </Link>
+                </div>
+                {churchMeta?.slug && (
+                  <Link
+                    to={`/portal/${churchMeta.slug}/login`}
+                    className="text-gray-400 hover:text-brand-600 text-[11px] transition-colors"
+                  >
+                    Looking for the Member Portal? Click here &rarr;
+                  </Link>
+                )}
               </div>
             </>
           )}
+        </div>
+
+        <div className="text-center mt-6 text-[11px] text-white/50">
+          © {new Date().getFullYear()} {churchName} · Powered by ChurchOS
         </div>
       </div>
     </div>
