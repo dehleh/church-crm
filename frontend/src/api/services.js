@@ -285,6 +285,7 @@ export const jobsAPI = {
 
 export const publicIntakeAPI = {
   getContext: (churchSlug) => publicApi.get(`/churches/${churchSlug}/intake`),
+  getByDomain: (domain) => publicApi.get(`/churches/by-domain/${encodeURIComponent(domain)}`),
   getEventCheckIn: (churchSlug, eventId) => publicApi.get(`/churches/${churchSlug}/events/${eventId}/check-in`),
   submitFirstTimer: (churchSlug, data) => publicApi.post(`/churches/${churchSlug}/first-timers`, data),
   submitMember: (churchSlug, data) => publicApi.post(`/churches/${churchSlug}/members`, data),

@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: churchos_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-churchos}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-churchos_secure_password_2026}
+      POSTGRES_DB: ${DB_NAME:-churchos_db}
+    volumes:
+      - churchos_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-churchos} -d ${DB_NAME:-churchos_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - churchos_network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: churchos_backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgres://${DB_USER:-churchos}:${DB_PASSWORD:-churchos_secure_password_2026}@postgres:5432/${DB_NAME:-churchos_db}
+      JWT_SECRET: ${JWT_SECRET:-churchos_jwt_super_secret_production_key_2026}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-churchos_jwt_refresh_super_secret_production_key_2026}
+      APP_URL: ${APP_URL:-https://cos.tbclekki.org}
+      API_URL: ${API_URL:-https://cos.tbclekki.org/api}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      SMTP_HOST: ${SMTP_HOST:-mail.tbclekki.org}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@tbclekki.org}
+    volumes:
+      - churchos_uploads:/app/uploads
+    networks:
+      - churchos_network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: churchos_frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    networks:
+      - churchos_network
+
+volumes:
+  churchos_pgdata:
+  churchos_uploads:
+
+networks:
+  churchos_network:
+    driver: bridge

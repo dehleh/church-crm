@@ -7,6 +7,7 @@ const { upload, uploadFor } = require('../middleware/upload');
 const router = express.Router();
 
 router.get('/churches/:slug/intake', c.getIntakeContext);
+router.get('/churches/by-domain/:domain', c.getChurchByDomain);
 router.get('/churches/:slug/events/:eventId/check-in', c.getEventCheckInContext);
 router.post('/churches/:slug/upload-photo', uploadFor('avatars'), upload.single('photo'), c.uploadPublicPhoto);
 

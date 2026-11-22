@@ -157,3 +157,34 @@ export function initializeCachedTheme() {
     applyChurchTheme(cached.theme, cached);
   }
 }
+
+export async function resolveDomainBranding() {
+  if (typeof window === 'undefined') return;
+  const host = window.location.hostname.toLowerCase();
+  if (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host.endsWith('.railway.app') ||
+    host.endsWith('.themobilemissionary.org') ||
+    host === 'themobilemissionary.org'
+  ) {
+    return;
+  }
+
+  try {
+    const { publicIntakeAPI } = await import('../api/services');
+    const res = await publicIntakeAPI.getByDomain(host);
+    const church = res.data?.data;
+    if (church) {
+      applyChurchTheme(church.settings?.theme, {
+        name: church.name,
+        logoUrl: church.logoUrl,
+        bannerUrl: church.bannerUrl,
+        tagline: church.tagline,
+        slug: church.slug,
+      });
+    }
+  } catch {
+    // Custom domain not yet configured or pending DNS verification
+  }
+}

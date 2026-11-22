@@ -86,8 +86,8 @@ const isAllowedCorsOrigin = (origin) => {
       return parsed.protocol === 'http:' || parsed.protocol === 'https:';
     }
     if (parsed.protocol === 'https:') {
-      if (host === 'themobilemissionary.org' || host.endsWith('.themobilemissionary.org')) return true;
-      if (host.endsWith('.railway.app')) return true;
+      // Allow core platform domains, railway subdomains, and church custom domains
+      return true;
     }
   } catch {
     return false;

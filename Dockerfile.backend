@@ -1,0 +1,19 @@
+# Multi-stage Dockerfile for ChurchOS Backend API
+FROM node:20-alpine AS base
+
+WORKDIR /app
+
+# Install dependencies
+COPY backend/package*.json ./
+RUN npm ci --omit=dev
+
+# Copy application source
+COPY backend/ ./
+
+# Create persistent storage folder
+RUN mkdir -p /app/uploads/avatars /app/uploads/documents
+
+EXPOSE 8080
+
+# Run automated migrations then start backend server
+CMD ["sh", "-c", "node src/migrations/run.js && node src/index.js"]

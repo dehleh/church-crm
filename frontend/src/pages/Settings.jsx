@@ -7,7 +7,7 @@ import {
   Copy, Check, ExternalLink, Palette, Clock, LayoutDashboard, CheckCircle2, Tag,
   Eye, Sliders, Layers, Radio, FileText, HeartHandshake, Heart, BookOpen,
   GraduationCap, Bell, Film, Cake, DollarSign, Calendar, MapPin, UserPlus,
-  Upload, Cloud, CheckSquare, Landmark
+  Upload, Cloud, CheckSquare, Landmark, Server, Terminal, HardDrive
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { twoFactorAPI, settingsAPI } from '../api/services';
@@ -188,6 +188,7 @@ export default function Settings() {
   const [disable2FAModal, setDisable2FAModal] = useState({ open: false, password: '', code: '' });
   const [uploadingBranding, setUploadingBranding] = useState({ logo: false, banner: false });
   const [showUrlInput, setShowUrlInput] = useState({ logo: false, banner: false });
+  const [showSelfHostGuide, setShowSelfHostGuide] = useState(false);
 
   const handleUploadBranding = async (e, type) => {
     const file = e.target.files?.[0];
@@ -282,6 +283,8 @@ export default function Settings() {
       setChurch({
         slug: c.slug || '',
         name: c.name || '',
+        customDomain: c.custom_domain || '',
+        customDomainVerified: !!c.custom_domain_verified,
         address: c.address || '',
         city: c.city || '',
         state: c.state || '',
@@ -1321,6 +1324,173 @@ export default function Settings() {
                         </button>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Custom Subdomain & Enterprise Self-Hosting Section */}
+              <div className="pt-6 border-t border-gray-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-brand-600 flex items-center gap-2">
+                      <Globe size={16} /> Custom Subdomain & Dedicated Deployment
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      White-label ChurchOS on your own church domain (e.g. <span className="font-mono text-brand-700 font-semibold">cos.tbclekki.org</span>) or deploy on your private church server.
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200 font-medium self-start sm:self-auto">
+                    <Server size={13} /> Multi-Environment Ready
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {/* OPTION 1: White-label Subdomain CNAME */}
+                  <div className="p-4 rounded-xl border border-gray-200 bg-white space-y-3.5 shadow-xs">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center font-bold text-sm">
+                          1
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-900">Custom Subdomain (CNAME)</h4>
+                          <p className="text-[11px] text-gray-500">Zero maintenance • Automated SSL • Fast CDN</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                        Recommended
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-gray-700 block mb-1">
+                        Church Custom Subdomain / Domain
+                      </label>
+                      <input
+                        className="input text-xs font-mono"
+                        placeholder="e.g. cos.tbclekki.org or portal.tbclekki.org"
+                        value={church.customDomain || ''}
+                        onChange={setC('customDomain')}
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        Members visiting this domain will see your church's full white-labeled branding.
+                      </p>
+                    </div>
+
+                    {/* DNS Setup Card */}
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs">
+                      <div className="flex items-center justify-between text-slate-700 font-semibold">
+                        <span>DNS Record (in Cloudflare / cPanel / Namecheap):</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText('church-crm-backend-production.up.railway.app');
+                            toast.success('CNAME target copied to clipboard!');
+                          }}
+                          className="text-[11px] text-brand-600 hover:text-brand-800 flex items-center gap-1 font-normal cursor-pointer"
+                        >
+                          <Copy size={12} /> Copy Target
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 font-mono text-[11px] bg-white p-2 rounded border border-slate-200 text-slate-700">
+                        <div><span className="text-gray-400 block text-[9px] uppercase font-sans">Type</span>CNAME</div>
+                        <div><span className="text-gray-400 block text-[9px] uppercase font-sans">Host</span>{church.customDomain ? church.customDomain.split('.')[0] : 'cos'}</div>
+                        <div className="truncate" title="church-crm-backend-production.up.railway.app"><span className="text-gray-400 block text-[9px] uppercase font-sans">Target</span>church-crm-backend-production.up.railway.app</div>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Once saved and configured, accessing <span className="font-semibold text-slate-700">https://{church.customDomain || 'cos.tbclekki.org'}</span> automatically binds your church theme, logo, and features.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* OPTION 2: Self-Hosted Docker Deployment */}
+                  <div className="p-4 rounded-xl border border-gray-200 bg-white space-y-3.5 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-sm">
+                            2
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-900">Dedicated Self-Hosted / On-Premise</h4>
+                            <p className="text-[11px] text-gray-500">100% Data Custody • Private VPS / AWS / Cloudflare</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-semibold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
+                          Docker Turnkey
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-gray-600 leading-relaxed mb-3">
+                        Deploy your own standalone ChurchOS instance on an internal server or private VPS (AWS EC2, DigitalOcean, Hetzner, cPanel VPS). Complete with isolated PostgreSQL 16 database, backend worker, and production Nginx web server.
+                      </p>
+
+                      <div className="bg-slate-900 text-emerald-400 p-3 rounded-lg font-mono text-[11px] space-y-1 overflow-x-auto border border-slate-800">
+                        <div className="text-slate-400 text-[10px]"># 1-command startup on your VPS:</div>
+                        <div>docker compose up -d</div>
+                        <div className="text-slate-400 text-[10px] mt-1"># Packaged services:</div>
+                        <div className="text-slate-300">✓ PostgreSQL 16 Alpine</div>
+                        <div className="text-slate-300">✓ ChurchOS API (Auto-migrated)</div>
+                        <div className="text-slate-300">✓ Vite React SPA + Nginx Reverse Proxy</div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowSelfHostGuide(!showSelfHostGuide)}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition-colors border border-slate-200 cursor-pointer"
+                      >
+                        <Terminal size={14} /> {showSelfHostGuide ? 'Hide Setup Instructions' : 'View Self-Hosting Setup Guide'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expandable Self-Hosting Documentation & Docker Walkthrough */}
+                {showSelfHostGuide && (
+                  <div className="mt-4 p-5 rounded-xl border border-purple-200 bg-purple-50/40 space-y-4 text-xs animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between pb-2 border-b border-purple-100">
+                      <div className="flex items-center gap-2">
+                        <Terminal className="text-purple-700" size={18} />
+                        <span className="font-bold text-purple-950 text-sm">Self-Hosting Quickstart (Ubuntu / Debian / Docker)</span>
+                      </div>
+                      <span className="text-[11px] text-purple-600 font-mono">docs/SELF_HOSTING_AND_CUSTOM_DOMAINS.md</span>
+                    </div>
+
+                    <div className="space-y-3 text-slate-700">
+                      <div>
+                        <strong className="text-slate-900 block mb-1">Step 1: Clone Repository & Configure Environment</strong>
+                        <div className="bg-slate-900 text-slate-100 p-2.5 rounded font-mono text-[11px]">
+                          git clone https://github.com/the-baptizing-church/church-crm.git<br />
+                          cd church-crm<br />
+                          cp .env.production.example .env
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Edit <code className="bg-slate-200 px-1 py-0.5 rounded text-slate-800 font-mono">.env</code> to set your database password, JWT secret, and SMTP email credentials.
+                        </p>
+                      </div>
+
+                      <div>
+                        <strong className="text-slate-900 block mb-1">Step 2: Start All Services with Docker Compose</strong>
+                        <div className="bg-slate-900 text-slate-100 p-2.5 rounded font-mono text-[11px]">
+                          docker compose up -d --build
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Postgres, ChurchOS Backend API (with automatic database schema migrations), and Frontend Nginx will start automatically and remain restart-resilient.
+                        </p>
+                      </div>
+
+                      <div>
+                        <strong className="text-slate-900 block mb-1">Step 3: Point Subdomain & Free Let's Encrypt SSL</strong>
+                        <div className="bg-slate-900 text-slate-100 p-2.5 rounded font-mono text-[11px]">
+                          sudo certbot --nginx -d cos.tbclekki.org
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Certbot auto-configures HTTPS on port 443 with automated certificate renewal.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

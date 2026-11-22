@@ -19,7 +19,8 @@ const updateChurchSettings = async (req, res) => {
   const {
     name, address, city, state, country, phone, email, website,
     denomination, timezone, currency, logoUrl, bannerUrl,
-    tagline, mission, vision, socialLinks, pastors, settings, paymentSettings
+    tagline, mission, vision, socialLinks, pastors, settings, paymentSettings,
+    customDomain
   } = req.body;
   try {
     let finalSettings = null;
@@ -37,6 +38,10 @@ const updateChurchSettings = async (req, res) => {
       const incoming = typeof paymentSettings === 'string' ? JSON.parse(paymentSettings) : paymentSettings;
       finalPaymentSettings = JSON.stringify({ ...currentPay, ...incoming });
     }
+
+    const cleanDomain = customDomain !== undefined
+      ? (customDomain ? customDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '') : null)
+      : undefined;
 
     const { rows } = await query(
       `UPDATE churches SET
@@ -60,6 +65,7 @@ const updateChurchSettings = async (req, res) => {
         pastors = COALESCE($19, pastors),
         settings = COALESCE($20, settings),
         payment_settings = COALESCE($21, payment_settings),
+        custom_domain = CASE WHEN $22::text IS NOT NULL AND $22::text = '' THEN NULL WHEN $22::text IS NOT NULL THEN $22::text ELSE custom_domain END,
         updated_at = NOW()
        WHERE id = $1 RETURNING *`,
       [
@@ -70,6 +76,7 @@ const updateChurchSettings = async (req, res) => {
         pastors ? (typeof pastors === 'string' ? pastors : JSON.stringify(pastors)) : null,
         finalSettings,
         finalPaymentSettings,
+        cleanDomain !== undefined ? cleanDomain : null,
       ]
     );
     return res.json({ success: true, data: rows[0], message: 'Settings updated' });

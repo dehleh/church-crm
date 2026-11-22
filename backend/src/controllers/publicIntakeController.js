@@ -431,8 +431,50 @@ const uploadPublicPhoto = async (req, res) => {
   return res.json({ success: true, photoUrl, data: { photoUrl } });
 };
 
+const getChurchByDomain = async (req, res) => {
+  const domain = req.params.domain?.toLowerCase()?.trim();
+  if (!domain) {
+    return res.status(400).json({ success: false, message: 'Domain is required' });
+  }
+
+  try {
+    const { rows } = await query(
+      `SELECT id, name, slug, logo_url, banner_url, tagline, city, state, country, settings, custom_domain, is_active
+       FROM churches
+       WHERE LOWER(custom_domain) = LOWER($1) AND is_active = true`,
+      [domain]
+    );
+
+    if (!rows[0]) {
+      return res.status(404).json({ success: false, message: 'No church configured for this domain' });
+    }
+
+    const church = rows[0];
+    return res.json({
+      success: true,
+      data: {
+        id: church.id,
+        name: church.name,
+        slug: church.slug,
+        logoUrl: church.logo_url,
+        bannerUrl: church.banner_url,
+        tagline: church.tagline,
+        city: church.city,
+        state: church.state,
+        country: church.country,
+        settings: church.settings,
+        customDomain: church.custom_domain,
+      }
+    });
+  } catch (err) {
+    logger.error('getChurchByDomain error', { domain, error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   getIntakeContext,
+  getChurchByDomain,
   getEventCheckInContext,
   submitFirstTimer,
   submitMember,
