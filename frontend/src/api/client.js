@@ -6,7 +6,9 @@ const normalizedApiUrl = rawApiUrl
   ? (rawApiUrl.startsWith('http://') || rawApiUrl.startsWith('https://') ? rawApiUrl : `https://${rawApiUrl}`).replace(/\/+$/, '')
   : '';
 
-export const API_BASE = normalizedApiUrl ? `${normalizedApiUrl}/api` : '/api';
+export const API_BASE = normalizedApiUrl
+  ? (normalizedApiUrl.endsWith('/api') ? normalizedApiUrl : `${normalizedApiUrl}/api`)
+  : '/api';
 
 /**
  * Resolves static asset URLs (e.g. /uploads/branding/...) against the backend host or CDN
@@ -52,8 +54,8 @@ api.interceptors.response.use(
   async err => {
     const original = err.config;
     const isAuthRoute = original?.url?.includes('/auth/login') ||
-                        original?.url?.includes('/auth/register') ||
-                        original?.url?.includes('/auth/refresh');
+      original?.url?.includes('/auth/register') ||
+      original?.url?.includes('/auth/refresh');
 
     if (err.response?.status === 401 && !original?._retry && !isAuthRoute) {
       original._retry = true;

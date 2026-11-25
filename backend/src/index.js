@@ -249,7 +249,7 @@ if (Sentry) {
 app.use(errorHandler);
 
 // ── Start ────────────────────────────────────────────────────
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   const PORT = process.env.PORT || 5000;
   const { pool } = require('./config/database');
   const { runMigrations } = require('./migrations/run');
