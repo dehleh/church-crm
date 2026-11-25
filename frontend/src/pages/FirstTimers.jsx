@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   UserPlus, Plus, Search, Phone, Mail, ArrowRightCircle, Loader2, CheckCircle,
   Edit2, FileSpreadsheet, QrCode, Bot, Sparkles, Clock, Send, MessageSquare, Play,
-  XCircle, Camera, Heart, Users, CheckSquare, Building2, UserCheck
+  XCircle, Camera, Heart, Users, CheckSquare, Building2, UserCheck, Trash2
 } from 'lucide-react';
+import { hasRole } from '../utils/rbac';
 import { firstTimersAPI, branchesAPI, membersAPI } from '../api/services';
 import { getAssetUrl } from '../api/client';
 import Modal from '../components/ui/Modal';
@@ -237,6 +238,17 @@ export default function FirstTimers() {
       toast.success('Converted to member! 🎉');
       fetch(pagination.page);
     } catch { toast.error('Conversion failed'); }
+  };
+
+  const handleDeleteFirstTimer = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to remove first timer ${name || ''}?`)) return;
+    try {
+      await firstTimersAPI.delete(id);
+      toast.success('First timer removed');
+      fetch(pagination.page);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to remove first timer');
+    }
   };
 
   const getInitials = (fn, ln) => `${fn?.[0] || ''}${ln?.[0] || ''}`.toUpperCase();
@@ -528,6 +540,15 @@ export default function FirstTimers() {
                         </>
                       )}
                       {item.converted_to_member && <span className="badge badge-green text-xs">Converted</span>}
+                      {hasRole(user, ['admin', 'pastor']) && (
+                        <button
+                          onClick={() => handleDeleteFirstTimer(item.id, `${item.first_name} ${item.last_name}`)}
+                          className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                          title="Delete First Timer"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

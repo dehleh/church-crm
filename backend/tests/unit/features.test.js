@@ -32,6 +32,8 @@ const childCtrl = require('../../src/controllers/childCheckInController');
 const givingCtrl = require('../../src/controllers/givingController');
 const pledgeCtrl = require('../../src/controllers/pledgeController');
 const servicePlansCtrl = require('../../src/controllers/servicePlansController');
+const usersCtrl = require('../../src/controllers/usersController');
+const firstTimersCtrl = require('../../src/controllers/firstTimersController');
 
 function mockReqRes(reqData = {}) {
   const req = {
@@ -396,6 +398,69 @@ describe('Core Feature Suites & Optimizations', () => {
           success: true,
           data: expect.objectContaining({ activeItemIndex: 2, status: 'live' }),
         })
+      );
+    });
+  });
+
+  describe('User & First Timer Deletion Oversight', () => {
+    it('prevents a user from deleting their own account', async () => {
+      const { req, res } = mockReqRes({
+        user: { id: 'admin-1' },
+        params: { id: 'admin-1' },
+      });
+      await usersCtrl.deleteUser(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: expect.stringContaining('cannot delete your own') })
+      );
+    });
+
+    it('successfully deactivates (soft deletes) a user account', async () => {
+      const { req, res } = mockReqRes({
+        user: { id: 'admin-1' },
+        params: { id: 'user-2' },
+        query: { permanent: 'false' },
+      });
+      db.query
+        .mockResolvedValueOnce({ rows: [{ id: 'user-2', first_name: 'Mark', last_name: 'John', email: 'mark@tbc.org', role: 'hod', is_active: true }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'user-2', first_name: 'Mark', last_name: 'John', email: 'mark@tbc.org' }] });
+
+      await usersCtrl.deleteUser(req, res);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, message: expect.stringContaining('deactivated') })
+      );
+    });
+
+    it('permanently deletes a user account when permanent=true', async () => {
+      const { req, res } = mockReqRes({
+        user: { id: 'admin-1' },
+        params: { id: 'user-2' },
+        query: { permanent: 'true' },
+      });
+      db.query
+        .mockResolvedValueOnce({ rows: [{ id: 'user-2', first_name: 'Mark', last_name: 'John', email: 'mark@tbc.org', role: 'hod', is_active: true }] })
+        .mockResolvedValue({ rows: [{ id: 'user-2', first_name: 'Mark', last_name: 'John', email: 'mark@tbc.org' }] });
+
+      await usersCtrl.deleteUser(req, res);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, message: expect.stringContaining('permanently deleted') })
+      );
+    });
+
+    it('successfully removes a first timer record', async () => {
+      const { req, res } = mockReqRes({
+        user: { id: 'admin-1' },
+        params: { id: 'ft-1' },
+      });
+      db.query
+        .mockResolvedValueOnce({ rows: [] }) // follow ups
+        .mockResolvedValueOnce({ rows: [] }) // attendance
+        .mockResolvedValueOnce({ rows: [] }) // queue
+        .mockResolvedValueOnce({ rows: [{ id: 'ft-1', first_name: 'Visitor', last_name: 'One' }] });
+
+      await firstTimersCtrl.deleteFirstTimer(req, res);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, message: expect.stringContaining('removed successfully') })
       );
     });
   });

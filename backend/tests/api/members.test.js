@@ -124,7 +124,7 @@ describe('Members API', () => {
     it('should soft-delete (deactivate) a member', async () => {
       db.__mockQuery
         .mockResolvedValueOnce({ rows: [mockUser] })
-        .mockResolvedValueOnce({ rows: [{ id: 'm1' }] });
+        .mockResolvedValueOnce({ rows: [{ id: 'm1', first_name: 'John', last_name: 'Doe' }] });
 
       const res = await request(app)
         .delete('/api/members/m1')
@@ -132,6 +132,19 @@ describe('Members API', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.message).toBe('Member deactivated');
+    });
+
+    it('should permanently delete a member when permanent=true', async () => {
+      db.__mockQuery
+        .mockResolvedValueOnce({ rows: [mockUser] })
+        .mockResolvedValue({ rows: [{ id: 'm1', first_name: 'John', last_name: 'Doe' }] });
+
+      const res = await request(app)
+        .delete('/api/members/m1?permanent=true')
+        .set('Authorization', `Bearer ${authToken()}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toContain('permanently deleted');
     });
   });
 

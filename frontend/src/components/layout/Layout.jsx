@@ -49,7 +49,7 @@ const NAV = [
   ]},
   { group: 'Admin', items: [
     { to: '/branches', icon: GitBranch,   label: 'Branches',         allowedRoles: ['admin'] },
-    { to: '/users',    icon: ShieldCheck, label: 'Users',            allowedRoles: ['admin'] },
+    { to: '/users',    icon: ShieldCheck, label: 'Users',            allowedRoles: ['admin', 'pastor'] },
     { to: '/reports',  icon: BarChart2,   label: 'Reports',          allowedRoles: ['admin', 'pastor', 'director', 'finance'] },
     { to: '/settings', icon: Settings,    label: 'Settings',         allowedRoles: ['admin'] },
   ]},

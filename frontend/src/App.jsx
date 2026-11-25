@@ -201,7 +201,7 @@ export default function App() {
             <Route path="media" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Media /></L></RoleRoute>} />
             <Route path="prayer" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Prayer /></L></RoleRoute>} />
             <Route path="communications" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director']}><L><Communications /></L></RoleRoute>} />
-            <Route path="users" element={<RoleRoute allowedRoles={['admin']}><L><UserManagement /></L></RoleRoute>} />
+            <Route path="users" element={<RoleRoute allowedRoles={['admin', 'pastor']}><L><UserManagement /></L></RoleRoute>} />
             <Route path="reports" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'finance']}><L><Reports /></L></RoleRoute>} />
             <Route path="follow-ups" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><FollowUps /></L></RoleRoute>} />
             <Route path="assets" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Assets /></L></RoleRoute>} />

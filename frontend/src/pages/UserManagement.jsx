@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShieldCheck, Plus, Edit2, KeyRound, Loader2, UserCheck, UserX } from 'lucide-react';
+import { ShieldCheck, Plus, Edit2, KeyRound, Loader2, UserCheck, UserX, Trash2, AlertTriangle } from 'lucide-react';
 import { usersAPI, branchesAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
@@ -28,6 +28,8 @@ export default function UserManagement() {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [tempPw, setTempPw] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetch = async () => {
     setLoading(true);
@@ -84,6 +86,21 @@ export default function UserManagement() {
       toast.success(`User ${user.is_active ? 'deactivated' : 'activated'}`);
       fetch();
     } catch { toast.error('Failed to update'); }
+  };
+
+  const handleDeleteUser = async (permanent = false) => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await usersAPI.delete(deleteTarget.id, { permanent });
+      toast.success(res.data.message || (permanent ? 'User permanently deleted' : 'User deactivated'));
+      setDeleteTarget(null);
+      fetch();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to remove user');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const openEdit = (user) => {
@@ -159,6 +176,9 @@ export default function UserManagement() {
                         <button onClick={() => handleResetPw(u.id)} className="p-1.5 rounded hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors" title="Reset password"><KeyRound size={14} /></button>
                         <button onClick={() => handleToggleActive(u)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors" title={u.is_active ? 'Deactivate' : 'Activate'}>
                           {u.is_active ? <UserX size={14} /> : <UserCheck size={14} />}
+                        </button>
+                        <button onClick={() => setDeleteTarget(u)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors" title="Delete or Deactivate User">
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     )}
@@ -240,6 +260,64 @@ export default function UserManagement() {
           )}
           <p className="text-xs text-gray-400 mt-3">The user will be required to change their temporary password on first login.</p>
         </div>
+      </Modal>
+
+      {/* Delete / Deactivate User Modal */}
+      <Modal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title="Remove Staff / System User"
+      >
+        {deleteTarget && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 bg-red-50/70 border border-red-200 p-4 rounded-xl text-red-900 text-sm">
+              <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
+              <div>
+                <p className="font-semibold text-red-950">
+                  Are you sure you want to remove {deleteTarget.first_name} {deleteTarget.last_name}?
+                </p>
+                <p className="text-xs text-red-700 mt-1">
+                  Email: <span className="font-mono">{deleteTarget.email}</span> • Role: <span className="capitalize font-medium">{getRoleTitle(deleteTarget.role)}</span>
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Choose whether to <strong>deactivate</strong> this account (blocks login while preserving financial & audit history) or <strong>permanently delete</strong> the user record completely.
+            </p>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-end border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="btn-secondary text-xs"
+              >
+                Cancel
+              </button>
+              {deleteTarget.is_active && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteUser(false)}
+                  disabled={deleting}
+                  className="btn-secondary text-amber-700 border-amber-200 hover:bg-amber-50 text-xs flex items-center justify-center gap-1.5"
+                >
+                  {deleting ? <Loader2 size={13} className="animate-spin" /> : <UserX size={13} />}
+                  <span>Deactivate (Soft Delete)</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleDeleteUser(true)}
+                disabled={deleting}
+                className="btn-primary bg-red-600 hover:bg-red-700 border-red-600 text-white text-xs flex items-center justify-center gap-1.5"
+              >
+                {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                <span>Permanently Delete</span>
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

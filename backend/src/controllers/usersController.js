@@ -106,4 +106,102 @@ const resetUserPassword = async (req, res) => {
   } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
 };
 
-module.exports = { getUsers, inviteUser, updateUser, resetUserPassword };
+const deleteUser = async (req, res) => {
+  const { id } = req.params;
+  const isPermanent = req.query.permanent === 'true';
+
+  if (id === req.user.id) {
+    return res.status(400).json({ success: false, message: 'You cannot delete your own user account' });
+  }
+
+  try {
+    const { rows: targetUsers } = await query(
+      'SELECT id, first_name, last_name, email, role, is_active FROM users WHERE id = $1 AND church_id = $2',
+      [id, req.churchId]
+    );
+    if (!targetUsers[0]) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    const targetUser = targetUsers[0];
+
+    // Ensure we do not delete the last remaining active admin/head pastor
+    if (['admin', 'head_pastor'].includes(targetUser.role)) {
+      const { rows: remainingAdmins } = await query(
+        `SELECT COUNT(*)::int as count FROM users 
+         WHERE church_id = $1 AND id != $2 AND role IN ('admin', 'head_pastor') AND is_active = true`,
+        [req.churchId, id]
+      );
+      if ((remainingAdmins[0]?.count || 0) < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot remove the sole remaining Church Admin. Please assign another admin first.'
+        });
+      }
+    }
+
+    if (isPermanent) {
+      // Nullify references in related tables to avoid FK constraint violations
+      await query('UPDATE events SET created_by = NULL WHERE created_by = $1', [id]).catch(() => {});
+      await query('UPDATE budgets SET created_by = NULL WHERE created_by = $1', [id]).catch(() => {});
+      await query('UPDATE transactions SET recorded_by = NULL WHERE recorded_by = $1', [id]).catch(() => {});
+      await query('UPDATE transactions SET approved_by = NULL WHERE approved_by = $1', [id]).catch(() => {});
+      await query('UPDATE first_timers SET follow_up_assigned_to = NULL WHERE follow_up_assigned_to = $1', [id]).catch(() => {});
+      await query('UPDATE follow_ups SET assigned_to = NULL WHERE assigned_to = $1', [id]).catch(() => {});
+      await query('UPDATE procurement_requisitions SET raised_by = NULL WHERE raised_by = $1', [id]).catch(() => {});
+      await query('UPDATE procurement_requisitions SET approved_by = NULL WHERE approved_by = $1', [id]).catch(() => {});
+      await query('UPDATE purchase_orders SET raised_by = NULL WHERE raised_by = $1', [id]).catch(() => {});
+      await query('UPDATE purchase_orders SET reviewed_by = NULL WHERE reviewed_by = $1', [id]).catch(() => {});
+      await query('UPDATE giving_campaigns SET created_by = NULL WHERE created_by = $1', [id]).catch(() => {});
+      await query('UPDATE services SET created_by = NULL WHERE created_by = $1', [id]).catch(() => {});
+      await query('UPDATE pastoral_meeting_requests SET pastor_user_id = NULL WHERE pastor_user_id = $1', [id]).catch(() => {});
+      await query('UPDATE department_service_checklists SET hod_user_id = NULL WHERE hod_user_id = $1', [id]).catch(() => {});
+      await query('UPDATE department_service_checklist_items SET completed_by_user_id = NULL WHERE completed_by_user_id = $1', [id]).catch(() => {});
+      await query('UPDATE children_checkins SET checked_in_by = NULL WHERE checked_in_by = $1', [id]).catch(() => {});
+      await query('UPDATE children_checkins SET checked_out_by = NULL WHERE checked_out_by = $1', [id]).catch(() => {});
+
+      const { rows } = await query(
+        'DELETE FROM users WHERE id = $1 AND church_id = $2 RETURNING id, first_name, last_name, email',
+        [id, req.churchId]
+      );
+      if (!rows[0]) return res.status(404).json({ success: false, message: 'User not found' });
+
+      logger.info('User permanently deleted', {
+        action: 'user_delete_permanent',
+        performedBy: req.user.id,
+        targetUser: id,
+        targetEmail: targetUser.email,
+        churchId: req.churchId
+      });
+
+      return res.json({
+        success: true,
+        message: `User ${targetUser.first_name} ${targetUser.last_name} (${targetUser.email}) permanently deleted.`
+      });
+    } else {
+      // Soft-delete / deactivate user
+      const { rows } = await query(
+        'UPDATE users SET is_active = false WHERE id = $1 AND church_id = $2 RETURNING id, first_name, last_name, email',
+        [id, req.churchId]
+      );
+      if (!rows[0]) return res.status(404).json({ success: false, message: 'User not found' });
+
+      logger.info('User deactivated', {
+        action: 'user_deactivate',
+        performedBy: req.user.id,
+        targetUser: id,
+        targetEmail: targetUser.email,
+        churchId: req.churchId
+      });
+
+      return res.json({
+        success: true,
+        message: `User ${targetUser.first_name} ${targetUser.last_name} deactivated.`
+      });
+    }
+  } catch (err) {
+    logger.error('deleteUser error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+module.exports = { getUsers, inviteUser, updateUser, resetUserPassword, deleteUser };

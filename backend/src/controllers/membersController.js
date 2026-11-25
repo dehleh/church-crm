@@ -343,9 +343,10 @@ const getFamily = async (req, res) => {
   }
 };
 
-// DELETE /api/members/:id (soft delete)
+// DELETE /api/members/:id (soft delete or permanent delete via ?permanent=true)
 const deleteMember = async (req, res) => {
   const { id } = req.params;
+  const isPermanent = req.query.permanent === 'true';
   try {
     const params = [id, req.churchId];
     let branchCond = '';
@@ -353,13 +354,41 @@ const deleteMember = async (req, res) => {
       params.push(req.branchId);
       branchCond = ' AND branch_id = $3';
     }
+
+    if (isPermanent) {
+      // Nullify relations before hard delete to prevent constraint violations
+      await query('UPDATE assets SET custodian_id = NULL WHERE custodian_id = $1', [id]).catch(() => {});
+      await query('UPDATE members SET spouse_id = NULL WHERE spouse_id = $1', [id]).catch(() => {});
+      await query('UPDATE members SET assigned_pastor_id = NULL WHERE assigned_pastor_id = $1', [id]).catch(() => {});
+      await query('UPDATE first_timers SET assigned_member_id = NULL WHERE assigned_member_id = $1', [id]).catch(() => {});
+      await query('UPDATE department_service_checklist_items SET assigned_member_id = NULL WHERE assigned_member_id = $1', [id]).catch(() => {});
+      await query('UPDATE department_service_checklist_items SET completed_by_member_id = NULL WHERE completed_by_member_id = $1', [id]).catch(() => {});
+      await query('UPDATE department_service_checklists SET hod_member_id = NULL WHERE hod_member_id = $1', [id]).catch(() => {});
+      await query('UPDATE fellowship_cells SET leader_member_id = NULL WHERE leader_member_id = $1', [id]).catch(() => {});
+      await query('UPDATE fellowship_cells SET assistant_leader_member_id = NULL WHERE assistant_leader_member_id = $1', [id]).catch(() => {});
+      await query('UPDATE fellowship_cells SET host_member_id = NULL WHERE host_member_id = $1', [id]).catch(() => {});
+      await query('UPDATE children_checkins SET child_member_id = NULL WHERE child_member_id = $1', [id]).catch(() => {});
+      await query('UPDATE children_checkins SET parent_member_id = NULL WHERE parent_member_id = $1', [id]).catch(() => {});
+      await query('DELETE FROM member_friendships WHERE requester_member_id = $1 OR target_member_id = $1', [id]).catch(() => {});
+
+      const { rows } = await query(
+        `DELETE FROM members WHERE id = $1 AND church_id = $2${branchCond} RETURNING id, first_name, last_name`,
+        params
+      );
+      if (!rows[0]) return res.status(404).json({ success: false, message: 'Member not found' });
+      logger.info('Member permanently deleted', { action: 'member_delete_permanent', performedBy: req.user.id, memberId: id, churchId: req.churchId });
+      return res.json({ success: true, message: `Member ${rows[0].first_name} ${rows[0].last_name} permanently deleted` });
+    }
+
     const { rows } = await query(
-      `UPDATE members SET membership_status = 'inactive' WHERE id = $1 AND church_id = $2${branchCond} RETURNING id`,
+      `UPDATE members SET membership_status = 'inactive' WHERE id = $1 AND church_id = $2${branchCond} RETURNING id, first_name, last_name`,
       params
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Member not found' });
+    logger.info('Member deactivated', { action: 'member_deactivate', performedBy: req.user.id, memberId: id, churchId: req.churchId });
     return res.json({ success: true, message: 'Member deactivated' });
   } catch (err) {
+    logger.error('deleteMember error', { error: err.message });
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };

@@ -4,8 +4,10 @@ import {
   ArrowLeft, User, Phone, Mail, MapPin, Briefcase, Users,
   Calendar, Heart, Edit2, CheckCircle, XCircle, Loader2,
   Cake, Baby, Home, MessageCircle, Send, Award, Shield, UserCheck, Sparkles,
-  Landmark, Copy, Check, RefreshCw, ExternalLink, Link2
+  Landmark, Copy, Check, RefreshCw, ExternalLink, Link2, Trash2, AlertTriangle
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { hasRole } from '../utils/rbac';
 import { membersAPI, departmentsAPI, fellowshipAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
@@ -27,6 +29,7 @@ function InfoRow({ icon: Icon, label, value }) {
 }
 
 export default function MemberProfile() {
+  const { user } = useAuth();
   const { id } = useParams();
   const navigate = useNavigate();
   const [member, setMember] = useState(null);
@@ -37,6 +40,8 @@ export default function MemberProfile() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Overview');
   const [editModal, setEditModal] = useState(false);
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [addDeptModal, setAddDeptModal] = useState(false);
   const [form, setForm] = useState({});
   const [deptForm, setDeptForm] = useState({});
@@ -220,6 +225,24 @@ export default function MemberProfile() {
     }
   };
 
+  const handleDeleteMember = async (permanent = false) => {
+    setDeleting(true);
+    try {
+      const res = await membersAPI.delete(id, { permanent });
+      toast.success(res.data.message || (permanent ? 'Member permanently deleted' : 'Member deactivated'));
+      setDeleteModal(false);
+      if (permanent) {
+        navigate('/members');
+      } else {
+        fetchMember();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to remove member');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) return <div className="flex items-center justify-center min-h-96"><Loader2 size={28} className="animate-spin text-brand-500" /></div>;
   if (!member) return null;
 
@@ -346,6 +369,17 @@ export default function MemberProfile() {
                 >
                   <Edit2 size={14} /> Edit
                 </button>
+
+                {hasRole(user, ['admin', 'pastor']) && (
+                  <button
+                    onClick={() => setDeleteModal(true)}
+                    className="btn-secondary btn-sm text-red-600 border-red-200 hover:bg-red-50 flex items-center gap-1.5"
+                    title="Remove or Deactivate Member"
+                  >
+                    <Trash2 size={14} />
+                    <span>Delete</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1123,6 +1157,64 @@ export default function MemberProfile() {
             </p>
           </div>
         </div>
+      </Modal>
+
+      {/* Delete / Deactivate Member Modal */}
+      <Modal
+        open={deleteModal}
+        onClose={() => setDeleteModal(false)}
+        title="Remove Church Member"
+      >
+        {member && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 bg-red-50/70 border border-red-200 p-4 rounded-xl text-red-900 text-sm">
+              <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
+              <div>
+                <p className="font-semibold text-red-950">
+                  Are you sure you want to remove {member.first_name} {member.last_name}?
+                </p>
+                <p className="text-xs text-red-700 mt-1">
+                  Member #: <span className="font-mono">{member.member_number}</span> • Status: <span className="capitalize font-medium">{member.membership_status}</span>
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Choose whether to <strong>deactivate</strong> this member (preserves attendance, tithing & discipleship records, but marks them inactive) or <strong>permanently delete</strong> the member from the database.
+            </p>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-end border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setDeleteModal(false)}
+                disabled={deleting}
+                className="btn-secondary text-xs"
+              >
+                Cancel
+              </button>
+              {member.membership_status !== 'inactive' && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteMember(false)}
+                  disabled={deleting}
+                  className="btn-secondary text-amber-700 border-amber-200 hover:bg-amber-50 text-xs flex items-center justify-center gap-1.5"
+                >
+                  {deleting ? <Loader2 size={13} className="animate-spin" /> : <Shield size={13} />}
+                  <span>Deactivate (Soft Delete)</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleDeleteMember(true)}
+                disabled={deleting}
+                className="btn-primary bg-red-600 hover:bg-red-700 border-red-600 text-white text-xs flex items-center justify-center gap-1.5"
+              >
+                {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                <span>Permanently Delete</span>
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

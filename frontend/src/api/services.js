@@ -23,7 +23,7 @@ export const membersAPI = {
   get: (id) => api.get(`/members/${id}`),
   create: (data) => api.post('/members', data),
   update: (id, data) => api.put(`/members/${id}`, data),
-  delete: (id) => api.delete(`/members/${id}`),
+  delete: (id, params) => api.delete(`/members/${id}`, { params }),
   stats: () => api.get('/members/stats'),
   importCsv: (data) => api.post('/members/import', data),
   birthdays: (params) => api.get('/members/birthdays', { params }),
@@ -43,6 +43,7 @@ export const firstTimersAPI = {
   update: (id, data) => api.put(`/first-timers/${id}`, data),
   updateFollowUp: (id, data) => api.patch(`/first-timers/${id}/follow-up`, data),
   convert: (id) => api.post(`/first-timers/${id}/convert`),
+  delete: (id) => api.delete(`/first-timers/${id}`),
   stats: () => api.get('/first-timers/stats'),
   importCsv: (data) => api.post('/first-timers/import', data),
   getSequenceSettings: () => api.get('/first-timers/sequence/settings'),
@@ -165,6 +166,7 @@ export const usersAPI = {
   invite: (data) => api.post('/users', data),
   update: (id, data) => api.put(`/users/${id}`, data),
   resetPassword: (id) => api.post(`/users/${id}/reset-password`),
+  delete: (id, params) => api.delete(`/users/${id}`, { params }),
 };
 
 export const reportsAPI = {

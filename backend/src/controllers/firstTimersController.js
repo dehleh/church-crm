@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const { createFirstTimerRecord } = require('../services/intakeService');
 const { resolveWriteBranchId, applyBranchFilter } = require('../utils/branchScope');
 const { getNextMemberNumber } = require('../utils/memberNumber');
+const logger = require('../config/logger');
 
 const getFirstTimers = async (req, res) => {
   const { page = 1, limit = 20, search, followUpStatus, branchId } = req.query;
@@ -386,12 +387,41 @@ const triggerFirstTimerSequence = async (req, res) => {
   }
 };
 
+const deleteFirstTimer = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const params = [id, req.churchId];
+    let branchCond = '';
+    if (req.branchId) {
+      params.push(req.branchId);
+      branchCond = ' AND branch_id = $3';
+    }
+
+    // Clean up follow ups and attendance records
+    await query('DELETE FROM follow_ups WHERE first_timer_id = $1', [id]).catch(() => {});
+    await query('DELETE FROM attendance WHERE first_timer_id = $1', [id]).catch(() => {});
+    await query('DELETE FROM first_timer_sequence_queue WHERE first_timer_id = $1', [id]).catch(() => {});
+
+    const { rows } = await query(
+      `DELETE FROM first_timers WHERE id = $1 AND church_id = $2${branchCond} RETURNING id, first_name, last_name`,
+      params
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'First timer not found' });
+    logger.info('First timer deleted', { action: 'first_timer_delete', performedBy: req.user.id, firstTimerId: id, churchId: req.churchId });
+    return res.json({ success: true, message: `First timer ${rows[0].first_name} ${rows[0].last_name} removed successfully` });
+  } catch (err) {
+    logger.error('deleteFirstTimer error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   getFirstTimers,
   createFirstTimer,
   updateFirstTimer,
   updateFollowUpStatus,
   convertToMember,
+  deleteFirstTimer,
   getFirstTimerStats,
   getSequenceSettings,
   updateSequenceSettings,

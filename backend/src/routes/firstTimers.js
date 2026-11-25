@@ -27,6 +27,7 @@ router.patch('/:id/follow-up', authorize('head_pastor', 'pastor', 'director', 'h
   body('status').notEmpty().trim(),
 ], handleValidationErrors, c.updateFollowUpStatus);
 router.post('/:id/convert', authorize('head_pastor', 'pastor', 'director'), c.convertToMember);
+router.delete('/:id', authorize('admin', 'pastor', 'head_pastor'), c.deleteFirstTimer);
 
 // Automated Follow-Up Sequences
 router.get('/sequence/settings', authorize('admin', 'superadmin', 'head_pastor', 'pastor', 'director', 'hod'), c.getSequenceSettings);

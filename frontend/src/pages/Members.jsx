@@ -4,7 +4,7 @@ import {
   Users, Plus, Search, Filter, MoreHorizontal, Mail, Phone, Edit2, Trash2,
   Loader2, ExternalLink, FileSpreadsheet, QrCode, CheckCircle2, Cake, Baby,
   Briefcase, Home, Send, MessageCircle, Sparkles, MapPin, Calendar, Check,
-  Award, Shield, UserCheck, Heart, Camera
+  Award, Shield, UserCheck, Heart, Camera, AlertTriangle
 } from 'lucide-react';
 import { membersAPI, branchesAPI, departmentsAPI, fellowshipAPI } from '../api/services';
 import { getAssetUrl } from '../api/client';
@@ -471,6 +471,8 @@ export default function Members() {
   const [selectedMember, setSelectedMember] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [deleteMemberTarget, setDeleteMemberTarget] = useState(null);
+  const [deletingMember, setDeletingMember] = useState(false);
   const [formErrors, setFormErrors] = useState({});
 
   const fetchMembers = useCallback(async (page = 1) => {
@@ -666,15 +668,23 @@ export default function Members() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Deactivate this member?')) return;
+  const confirmDeleteMember = async (permanent = false) => {
+    if (!deleteMemberTarget) return;
+    setDeletingMember(true);
     try {
-      await membersAPI.delete(id);
-      toast.success('Member deactivated');
+      const res = await membersAPI.delete(deleteMemberTarget.id, { permanent });
+      toast.success(res.data.message || (permanent ? 'Member permanently deleted' : 'Member deactivated'));
+      setDeleteMemberTarget(null);
       fetchMembers(pagination.page);
-    } catch {
-      toast.error('Failed to deactivate member');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to remove member');
+    } finally {
+      setDeletingMember(false);
     }
+  };
+
+  const handleDelete = (member) => {
+    setDeleteMemberTarget(member);
   };
 
   const handleApprove = async (id) => {
@@ -1101,9 +1111,9 @@ export default function Members() {
                           <Edit2 size={14} />
                         </button>
                         <button
-                          onClick={() => handleDelete(m.id)}
+                          onClick={() => handleDelete(m)}
                           className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-                          title="Deactivate"
+                          title="Remove or Deactivate Member"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -1531,6 +1541,64 @@ export default function Members() {
         url={publicMemberFormUrl}
         allowDesignationSelect={true}
       />
+
+      {/* Delete / Deactivate Member Modal */}
+      <Modal
+        open={Boolean(deleteMemberTarget)}
+        onClose={() => setDeleteMemberTarget(null)}
+        title="Remove Church Member"
+      >
+        {deleteMemberTarget && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 bg-red-50/70 border border-red-200 p-4 rounded-xl text-red-900 text-sm">
+              <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
+              <div>
+                <p className="font-semibold text-red-950">
+                  Are you sure you want to remove {deleteMemberTarget.first_name} {deleteMemberTarget.last_name}?
+                </p>
+                <p className="text-xs text-red-700 mt-1">
+                  Member #: <span className="font-mono">{deleteMemberTarget.member_number}</span> • Status: <span className="capitalize font-medium">{deleteMemberTarget.membership_status}</span>
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Choose whether to <strong>deactivate</strong> this member (preserves attendance, tithing & discipleship records, but marks them inactive) or <strong>permanently delete</strong> the member from the database.
+            </p>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-end border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setDeleteMemberTarget(null)}
+                disabled={deletingMember}
+                className="btn-secondary text-xs"
+              >
+                Cancel
+              </button>
+              {deleteMemberTarget.membership_status !== 'inactive' && (
+                <button
+                  type="button"
+                  onClick={() => confirmDeleteMember(false)}
+                  disabled={deletingMember}
+                  className="btn-secondary text-amber-700 border-amber-200 hover:bg-amber-50 text-xs flex items-center justify-center gap-1.5"
+                >
+                  {deletingMember ? <Loader2 size={13} className="animate-spin" /> : <Shield size={13} />}
+                  <span>Deactivate (Soft Delete)</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => confirmDeleteMember(true)}
+                disabled={deletingMember}
+                className="btn-primary bg-red-600 hover:bg-red-700 border-red-600 text-white text-xs flex items-center justify-center gap-1.5"
+              >
+                {deletingMember ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                <span>Permanently Delete</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
