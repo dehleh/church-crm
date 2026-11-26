@@ -57,6 +57,7 @@ const getFirstTimers = async (req, res) => {
       }
     });
   } catch (err) {
+    logger.error('getFirstTimers error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
@@ -180,7 +181,7 @@ const getFirstTimerStats = async (req, res) => {
           OR EXISTS (SELECT 1 FROM members m WHERE m.id = ft.member_id AND m.fellowship_cell_id IS NOT NULL)
         ))::int as joined_cell,
         COUNT(DISTINCT ft.id) FILTER (WHERE EXISTS (
-          SELECT 1 FROM event_attendance ea
+          SELECT 1 FROM attendance ea
           WHERE (ea.first_timer_id = ft.id OR (ft.member_id IS NOT NULL AND ea.member_id = ft.member_id))
           GROUP BY COALESCE(ea.first_timer_id, ea.member_id)
           HAVING COUNT(*) >= 2
@@ -203,6 +204,7 @@ const getFirstTimerStats = async (req, res) => {
       }
     });
   } catch (err) {
+    logger.error('getFirstTimerStats error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };

@@ -31,4 +31,7 @@ router.post('/:id/attendance', authorize('head_pastor', 'pastor', 'director', 'h
 ], handleValidationErrors, c.recordAttendance);
 router.get('/:id/attendance', c.getEventAttendance);
 
+router.get('/:id', c.getEventById);
+router.post('/:id/headcount', authorize('head_pastor', 'pastor', 'director', 'hod', 'volunteer'), c.recordHeadcount);
+
 module.exports = router;

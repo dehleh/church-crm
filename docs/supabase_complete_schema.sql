@@ -203,6 +203,7 @@ CREATE TABLE IF NOT EXISTS events (
   online_link TEXT,
   expected_attendance INT,
   actual_attendance INT,
+  attendance_breakdown JSONB DEFAULT '{}',
   status VARCHAR(20) DEFAULT 'upcoming',       -- upcoming | ongoing | completed | cancelled
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),

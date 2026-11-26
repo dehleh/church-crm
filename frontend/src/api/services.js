@@ -80,6 +80,7 @@ export const servicePlansAPI = {
 
 export const eventsAPI = {
   list: (params) => api.get('/events', { params }),
+  get: (id) => api.get(`/events/${id}`),
   create: (data) => api.post('/events', data),
   update: (id, data) => api.put(`/events/${id}`, data),
   delete: (id) => api.delete(`/events/${id}`),
@@ -87,6 +88,7 @@ export const eventsAPI = {
   stats: () => api.get('/events/stats'),
   recordAttendance: (id, data) => api.post(`/events/${id}/attendance`, data),
   getAttendance: (id) => api.get(`/events/${id}/attendance`),
+  saveHeadcount: (id, data) => api.post(`/events/${id}/headcount`, data),
 };
 
 export const financeAPI = {

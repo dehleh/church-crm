@@ -376,8 +376,100 @@ const triggerEventReminder = async (req, res) => {
   }
 };
 
+// GET /api/events/:id
+const getEventById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await query(
+      `SELECT e.*,
+              b.name as branch_name,
+              u.first_name || ' ' || u.last_name as created_by_name,
+              (SELECT COUNT(*) FROM attendance a WHERE a.event_id = e.id) as attendance_count
+       FROM events e
+       LEFT JOIN branches b ON b.id = e.branch_id
+       LEFT JOIN users u ON u.id = e.created_by
+       WHERE e.id = $1 AND e.church_id = $2`,
+      [id, req.churchId]
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Event not found' });
+    return res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    logger.error('getEventById error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// POST /api/events/:id/headcount
+const recordHeadcount = async (req, res) => {
+  const { id } = req.params;
+  const {
+    men = 0,
+    women = 0,
+    children = 0,
+    visitors = 0,
+    online = 0,
+    notes = '',
+    countedBy = '',
+    sections = []
+  } = req.body;
+
+  try {
+    const menNum = Math.max(0, parseInt(men) || 0);
+    const womenNum = Math.max(0, parseInt(women) || 0);
+    const childrenNum = Math.max(0, parseInt(children) || 0);
+    const visitorsNum = Math.max(0, parseInt(visitors) || 0);
+    const onlineNum = Math.max(0, parseInt(online) || 0);
+
+    const totalInPerson = menNum + womenNum + childrenNum + visitorsNum;
+    const totalAttendance = totalInPerson + onlineNum;
+
+    const breakdown = {
+      men: menNum,
+      women: womenNum,
+      children: childrenNum,
+      visitors: visitorsNum,
+      online: onlineNum,
+      total_in_person: totalInPerson,
+      total_overall: totalAttendance,
+      counted_by: countedBy || (req.user?.firstName ? `${req.user.firstName} ${req.user.lastName || ''}`.trim() : 'Usher Team'),
+      counted_at: new Date().toISOString(),
+      notes: notes || '',
+      sections: Array.isArray(sections) ? sections : []
+    };
+
+    const { rows } = await query(
+      `UPDATE events
+       SET actual_attendance = $1,
+           attendance_breakdown = $2,
+           updated_at = NOW()
+       WHERE id = $3 AND church_id = $4
+       RETURNING *`,
+      [totalInPerson, JSON.stringify(breakdown), id, req.churchId]
+    );
+
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Event not found' });
+
+    logger.info('Service headcount recorded', {
+      churchId: req.churchId,
+      eventId: id,
+      totalInPerson,
+      totalOverall: totalAttendance
+    });
+
+    return res.json({
+      success: true,
+      data: rows[0],
+      message: `Headcount recorded: ${totalInPerson} in-person attendees (${menNum} Men, ${womenNum} Women, ${childrenNum} Children, ${visitorsNum} Visitors).`
+    });
+  } catch (err) {
+    logger.error('recordHeadcount error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 module.exports = {
   getEvents,
+  getEventById,
   createEvent,
   updateEvent,
   deleteEvent,
@@ -385,4 +477,5 @@ module.exports = {
   recordAttendance,
   getEventAttendance,
   getEventStats,
+  recordHeadcount,
 };

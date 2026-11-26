@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Search, Check, Users, Save, Loader2, CalendarDays, ChevronRight,
-  ShieldCheck, Baby, Bell, Printer, KeyRound, AlertTriangle, Plus, Phone, UserCheck, X
+  ShieldCheck, Baby, Bell, Printer, KeyRound, AlertTriangle, Plus, Phone, UserCheck, X,
+  Calculator, Globe, Minus, Sparkles, RotateCcw, CheckCircle2, BarChart3, Building2, Clock, Info
 } from 'lucide-react';
 import { eventsAPI, membersAPI, childCheckInAPI } from '../api/services';
+import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { format, parseISO } from 'date-fns';
@@ -99,14 +101,23 @@ function EventPicker() {
       </div>
 
       {/* Feature Guidance Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="p-3.5 rounded-xl border border-emerald-100 bg-emerald-50/60 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Calculator size={16} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-emerald-900 uppercase tracking-wide">Rapid Usher Headcount</p>
+            <p className="text-xs text-emerald-700 mt-0.5">For large crowds: ushers enter category tallies (Men, Women, Children, Visitors, Online) in 10 seconds without needing individual member phones.</p>
+          </div>
+        </div>
         <div className="p-3.5 rounded-xl border border-blue-100 bg-blue-50/60 flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5">
             <Users size={16} />
           </div>
           <div>
-            <p className="text-xs font-bold text-blue-900 uppercase tracking-wide">Weekly Congregation Attendance</p>
-            <p className="text-xs text-blue-700 mt-0.5">Track Sunday & Midweek attendance trends. Auto-triggers pastoral care alerts if a member misses 3 consecutive weeks.</p>
+            <p className="text-xs font-bold text-blue-900 uppercase tracking-wide">Weekly Member Roster</p>
+            <p className="text-xs text-blue-700 mt-0.5">Individual name-by-name attendance check-in. Auto-triggers pastoral care alerts if a member misses 3 consecutive weeks.</p>
           </div>
         </div>
         <div className="p-3.5 rounded-xl border border-purple-100 bg-purple-50/60 flex items-start gap-3">
@@ -114,8 +125,8 @@ function EventPicker() {
             <Baby size={16} />
           </div>
           <div>
-            <p className="text-xs font-bold text-purple-900 uppercase tracking-wide">KidCheck & Child Safeguarding</p>
-            <p className="text-xs text-purple-700 mt-0.5">Fast family lookup, classroom routing, security claim tags, WhatsApp codes, and verified child pickup.</p>
+            <p className="text-xs font-bold text-purple-900 uppercase tracking-wide">KidCheck Safeguarding</p>
+            <p className="text-xs text-purple-700 mt-0.5">Fast family lookup, classroom routing, security claim tags, WhatsApp/SMS codes, and verified child pickup.</p>
           </div>
         </div>
       </div>
@@ -156,6 +167,8 @@ function EventPicker() {
           {filteredEvents.map(ev => {
             const isSunday = ev.event_type === 'sunday_service' || ev.title?.toLowerCase().includes('sunday');
             const isMidweek = ev.event_type === 'midweek' || ev.title?.toLowerCase().includes('midweek') || ev.title?.toLowerCase().includes('wednesday');
+            const headcount = ev.actual_attendance || ev.attendance_count || 0;
+            const bd = ev.attendance_breakdown && typeof ev.attendance_breakdown === 'object' ? ev.attendance_breakdown : null;
             return (
               <div key={ev.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50/80 transition-colors">
                 <div className="flex items-start gap-3.5 min-w-0">
@@ -176,24 +189,35 @@ function EventPicker() {
                     <p className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-2">
                       <span>{ev.start_datetime ? format(parseISO(ev.start_datetime), 'EEEE, MMM d, yyyy · h:mm a') : 'Scheduled Service'}</span>
                       {ev.branch_name && <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[11px]">{ev.branch_name}</span>}
-                      <span className="flex items-center gap-1 text-emerald-700 font-medium text-[11px] bg-emerald-50 px-2 py-0.5 rounded-full">
-                        <Users size={12} /> {ev.attendance_count || 0} Checked In
+                      <span className="flex items-center gap-1 text-emerald-700 font-semibold text-[11px] bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                        <Calculator size={12} /> {headcount} Headcount
                       </span>
+                      {bd && (Number(bd.men) > 0 || Number(bd.women) > 0) && (
+                        <span className="text-[11px] text-gray-400">
+                          ({bd.men || 0}M · {bd.women || 0}W · {bd.children || 0}C{bd.visitors ? ` · ${bd.visitors}V` : ''})
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
                   <button
+                    onClick={() => navigate(`/events/${ev.id}/attendance?tab=headcount`)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-colors"
+                  >
+                    <Calculator size={13} /> Usher Headcount
+                  </button>
+                  <button
                     onClick={() => navigate(`/events/${ev.id}/attendance?tab=general`)}
                     className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 transition-colors"
                   >
-                    <Users size={13} className="text-blue-600" /> General
+                    <Users size={13} className="text-blue-600" /> Member Roster
                   </button>
                   <button
                     onClick={() => navigate(`/events/${ev.id}/attendance?tab=children`)}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
                   >
-                    <Baby size={14} /> KidCheck Children
+                    <Baby size={14} /> KidCheck
                   </button>
                 </div>
               </div>
@@ -213,13 +237,16 @@ export default function AttendancePage() {
 
 function AttendanceRecorder({ eventId }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(urlTab === 'children' ? 'children' : 'general');
+  const [activeTab, setActiveTab] = useState(
+    urlTab === 'children' ? 'children' : urlTab === 'general' ? 'general' : 'headcount'
+  );
   const [event, setEvent] = useState(null);
 
   useEffect(() => {
-    if (urlTab === 'children' || urlTab === 'general') {
+    if (urlTab === 'children' || urlTab === 'general' || urlTab === 'headcount') {
       setActiveTab(urlTab);
     }
   }, [urlTab]);
@@ -227,6 +254,116 @@ function AttendanceRecorder({ eventId }) {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setSearchParams({ tab });
+  };
+
+  // Usher Headcount State
+  const [headcountForm, setHeadcountForm] = useState({
+    men: 0,
+    women: 0,
+    children: 0,
+    visitors: 0,
+    online: 0,
+    notes: '',
+    countedBy: '',
+    countingTiming: 'during_offering',
+    sections: [
+      { name: 'Main Sanctuary', count: 0 },
+      { name: 'Balcony / Gallery', count: 0 },
+      { name: 'Overflow Canopy / Hall B', count: 0 },
+      { name: 'Children Wing', count: 0 },
+    ]
+  });
+  const [showSections, setShowSections] = useState(false);
+  const [savingHeadcount, setSavingHeadcount] = useState(false);
+
+  // Sync headcount form when event is loaded
+  useEffect(() => {
+    if (event?.attendance_breakdown && typeof event.attendance_breakdown === 'object') {
+      const bd = event.attendance_breakdown;
+      setHeadcountForm(prev => ({
+        ...prev,
+        men: Number(bd.men || 0),
+        women: Number(bd.women || 0),
+        children: Number(bd.children || 0),
+        visitors: Number(bd.visitors || 0),
+        online: Number(bd.online || 0),
+        notes: bd.notes || '',
+        countedBy: bd.counted_by || (user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : ''),
+        countingTiming: bd.counting_timing || prev.countingTiming,
+        sections: Array.isArray(bd.sections) && bd.sections.length > 0 ? bd.sections : prev.sections,
+      }));
+      if (Array.isArray(bd.sections) && bd.sections.some(s => Number(s.count) > 0)) {
+        setShowSections(true);
+      }
+    } else if (user && !headcountForm.countedBy) {
+      setHeadcountForm(prev => ({
+        ...prev,
+        countedBy: `${user.first_name || ''} ${user.last_name || ''}`.trim()
+      }));
+    }
+  }, [event, user]);
+
+  const handleStepCount = (field, delta) => {
+    setHeadcountForm(prev => ({
+      ...prev,
+      [field]: Math.max(0, (Number(prev[field]) || 0) + delta)
+    }));
+  };
+
+  const handleDirectCountChange = (field, val) => {
+    const num = Math.max(0, parseInt(val) || 0);
+    setHeadcountForm(prev => ({
+      ...prev,
+      [field]: isNaN(num) ? 0 : num
+    }));
+  };
+
+  const handleSectionCountChange = (idx, val) => {
+    const num = Math.max(0, parseInt(val) || 0);
+    setHeadcountForm(prev => {
+      const nextSections = [...prev.sections];
+      nextSections[idx] = { ...nextSections[idx], count: isNaN(num) ? 0 : num };
+      return { ...prev, sections: nextSections };
+    });
+  };
+
+  const totalInPerson = (Number(headcountForm.men) || 0) +
+    (Number(headcountForm.women) || 0) +
+    (Number(headcountForm.children) || 0) +
+    (Number(headcountForm.visitors) || 0);
+  const totalOverall = totalInPerson + (Number(headcountForm.online) || 0);
+
+  const handleSaveHeadcount = async () => {
+    setSavingHeadcount(true);
+    try {
+      const res = await eventsAPI.saveHeadcount(eventId, {
+        ...headcountForm,
+        totalInPerson,
+        totalOverall
+      });
+      toast.success(res.data?.message || 'Headcount tally saved successfully!');
+      if (res.data?.data) {
+        setEvent(res.data.data);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save headcount tally');
+    } finally {
+      setSavingHeadcount(false);
+    }
+  };
+
+  const handleResetHeadcount = () => {
+    if (!window.confirm('Reset all headcount tallies for this service to zero?')) return;
+    setHeadcountForm(prev => ({
+      ...prev,
+      men: 0,
+      women: 0,
+      children: 0,
+      visitors: 0,
+      online: 0,
+      notes: '',
+      sections: prev.sections.map(s => ({ ...s, count: 0 }))
+    }));
   };
 
   // General Attendance State
@@ -282,12 +419,14 @@ function AttendanceRecorder({ eventId }) {
       const [membersRes, attendanceRes, evRes] = await Promise.all([
         membersAPI.list({ limit: 500, status: 'active' }),
         eventsAPI.getAttendance(eventId),
-        eventsAPI.list({ limit: 100 }),
+        eventsAPI.get(eventId).catch(() => eventsAPI.list({ limit: 100 })),
       ]);
-      const ev = evRes.data.data.find(e => e.id === eventId);
+      const ev = evRes.data?.data && !Array.isArray(evRes.data.data)
+        ? evRes.data.data
+        : (evRes.data?.data || []).find(e => e.id === eventId);
       setEvent(ev);
-      setMembers(membersRes.data.data);
-      const existingIds = new Set(attendanceRes.data.data.map(a => a.member_id).filter(Boolean));
+      setMembers(membersRes.data?.data || []);
+      const existingIds = new Set((attendanceRes.data?.data || []).map(a => a.member_id).filter(Boolean));
       setExisting(existingIds);
       setChecked(new Set(existingIds));
     } catch {
@@ -527,7 +666,27 @@ function AttendanceRecorder({ eventId }) {
               {event?.start_datetime ? format(parseISO(event.start_datetime), 'EEEE, MMMM d, yyyy · h:mm a') : 'Service Session'}
             </p>
           </div>
-          {activeTab === 'general' ? (
+          {activeTab === 'headcount' ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleResetHeadcount}
+                className="btn-secondary text-xs inline-flex items-center gap-1.5"
+                title="Reset counters"
+              >
+                <RotateCcw size={14} /> Reset
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveHeadcount}
+                disabled={savingHeadcount}
+                className="btn-primary bg-emerald-600 hover:bg-emerald-700 inline-flex items-center gap-1.5"
+              >
+                {savingHeadcount ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                Save Headcount Tally
+              </button>
+            </div>
+          ) : activeTab === 'general' ? (
             <button onClick={handleSaveGeneral} disabled={saving || newCount === 0} className="btn-primary">
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
               Save Attendance {newCount > 0 ? `(${newCount} new)` : ''}
@@ -543,6 +702,17 @@ function AttendanceRecorder({ eventId }) {
       {/* Tabs */}
       <div className="flex border-b border-gray-200">
         <button
+          onClick={() => handleTabChange('headcount')}
+          className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
+            activeTab === 'headcount'
+              ? 'border-emerald-600 text-emerald-700 bg-emerald-50/50'
+              : 'border-transparent text-gray-500 hover:text-gray-900'
+          }`}
+        >
+          <Calculator size={16} className={activeTab === 'headcount' ? 'text-emerald-600' : 'text-gray-400'} />
+          <span>Usher Headcount ({totalInPerson > 0 ? totalInPerson : event?.actual_attendance || 0})</span>
+        </button>
+        <button
           onClick={() => handleTabChange('general')}
           className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
             activeTab === 'general'
@@ -550,21 +720,424 @@ function AttendanceRecorder({ eventId }) {
               : 'border-transparent text-gray-500 hover:text-gray-900'
           }`}
         >
-          <Users size={16} />
-          <span>General Congregation ({checked.size})</span>
+          <Users size={16} className={activeTab === 'general' ? 'text-brand-600' : 'text-gray-400'} />
+          <span>Member Roster ({checked.size})</span>
         </button>
         <button
           onClick={() => handleTabChange('children')}
           className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
             activeTab === 'children'
-              ? 'border-brand-600 text-brand-600 bg-brand-50/40'
+              ? 'border-purple-600 text-purple-700 bg-purple-50/50'
               : 'border-transparent text-gray-500 hover:text-gray-900'
           }`}
         >
-          <ShieldCheck size={16} className="text-emerald-600" />
+          <ShieldCheck size={16} className={activeTab === 'children' ? 'text-purple-600' : 'text-gray-400'} />
           <span>Child Safety & Security Tags ({checkedInChildren.length})</span>
         </button>
       </div>
+
+      {/* ── TAB 1: RAPID USHER HEADCOUNT TALLY ── */}
+      {activeTab === 'headcount' && (
+        <div className="space-y-6">
+          {/* Informational Guidance Alert */}
+          <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 flex items-start gap-3.5">
+            <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5">
+              <Calculator size={18} />
+            </div>
+            <div className="flex-1 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-bold text-emerald-950 uppercase tracking-wide text-[11px]">
+                  Rapid Congregation Head Count & Service Tally
+                </p>
+                {event?.attendance_breakdown?.counted_at && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                    <CheckCircle2 size={12} /> Last recorded {format(parseISO(event.attendance_breakdown.counted_at), 'MMM d, h:mm a')}
+                    {event.attendance_breakdown.counted_by ? ` by ${event.attendance_breakdown.counted_by}` : ''}
+                  </span>
+                )}
+              </div>
+              <p className="text-emerald-800 mt-1 leading-relaxed">
+                Designed for large services where members don't need smartphones. Ushers walk the aisles during offering or sermon with handheld clickers, enter category totals or tap the step buttons below, and hit <strong>Save Headcount Tally</strong>.
+              </p>
+            </div>
+          </div>
+
+          {/* Demographic Category Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Adult Men */}
+            <div className="card p-4 border-t-4 border-t-blue-500 space-y-3 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                  <Users size={15} className="text-blue-600" /> Adult Men
+                </span>
+                <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded-full">
+                  {totalInPerson > 0 ? `${Math.round(((headcountForm.men || 0) / totalInPerson) * 100)}%` : '0%'}
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  className="input h-14 text-center font-display font-black text-3xl text-gray-900 tracking-tight"
+                  value={headcountForm.men || ''}
+                  placeholder="0"
+                  onChange={e => handleDirectCountChange('men', e.target.value)}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-1 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleStepCount('men', -1)}
+                  className="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  title="Minus 1"
+                >
+                  -1
+                </button>
+                <div className="flex items-center gap-1">
+                  {[1, 5, 10, 50].map(step => (
+                    <button
+                      key={step}
+                      type="button"
+                      onClick={() => handleStepCount('men', step)}
+                      className="px-2 py-1 text-xs font-bold rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
+                    >
+                      +{step}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Adult Women */}
+            <div className="card p-4 border-t-4 border-t-pink-500 space-y-3 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-pink-900 flex items-center gap-1.5">
+                  <Users size={15} className="text-pink-600" /> Adult Women
+                </span>
+                <span className="text-[10px] bg-pink-100 text-pink-800 font-semibold px-2 py-0.5 rounded-full">
+                  {totalInPerson > 0 ? `${Math.round(((headcountForm.women || 0) / totalInPerson) * 100)}%` : '0%'}
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  className="input h-14 text-center font-display font-black text-3xl text-gray-900 tracking-tight"
+                  value={headcountForm.women || ''}
+                  placeholder="0"
+                  onChange={e => handleDirectCountChange('women', e.target.value)}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-1 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleStepCount('women', -1)}
+                  className="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  title="Minus 1"
+                >
+                  -1
+                </button>
+                <div className="flex items-center gap-1">
+                  {[1, 5, 10, 50].map(step => (
+                    <button
+                      key={step}
+                      type="button"
+                      onClick={() => handleStepCount('women', step)}
+                      className="px-2 py-1 text-xs font-bold rounded bg-pink-50 text-pink-700 hover:bg-pink-100 border border-pink-200 transition-colors"
+                    >
+                      +{step}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Children & Youth */}
+            <div className="card p-4 border-t-4 border-t-purple-500 space-y-3 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                  <Baby size={15} className="text-purple-600" /> Children & Teens
+                </span>
+                <span className="text-[10px] bg-purple-100 text-purple-800 font-semibold px-2 py-0.5 rounded-full">
+                  {totalInPerson > 0 ? `${Math.round(((headcountForm.children || 0) / totalInPerson) * 100)}%` : '0%'}
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  className="input h-14 text-center font-display font-black text-3xl text-gray-900 tracking-tight"
+                  value={headcountForm.children || ''}
+                  placeholder="0"
+                  onChange={e => handleDirectCountChange('children', e.target.value)}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-1 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleStepCount('children', -1)}
+                  className="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  title="Minus 1"
+                >
+                  -1
+                </button>
+                <div className="flex items-center gap-1">
+                  {[1, 5, 10, 50].map(step => (
+                    <button
+                      key={step}
+                      type="button"
+                      onClick={() => handleStepCount('children', step)}
+                      className="px-2 py-1 text-xs font-bold rounded bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition-colors"
+                    >
+                      +{step}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* First-Time Guests */}
+            <div className="card p-4 border-t-4 border-t-amber-500 space-y-3 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                  <Sparkles size={15} className="text-amber-600" /> First-Time Visitors
+                </span>
+                <span className="text-[10px] bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded-full">
+                  {totalInPerson > 0 ? `${Math.round(((headcountForm.visitors || 0) / totalInPerson) * 100)}%` : '0%'}
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  className="input h-14 text-center font-display font-black text-3xl text-gray-900 tracking-tight"
+                  value={headcountForm.visitors || ''}
+                  placeholder="0"
+                  onChange={e => handleDirectCountChange('visitors', e.target.value)}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-1 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleStepCount('visitors', -1)}
+                  className="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  title="Minus 1"
+                >
+                  -1
+                </button>
+                <div className="flex items-center gap-1">
+                  {[1, 5, 10, 25].map(step => (
+                    <button
+                      key={step}
+                      type="button"
+                      onClick={() => handleStepCount('visitors', step)}
+                      className="px-2 py-1 text-xs font-bold rounded bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
+                    >
+                      +{step}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Summary Board */}
+          <div className="card p-5 bg-gradient-to-br from-gray-900 to-slate-900 text-white rounded-2xl shadow-xl space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 divide-y sm:divide-y-0 sm:divide-x divide-gray-800">
+              <div className="text-center sm:text-left sm:pr-4">
+                <p className="text-xs uppercase font-bold tracking-wider text-emerald-400 flex items-center justify-center sm:justify-start gap-1.5">
+                  <Users size={14} /> Total In-Person Congregation
+                </p>
+                <p className="text-4xl font-extrabold font-display text-white mt-1 tracking-tight">
+                  {totalInPerson.toLocaleString()}
+                </p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Men + Women + Children + Visitors</p>
+              </div>
+
+              <div className="text-center sm:text-left sm:px-4 pt-3 sm:pt-0">
+                <p className="text-xs uppercase font-bold tracking-wider text-cyan-400 flex items-center justify-center sm:justify-start gap-1.5">
+                  <Globe size={14} /> Online Live Stream
+                </p>
+                <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-28 h-10 px-2 text-center bg-gray-800/90 border border-gray-700 rounded-lg text-xl font-bold font-display text-cyan-200"
+                    value={headcountForm.online || ''}
+                    placeholder="0"
+                    onChange={e => handleDirectCountChange('online', e.target.value)}
+                  />
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleStepCount('online', 10)}
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-cyan-300"
+                    >
+                      +10
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleStepCount('online', 50)}
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-cyan-300"
+                    >
+                      +50
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-0.5">YouTube, Facebook & Zoom Viewers</p>
+              </div>
+
+              <div className="text-center sm:text-left sm:pl-4 pt-3 sm:pt-0">
+                <p className="text-xs uppercase font-bold tracking-wider text-purple-400 flex items-center justify-center sm:justify-start gap-1.5">
+                  <BarChart3 size={14} /> Overall Attendance Total
+                </p>
+                <p className="text-4xl font-extrabold font-display text-purple-200 mt-1 tracking-tight">
+                  {totalOverall.toLocaleString()}
+                </p>
+                <p className="text-[11px] text-gray-400 mt-0.5">In-Person + Online Stream</p>
+              </div>
+            </div>
+
+            {/* Proportion Bar */}
+            {totalInPerson > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-gray-800">
+                <div className="h-2.5 w-full bg-gray-800 rounded-full overflow-hidden flex">
+                  <div style={{ width: `${((headcountForm.men || 0) / totalInPerson) * 100}%` }} className="bg-blue-500 h-full" title="Men" />
+                  <div style={{ width: `${((headcountForm.women || 0) / totalInPerson) * 100}%` }} className="bg-pink-500 h-full" title="Women" />
+                  <div style={{ width: `${((headcountForm.children || 0) / totalInPerson) * 100}%` }} className="bg-purple-500 h-full" title="Children" />
+                  <div style={{ width: `${((headcountForm.visitors || 0) / totalInPerson) * 100}%` }} className="bg-amber-500 h-full" title="Visitors" />
+                </div>
+                <div className="flex flex-wrap items-center justify-between text-[11px] text-gray-400">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> Men ({headcountForm.men || 0})</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pink-500 inline-block" /> Women ({headcountForm.women || 0})</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" /> Children ({headcountForm.children || 0})</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /> Visitors ({headcountForm.visitors || 0})</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section & Audit Details */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Audit & Timing Card */}
+            <div className="card p-4 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                <Clock size={14} className="text-gray-400" /> Count Accountability & Timing
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label text-[11px]">Counted By (Usher / Lead)</label>
+                  <input
+                    className="input text-xs"
+                    placeholder="e.g. Bro Emmanuel (Head Usher)"
+                    value={headcountForm.countedBy}
+                    onChange={e => setHeadcountForm(prev => ({ ...prev, countedBy: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label text-[11px]">Counting Moment</label>
+                  <select
+                    className="input text-xs"
+                    value={headcountForm.countingTiming}
+                    onChange={e => setHeadcountForm(prev => ({ ...prev, countingTiming: e.target.value }))}
+                  >
+                    <option value="during_worship">During Praise & Worship</option>
+                    <option value="during_offering">During 2nd Offering / Tithes</option>
+                    <option value="during_sermon">During Sermon</option>
+                    <option value="post_service">Post-Service Reconciliation</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="label text-[11px]">Service Notes / Observations</label>
+                <textarea
+                  rows={2}
+                  className="input text-xs"
+                  placeholder="e.g. Heavy rainfall in the morning, youth anniversary special service"
+                  value={headcountForm.notes}
+                  onChange={e => setHeadcountForm(prev => ({ ...prev, notes: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Optional Multi-Section Breakdown */}
+            <div className="card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                  <Building2 size={14} className="text-gray-400" /> Hall / Section Breakdown (Optional)
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setShowSections(!showSections)}
+                  className="text-xs font-semibold text-brand-600 hover:text-brand-700"
+                >
+                  {showSections ? 'Hide Sections' : 'Show Sections'}
+                </button>
+              </div>
+
+              {showSections ? (
+                <div className="space-y-2">
+                  <p className="text-[11px] text-gray-500">Log counts by specific auditorium or overflow halls:</p>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {headcountForm.sections.map((sec, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-2 bg-gray-50 p-2 rounded-lg text-xs">
+                        <span className="font-medium text-gray-800 flex-1 truncate">{sec.name}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className="input h-8 w-24 text-center font-bold text-xs"
+                          placeholder="0"
+                          value={sec.count || ''}
+                          onChange={e => handleSectionCountChange(idx, e.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-gray-50 border border-dashed border-gray-200 text-center text-xs text-gray-500 space-y-1">
+                  <p>Have an overflow hall, gallery, or separate youth chapel?</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowSections(true)}
+                    className="text-xs font-bold text-brand-600 hover:underline"
+                  >
+                    Enable Multi-Section Hall Counts
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Save Bar */}
+          <div className="p-4 rounded-xl bg-white border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="text-xs text-gray-600 flex items-center gap-2">
+              <Info size={16} className="text-brand-500 flex-shrink-0" />
+              <span>
+                Saving updates this service's official attendance across all church executive reports, charts, and dashboards.
+              </span>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={handleResetHeadcount}
+                className="btn-secondary text-xs"
+              >
+                <RotateCcw size={13} /> Reset
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveHeadcount}
+                disabled={savingHeadcount}
+                className="btn-primary bg-emerald-600 hover:bg-emerald-700 text-xs px-5 py-2.5 font-bold shadow-md"
+              >
+                {savingHeadcount ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                Save Headcount Tally ({totalInPerson})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── TAB 1: GENERAL ATTENDANCE ── */}
       {activeTab === 'general' && (
