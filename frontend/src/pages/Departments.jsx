@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Building2, Plus, Users, ChevronRight, Loader2, ArrowLeft, UserPlus, X,
   Mail, Phone, Calendar, Search, UserMinus, Crown, Trash2, AlertTriangle,
   CheckSquare, ClipboardCheck, Send, CheckCircle2, Clock, Sparkles, Check,
-  MessageSquare
+  MessageSquare, PiggyBank
 } from 'lucide-react';
 import { departmentsAPI, membersAPI, communicationsAPI } from '../api/services';
 import { useAuth } from '../context/AuthContext';
@@ -436,6 +437,12 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
                 <MessageSquare size={16} /> Message Unit ({members.length})
               </button>
             )}
+            <Link
+              to={`/budgets?dept=${dept.id}`}
+              className="btn-secondary flex items-center gap-1.5 border-purple-200 text-purple-800 bg-purple-50 hover:bg-purple-100"
+            >
+              <PiggyBank size={16} /> Unit Budget
+            </Link>
             {canManage(user?.role) && (
               <button onClick={openAddModal} className="btn-primary">
                 <UserPlus size={16} /> Add Member

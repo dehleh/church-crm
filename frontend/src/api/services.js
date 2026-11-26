@@ -184,9 +184,15 @@ export const reportsAPI = {
 };
 
 export const budgetsAPI = {
-  list: () => api.get('/budgets'),
+  list: (params) => api.get('/budgets', { params }),
+  get: (id) => api.get(`/budgets/${id}`),
+  summary: (params) => api.get('/budgets/summary/overview', { params }),
   create: (data) => api.post('/budgets', data),
   update: (id, data) => api.put(`/budgets/${id}`, data),
+  delete: (id) => api.delete(`/budgets/${id}`),
+  submit: (id) => api.post(`/budgets/${id}/submit`),
+  approve: (id, data) => api.post(`/budgets/${id}/approve`, data),
+  reject: (id, data) => api.post(`/budgets/${id}/reject`, data),
 };
 
 export const followUpsAPI = {

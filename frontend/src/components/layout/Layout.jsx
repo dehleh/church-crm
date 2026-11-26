@@ -51,7 +51,7 @@ const NAV = [
     group: 'Finance', items: [
       { to: '/finance', icon: DollarSign, label: 'Finance & Giving', allowedRoles: ['admin', 'pastor', 'finance'] },
       { to: '/giving-campaigns', icon: HeartHandshake, label: 'Campaigns & Projects', allowedRoles: ['admin', 'pastor', 'finance'] },
-      { to: '/budgets', icon: PiggyBank, label: 'Budgets', allowedRoles: ['admin', 'pastor', 'finance'] },
+      { to: '/budgets', icon: PiggyBank, label: 'Budgets', allowedRoles: ['admin', 'pastor', 'director', 'hod', 'finance'] },
       { to: '/procurement', icon: ClipboardList, label: 'Procurement', allowedRoles: ['admin', 'pastor', 'director', 'finance', 'hod'] },
     ]
   },

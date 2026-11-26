@@ -289,14 +289,44 @@ CREATE TABLE IF NOT EXISTS budgets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   church_id UUID NOT NULL REFERENCES churches(id) ON DELETE CASCADE,
   branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+  department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
   name VARCHAR(150) NOT NULL,
-  period_type VARCHAR(20),                     -- monthly | quarterly | annual
+  period_type VARCHAR(30) DEFAULT 'annual',    -- annual | half_year | quarterly | monthly | project
+  period_detail VARCHAR(100),                  -- e.g. "Full Year 2026", "H1 (Jan-Jun)", "Q1 (Jan-Mar)"
+  fiscal_year INT DEFAULT EXTRACT(YEAR FROM CURRENT_DATE),
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
   total_amount NUMERIC(15, 2) NOT NULL,
   spent_amount NUMERIC(15, 2) DEFAULT 0.00,
-  status VARCHAR(20) DEFAULT 'active',
+  status VARCHAR(30) DEFAULT 'draft',          -- draft | submitted | approved | rejected | active | archived
+  notes TEXT,
+  items_count INT DEFAULT 0,
+  submitted_at TIMESTAMPTZ,
+  submitted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  approved_at TIMESTAMPTZ,
+  approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  rejection_reason TEXT,
+  review_notes TEXT,
   created_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- FINANCE — BUDGET ITEMS (Line-by-Line Breakdown)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS budget_items (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  church_id UUID NOT NULL REFERENCES churches(id) ON DELETE CASCADE,
+  budget_id UUID NOT NULL REFERENCES budgets(id) ON DELETE CASCADE,
+  item_name VARCHAR(255) NOT NULL,
+  category VARCHAR(100) DEFAULT 'operational', -- equipment | operational | events | training | welfare | honorarium | printing | transport | repairs | utilities | other
+  description TEXT,
+  quantity NUMERIC(10, 2) DEFAULT 1,
+  unit_cost NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
+  total_amount NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
+  spent_amount NUMERIC(15, 2) DEFAULT 0.00,
+  priority VARCHAR(20) DEFAULT 'medium',        -- high | medium | low
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

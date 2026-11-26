@@ -192,7 +192,7 @@ export default function App() {
             <Route path="discipleship" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Discipleship /></L></RoleRoute>} />
             <Route path="finance" element={<RoleRoute allowedRoles={['admin', 'pastor', 'finance']}><L><Finance /></L></RoleRoute>} />
             <Route path="giving-campaigns" element={<RoleRoute allowedRoles={['admin', 'pastor', 'finance']}><L><GivingCampaigns /></L></RoleRoute>} />
-            <Route path="budgets" element={<RoleRoute allowedRoles={['admin', 'pastor', 'finance']}><L><Budgets /></L></RoleRoute>} />
+            <Route path="budgets" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod', 'finance']}><L><Budgets /></L></RoleRoute>} />
             <Route path="departments" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Departments /></L></RoleRoute>} />
             <Route path="fellowship" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Fellowship /></L></RoleRoute>} />
             <Route path="groups" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Groups /></L></RoleRoute>} />
