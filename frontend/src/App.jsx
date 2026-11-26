@@ -135,7 +135,7 @@ function RootRoute() {
 export default function App() {
   return (
     <ErrorBoundary>
-    <AuthProvider>
+      <AuthProvider>
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/login/:churchSlug" element={<PublicRoute><Login /></PublicRoute>} />
@@ -212,7 +212,7 @@ export default function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-    </AuthProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

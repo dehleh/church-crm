@@ -17,42 +17,52 @@ import { applyChurchTheme } from '../../utils/theme';
 import clsx from 'clsx';
 
 const NAV = [
-  { group: 'Overview', items: [
-    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', allowedRoles: ['admin', 'pastor', 'director', 'finance', 'hod'] },
-  ]},
-  { group: 'People', items: [
-    { to: '/members',      icon: Users,         label: 'Members',          allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-    { to: '/first-timers', icon: UserPlus,      label: 'First Timers',     allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-    { to: '/departments',  icon: Building2,     label: 'Departments',      allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-    { to: '/fellowship',   icon: Home,          label: 'Fellowship / Cells', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-    { to: '/groups',       icon: Users2,        label: 'Groups',           allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-  ]},
+  {
+    group: 'Overview', items: [
+      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', allowedRoles: ['admin', 'pastor', 'director', 'finance', 'hod'] },
+    ]
+  },
+  {
+    group: 'People', items: [
+      { to: '/members', icon: Users, label: 'Members', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+      { to: '/first-timers', icon: UserPlus, label: 'First Timers', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+      { to: '/departments', icon: Building2, label: 'Departments', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+      { to: '/fellowship', icon: Home, label: 'Fellowship / Cells', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+      { to: '/groups', icon: Users2, label: 'Groups', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+    ]
+  },
 
-  { group: 'Church', items: [
-    { to: '/events',         icon: CalendarDays,   label: 'Events',                 allowedRoles: ['admin', 'pastor', 'director', 'hod', 'finance'] },
-    { to: '/devotionals',    icon: BookOpen,       label: 'Daily Devotionals',       allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-    { to: '/discipleship',   icon: GraduationCap,  label: 'Discipleship & School',   allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-    { to: '/attendance',     icon: CheckSquare,    label: 'Attendance',             allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-    { to: '/communications', icon: MessageSquare,  label: 'Communications',         allowedRoles: ['admin', 'pastor', 'director'] },
-    { to: '/follow-ups',     icon: PhoneCall,      label: 'Follow-ups',             allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-    { to: '/prayer',         icon: HeartHandshake, label: 'Prayer',                 allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-    { to: '/counseling',     icon: HandHeart,      label: 'Counseling',             allowedRoles: ['admin', 'pastor', 'director'] },
-    { to: '/welfare',        icon: Heart,          label: 'Welfare',                allowedRoles: ['admin', 'pastor', 'director', 'finance'] },
-    { to: '/media',          icon: Film,           label: 'Media',                  allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-    { to: '/assets',         icon: Package,        label: 'Inventory',              allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-  ]},
-  { group: 'Finance', items: [
-    { to: '/finance',          icon: DollarSign,     label: 'Finance & Giving',    allowedRoles: ['admin', 'pastor', 'finance'] },
-    { to: '/giving-campaigns', icon: HeartHandshake, label: 'Campaigns & Projects', allowedRoles: ['admin', 'pastor', 'finance'] },
-    { to: '/budgets',          icon: PiggyBank,      label: 'Budgets',             allowedRoles: ['admin', 'pastor', 'finance'] },
-    { to: '/procurement',      icon: ClipboardList,  label: 'Procurement',         allowedRoles: ['admin', 'pastor', 'director', 'finance', 'hod'] },
-  ]},
-  { group: 'Admin', items: [
-    { to: '/branches', icon: GitBranch,   label: 'Branches',         allowedRoles: ['admin', 'pastor'] },
-    { to: '/users',    icon: ShieldCheck, label: 'Users',            allowedRoles: ['admin', 'pastor'] },
-    { to: '/reports',  icon: BarChart2,   label: 'Reports',          allowedRoles: ['admin', 'pastor', 'director', 'finance'] },
-    { to: '/settings', icon: Settings,    label: 'Settings',         allowedRoles: ['admin', 'pastor'] },
-  ]},
+  {
+    group: 'Church', items: [
+      { to: '/events', icon: CalendarDays, label: 'Events', allowedRoles: ['admin', 'pastor', 'director', 'hod', 'finance'] },
+      { to: '/devotionals', icon: BookOpen, label: 'Daily Devotionals', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+      { to: '/discipleship', icon: GraduationCap, label: 'Discipleship & School', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+      { to: '/attendance', icon: CheckSquare, label: 'Attendance', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+      { to: '/communications', icon: MessageSquare, label: 'Communications', allowedRoles: ['admin', 'pastor', 'director'] },
+      { to: '/follow-ups', icon: PhoneCall, label: 'Follow-ups', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+      { to: '/prayer', icon: HeartHandshake, label: 'Prayer', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+      { to: '/counseling', icon: HandHeart, label: 'Counseling', allowedRoles: ['admin', 'pastor', 'director'] },
+      { to: '/welfare', icon: Heart, label: 'Welfare', allowedRoles: ['admin', 'pastor', 'director', 'finance'] },
+      { to: '/media', icon: Film, label: 'Media', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+      { to: '/assets', icon: Package, label: 'Inventory', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+    ]
+  },
+  {
+    group: 'Finance', items: [
+      { to: '/finance', icon: DollarSign, label: 'Finance & Giving', allowedRoles: ['admin', 'pastor', 'finance'] },
+      { to: '/giving-campaigns', icon: HeartHandshake, label: 'Campaigns & Projects', allowedRoles: ['admin', 'pastor', 'finance'] },
+      { to: '/budgets', icon: PiggyBank, label: 'Budgets', allowedRoles: ['admin', 'pastor', 'finance'] },
+      { to: '/procurement', icon: ClipboardList, label: 'Procurement', allowedRoles: ['admin', 'pastor', 'director', 'finance', 'hod'] },
+    ]
+  },
+  {
+    group: 'Admin', items: [
+      { to: '/branches', icon: GitBranch, label: 'Branches', allowedRoles: ['admin', 'pastor'] },
+      { to: '/users', icon: ShieldCheck, label: 'Users', allowedRoles: ['admin', 'pastor'] },
+      { to: '/reports', icon: BarChart2, label: 'Reports', allowedRoles: ['admin', 'pastor', 'director', 'finance'] },
+      { to: '/settings', icon: Settings, label: 'Settings', allowedRoles: ['admin', 'pastor'] },
+    ]
+  },
 ];
 
 function getInitials(firstName, lastName) {
@@ -100,10 +110,10 @@ export default function Layout() {
   const sidebarBg = sidebarTheme === 'midnight_navy'
     ? 'bg-[#090d16] border-r border-gray-800'
     : sidebarTheme === 'dark_slate'
-    ? 'bg-slate-900 border-r border-slate-800'
-    : sidebarTheme === 'church_tint'
-    ? 'bg-brand-950 border-r border-brand-900/60 text-white'
-    : 'bg-white border-r border-gray-100';
+      ? 'bg-slate-900 border-r border-slate-800'
+      : sidebarTheme === 'church_tint'
+        ? 'bg-brand-950 border-r border-brand-900/60 text-white'
+        : 'bg-white border-r border-gray-100';
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -162,36 +172,36 @@ export default function Layout() {
             });
             if (!items.length) return null;
             return (
-            <div key={group.group} className="mb-1">
-              {!collapsed && (
-                <div className={clsx(
-                  'px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest',
-                  isDarkSidebar ? 'text-gray-400' : 'text-gray-400'
-                )}>
-                  {group.group}
-                </div>
-              )}
-              {items.map(({ to, icon: Icon, label }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  title={collapsed ? label : undefined}
-                  className={({ isActive }) => clsx(
-                    'nav-item mb-0.5',
-                    collapsed && 'justify-center px-2',
-                    isDarkSidebar
-                      ? (sidebarTheme === 'dark_slate'
+              <div key={group.group} className="mb-1">
+                {!collapsed && (
+                  <div className={clsx(
+                    'px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest',
+                    isDarkSidebar ? 'text-gray-400' : 'text-gray-400'
+                  )}>
+                    {group.group}
+                  </div>
+                )}
+                {items.map(({ to, icon: Icon, label }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    title={collapsed ? label : undefined}
+                    className={({ isActive }) => clsx(
+                      'nav-item mb-0.5',
+                      collapsed && 'justify-center px-2',
+                      isDarkSidebar
+                        ? (sidebarTheme === 'dark_slate'
                           ? 'text-slate-300 hover:bg-slate-800 hover:text-white'
                           : 'text-gray-300 hover:bg-white/10 hover:text-white')
-                      : 'text-gray-600 hover:bg-brand-50 hover:text-brand-700',
-                    isActive && 'active'
-                  )}
-                >
-                  <Icon size={18} className="flex-shrink-0" />
-                  {!collapsed && <span>{label}</span>}
-                </NavLink>
-              ))}
-            </div>
+                        : 'text-gray-600 hover:bg-brand-50 hover:text-brand-700',
+                      isActive && 'active'
+                    )}
+                  >
+                    <Icon size={18} className="flex-shrink-0" />
+                    {!collapsed && <span>{label}</span>}
+                  </NavLink>
+                ))}
+              </div>
             );
           })}
         </nav>

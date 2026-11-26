@@ -391,7 +391,7 @@ const uploadBrandingAsset = async (req, res) => {
     if (req.file.path && fs.existsSync(req.file.path)) {
       const finalLocalPath = path.resolve(storageService.uploadDir, uploaded.key.replace(/^\/uploads\//, ''));
       if (path.resolve(req.file.path) !== finalLocalPath) {
-        try { fs.unlinkSync(req.file.path); } catch {}
+        try { fs.unlinkSync(req.file.path); } catch { }
       }
     }
 

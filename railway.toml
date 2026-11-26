@@ -1,2 +1,2 @@
 [build]
-watchPatterns = ["/backend/**", "/frontend/**"]
+watchPatterns = ["backend/**", "frontend/**", "package.json", "railway.toml"]
