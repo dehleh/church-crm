@@ -151,7 +151,7 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
     try {
       const res = await departmentsAPI.getPresets(dept.name || dept.category || 'general');
       setPresetItems(res.data.data || []);
-    } catch {}
+    } catch { }
     finally { setPresetLoading(false); }
   }, [dept.name, dept.category]);
 
@@ -376,7 +376,7 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
   const filteredForAdd = allMembers.filter(m =>
     !existingIds.has(m.id) &&
     (`${m.first_name} ${m.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     (m.email || '').toLowerCase().includes(searchTerm.toLowerCase()))
+      (m.email || '').toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
@@ -460,11 +460,10 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
         <div className="flex items-center gap-6 mt-6 border-b border-gray-100">
           <button
             onClick={() => setActiveTab('members')}
-            className={`pb-3 text-sm font-semibold transition-colors flex items-center gap-2 border-b-2 -mb-px ${
-              activeTab === 'members'
+            className={`pb-3 text-sm font-semibold transition-colors flex items-center gap-2 border-b-2 -mb-px ${activeTab === 'members'
                 ? 'border-brand-600 text-brand-600'
                 : 'border-transparent text-gray-500 hover:text-gray-900'
-            }`}
+              }`}
           >
             <Users size={16} />
             Unit Members
@@ -474,11 +473,10 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
           </button>
           <button
             onClick={() => setActiveTab('checklists')}
-            className={`pb-3 text-sm font-semibold transition-colors flex items-center gap-2 border-b-2 -mb-px ${
-              activeTab === 'checklists'
+            className={`pb-3 text-sm font-semibold transition-colors flex items-center gap-2 border-b-2 -mb-px ${activeTab === 'checklists'
                 ? 'border-brand-600 text-brand-600'
                 : 'border-transparent text-gray-500 hover:text-gray-900'
-            }`}
+              }`}
           >
             <ClipboardCheck size={16} />
             Pre-Service Readiness Checklists
@@ -610,13 +608,12 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-bold text-gray-900 text-base">{cl.service_title}</h3>
-                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${
-                          cl.status === 'published'
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${cl.status === 'published'
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : cl.status === 'completed'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}>
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}>
                           {cl.status === 'published' ? 'Published to Team' : cl.status}
                         </span>
                         {cl.broadcast_sent_at && (
@@ -680,13 +677,12 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          (cl.progress_pct || 0) === 100
+                        className={`h-full rounded-full transition-all duration-300 ${(cl.progress_pct || 0) === 100
                             ? 'bg-emerald-500'
                             : (cl.progress_pct || 0) > 50
-                            ? 'bg-brand-500'
-                            : 'bg-amber-500'
-                        }`}
+                              ? 'bg-brand-500'
+                              : 'bg-amber-500'
+                          }`}
                         style={{ width: `${cl.progress_pct || 0}%` }}
                       />
                     </div>
@@ -772,11 +768,10 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
                   key={opt.title}
                   type="button"
                   onClick={() => setNewChecklistForm(f => ({ ...f, serviceTitle: opt.title, serviceDate: opt.date }))}
-                  className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${
-                    newChecklistForm.serviceTitle === opt.title
+                  className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${newChecklistForm.serviceTitle === opt.title
                       ? 'bg-brand-50 border-brand-300 text-brand-700 font-medium'
                       : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
+                    }`}
                 >
                   {opt.title}
                 </button>
@@ -899,11 +894,10 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
                   {activeChecklist.completed_items || 0} of {activeChecklist.total_items || 0} tasks ready ({activeChecklist.progress_pct || 0}%)
                 </p>
               </div>
-              <span className={`text-xs px-2.5 py-1 rounded-full font-bold capitalize ${
-                activeChecklist.status === 'published'
+              <span className={`text-xs px-2.5 py-1 rounded-full font-bold capitalize ${activeChecklist.status === 'published'
                   ? 'bg-emerald-100 text-emerald-800'
                   : 'bg-gray-200 text-gray-800'
-              }`}>
+                }`}>
                 {activeChecklist.status === 'published' ? 'Published' : activeChecklist.status}
               </span>
             </div>
@@ -1128,11 +1122,10 @@ function DepartmentDetail({ dept, onBack, onMemberChange, onDelete }) {
                   key={ch.id}
                   type="button"
                   onClick={() => setDirectMsgChannel(ch.id)}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
-                    directMsgChannel === ch.id
+                  className={`p-2.5 rounded-xl border text-left transition-all ${directMsgChannel === ch.id
                       ? 'border-brand-600 bg-brand-50/70 text-brand-900 ring-1 ring-brand-500'
                       : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'
-                  }`}
+                    }`}
                 >
                   <p className="text-xs font-bold">{ch.label}</p>
                   <p className="text-[10px] text-gray-500">{ch.sub}</p>
@@ -1183,7 +1176,7 @@ export default function Departments() {
   const [allMembers, setAllMembers] = useState([]);
 
   const fetchMembers = async () => {
-    try { const res = await membersAPI.list({ limit: 500 }); setAllMembers(res.data.data || []); } catch {}
+    try { const res = await membersAPI.list({ limit: 500 }); setAllMembers(res.data.data || []); } catch { }
   };
 
   const fetchDepts = async () => {
@@ -1323,7 +1316,7 @@ export default function Departments() {
             <label className="label">Category</label>
             <select className="input" value={form.category || ''} onChange={set('category')}>
               <option value="">Select category</option>
-              {['ministry','unit','admin','media','music','welfare'].map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
+              {['ministry', 'unit', 'admin', 'media', 'music', 'welfare'].map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
             </select>
           </div>
           <div>
