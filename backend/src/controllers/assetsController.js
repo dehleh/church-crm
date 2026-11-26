@@ -6,12 +6,27 @@ const { resolveWriteBranchId, applyBranchFilter } = require('../utils/branchScop
 // GET /api/assets/stats
 const getAssetStats = async (req, res) => {
   try {
+    const { departmentId } = req.query;
     const params = [req.churchId];
-    let branchCond = '';
+    let extraCond = '';
+    let idx = 2;
     if (req.branchId) {
       params.push(req.branchId);
-      branchCond = ' AND branch_id = $2';
+      extraCond += ` AND branch_id = $${idx++}`;
     }
+
+    if (req.user?.role === 'hod' && req.user?.department_id && !departmentId) {
+      params.push(req.user.department_id);
+      extraCond += ` AND department_id = $${idx++}`;
+    } else if (departmentId && departmentId !== 'all') {
+      if (departmentId === 'none') {
+        extraCond += ' AND department_id IS NULL';
+      } else {
+        params.push(departmentId);
+        extraCond += ` AND department_id = $${idx++}`;
+      }
+    }
+
     const { rows } = await query(
       `SELECT
          COUNT(*) as total,
@@ -19,7 +34,7 @@ const getAssetStats = async (req, res) => {
          COUNT(*) FILTER (WHERE condition = 'needs_repair') as needs_repair,
          COUNT(DISTINCT category) as categories,
          COALESCE(SUM(purchase_price * quantity), 0) as total_value
-       FROM assets WHERE church_id = $1${branchCond}`,
+       FROM assets WHERE church_id = $1${extraCond}`,
       params
     );
     return res.json({ success: true, data: rows[0] });
@@ -31,7 +46,7 @@ const getAssetStats = async (req, res) => {
 
 // GET /api/assets
 const getAssets = async (req, res) => {
-  const { page = 1, limit = 20, search, category, status, condition, branchId } = req.query;
+  const { page = 1, limit = 20, search, category, status, condition, branchId, departmentId } = req.query;
   const offset = (page - 1) * limit;
   try {
     let conditions = ['a.church_id = $1'];
@@ -52,6 +67,19 @@ const getAssets = async (req, res) => {
       conditions.push(`a.branch_id = $${idx++}`); params.push(branchId);
     }
 
+    // Department filtering & jurisdiction scoping
+    if (req.user?.role === 'hod' && req.user?.department_id && !departmentId) {
+      conditions.push(`a.department_id = $${idx++}`);
+      params.push(req.user.department_id);
+    } else if (departmentId && departmentId !== 'all') {
+      if (departmentId === 'none') {
+        conditions.push('a.department_id IS NULL');
+      } else {
+        conditions.push(`a.department_id = $${idx++}`);
+        params.push(departmentId);
+      }
+    }
+
     const where = conditions.join(' AND ');
     const countRes = await query(`SELECT COUNT(*) FROM assets a WHERE ${where}`, params);
 
@@ -59,11 +87,13 @@ const getAssets = async (req, res) => {
     const { rows } = await query(
       `SELECT a.*,
               b.name as branch_name,
+              d.name as department_name,
               m.first_name || ' ' || m.last_name as custodian_name,
               m.phone as custodian_phone,
               u.first_name || ' ' || u.last_name as created_by_name
        FROM assets a
        LEFT JOIN branches b ON b.id = a.branch_id
+       LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN members m ON m.id = a.custodian_id
        LEFT JOIN users u ON u.id = a.created_by
        WHERE ${where}
@@ -94,11 +124,13 @@ const getAsset = async (req, res) => {
     const { rows } = await query(
       `SELECT a.*,
               b.name as branch_name,
+              d.name as department_name,
               m.first_name || ' ' || m.last_name as custodian_name,
               m.phone as custodian_phone, m.email as custodian_email,
               u.first_name || ' ' || u.last_name as created_by_name
        FROM assets a
        LEFT JOIN branches b ON b.id = a.branch_id
+       LEFT JOIN departments d ON d.id = a.department_id
        LEFT JOIN members m ON m.id = a.custodian_id
        LEFT JOIN users u ON u.id = a.created_by
        WHERE a.id = $1 AND a.church_id = $2`,
@@ -116,24 +148,26 @@ const getAsset = async (req, res) => {
 const createAsset = async (req, res) => {
   const {
     name, description, category, assetTag, quantity, condition, status,
-    purchaseDate, purchasePrice, currentValue, location, custodianId, branchId, notes
+    purchaseDate, purchasePrice, currentValue, location, custodianId, branchId, notes,
+    departmentId
   } = req.body;
   try {
     const finalBranchId = resolveWriteBranchId(req, branchId);
+    const finalDeptId = departmentId || (req.user?.role === 'hod' ? req.user.department_id : null);
     const { rows } = await query(
-      `INSERT INTO assets (id, church_id, branch_id, name, description, category, asset_tag,
+      `INSERT INTO assets (id, church_id, branch_id, department_id, name, description, category, asset_tag,
         quantity, condition, status, purchase_date, purchase_price, current_value,
         location, custodian_id, notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
       [
-        uuidv4(), req.churchId, finalBranchId, name, description || null,
+        uuidv4(), req.churchId, finalBranchId, finalDeptId || null, name, description || null,
         category || 'general', assetTag || null, quantity || 1,
         condition || 'good', status || 'active',
         purchaseDate || null, purchasePrice || null, currentValue || null,
         location || null, custodianId || null, notes || null, req.user.id
       ]
     );
-    logger.info('Asset created', { assetId: rows[0].id, name, userId: req.user.id });
+    logger.info('Asset created', { assetId: rows[0].id, name, departmentId: finalDeptId, userId: req.user.id });
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
     logger.error('Create asset error', { error: err.message });
@@ -146,9 +180,12 @@ const updateAsset = async (req, res) => {
   const { id } = req.params;
   const {
     name, description, category, assetTag, quantity, condition, status,
-    purchaseDate, purchasePrice, currentValue, location, custodianId, branchId, notes
+    purchaseDate, purchasePrice, currentValue, location, custodianId, branchId, notes,
+    departmentId
   } = req.body;
   try {
+    const hasDept = departmentId !== undefined;
+    const finalDept = departmentId || null;
     const { rows } = await query(
       `UPDATE assets SET
         name = COALESCE($3, name), description = COALESCE($4, description),
@@ -157,12 +194,15 @@ const updateAsset = async (req, res) => {
         status = COALESCE($9, status), purchase_date = COALESCE($10, purchase_date),
         purchase_price = COALESCE($11, purchase_price), current_value = COALESCE($12, current_value),
         location = COALESCE($13, location), custodian_id = $14,
-        branch_id = $15, notes = COALESCE($16, notes), updated_at = NOW()
+        branch_id = $15, notes = COALESCE($16, notes),
+        department_id = CASE WHEN $17 = true THEN $18::uuid ELSE department_id END,
+        updated_at = NOW()
        WHERE id = $1 AND church_id = $2 RETURNING *`,
       [
         id, req.churchId, name, description, category, assetTag,
         quantity, condition, status, purchaseDate, purchasePrice, currentValue,
-        location, custodianId || null, branchId || null, notes
+        location, custodianId || null, branchId || null, notes,
+        hasDept, finalDept
       ]
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Asset not found' });

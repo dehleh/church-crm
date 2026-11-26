@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Package, Plus, Loader2, Search, Filter, ArrowLeft, Edit2, Trash2,
   MapPin, Calendar, DollarSign, User, Tag, AlertTriangle, CheckCircle,
-  Wrench, Archive
+  Wrench, Archive, Building2
 } from 'lucide-react';
-import { assetsAPI, membersAPI, branchesAPI } from '../api/services';
+import { assetsAPI, membersAPI, branchesAPI, departmentsAPI } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency, getCurrencySymbol } from '../utils/currency';
 import Modal from '../components/ui/Modal';
@@ -118,6 +118,18 @@ function AssetDetail({ asset, onBack, onEdit, onDelete }) {
             <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Branch</p>
             <p className="text-sm font-medium text-gray-900">{asset.branch_name || '—'}</p>
           </div>
+          <div>
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Department</p>
+            <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
+              {asset.department_name ? (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-medium">
+                  <Building2 size={13} /> {asset.department_name}
+                </span>
+              ) : (
+                <span className="text-gray-400 italic">Church-wide (Unassigned)</span>
+              )}
+            </p>
+          </div>
           <div className="col-span-2">
             <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Custodian (In Charge)</p>
             <p className="text-sm font-medium text-gray-900 flex items-center gap-1">
@@ -154,11 +166,12 @@ export default function Assets() {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [filters, setFilters] = useState({ search: '', category: '', status: '' });
+  const [filters, setFilters] = useState({ search: '', category: '', status: '', departmentId: '' });
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState(null);
   const [members, setMembers] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
 
   const fetchAssets = useCallback(async () => {
     setLoading(true);
@@ -167,6 +180,7 @@ export default function Assets() {
       if (filters.search) params.search = filters.search;
       if (filters.category) params.category = filters.category;
       if (filters.status) params.status = filters.status;
+      if (filters.departmentId) params.departmentId = filters.departmentId;
       const res = await assetsAPI.list(params);
       setAssets(res.data.data);
       setPagination(res.data.pagination);
@@ -174,28 +188,45 @@ export default function Assets() {
     finally { setLoading(false); }
   }, [page, filters]);
 
-  const fetchStats = async () => {
-    try { const res = await assetsAPI.stats(); setStats(res.data.data); } catch {}
-  };
+  const fetchStats = useCallback(async () => {
+    try {
+      const params = {};
+      if (filters.departmentId) params.departmentId = filters.departmentId;
+      const res = await assetsAPI.stats(params);
+      setStats(res.data.data);
+    } catch {}
+  }, [filters.departmentId]);
 
   useEffect(() => { fetchAssets(); }, [fetchAssets]);
-  useEffect(() => { fetchStats(); }, []);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  useEffect(() => {
+    departmentsAPI.list().then(res => setDepartments(res.data.data || [])).catch(() => {});
+  }, []);
 
   const loadFormData = async () => {
     try {
-      const [m, b] = await Promise.all([
+      const [m, b, d] = await Promise.all([
         membersAPI.list({ limit: 200 }),
         branchesAPI.list(),
+        departmentsAPI.list(),
       ]);
-      setMembers(m.data.data);
-      setBranches(b.data.data);
+      setMembers(m.data.data || []);
+      setBranches(b.data.data || []);
+      setDepartments(d.data.data || []);
     } catch {}
   };
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const openAdd = async () => {
-    setForm({ category: 'general', condition: 'good', status: 'active', quantity: 1 });
+    setForm({
+      category: 'general',
+      condition: 'good',
+      status: 'active',
+      quantity: 1,
+      departmentId: user?.role === 'hod' && user?.department_id ? user.department_id : '',
+    });
     await loadFormData();
     setModal('add');
   };
@@ -207,7 +238,7 @@ export default function Assets() {
       status: asset.status, purchaseDate: asset.purchase_date?.split('T')[0] || '',
       purchasePrice: asset.purchase_price || '', currentValue: asset.current_value || '',
       location: asset.location || '', custodianId: asset.custodian_id || '',
-      branchId: asset.branch_id || '', notes: asset.notes || '',
+      branchId: asset.branch_id || '', departmentId: asset.department_id || '', notes: asset.notes || '',
     });
     await loadFormData();
     setModal('edit');
@@ -305,6 +336,11 @@ export default function Assets() {
           <option value="">All Statuses</option>
           {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
+        <select className="input w-auto" value={filters.departmentId} onChange={e => { setFilters(f => ({ ...f, departmentId: e.target.value })); setPage(1); }}>
+          <option value="">All Departments</option>
+          <option value="none">No Department / Church-wide</option>
+          {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
       </div>
 
       {/* Asset List */}
@@ -327,6 +363,7 @@ export default function Assets() {
                 <tr className="border-b border-gray-100 bg-gray-50/50">
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Asset</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500 hidden md:table-cell">Category</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 hidden md:table-cell">Department</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500 hidden lg:table-cell">Location</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500 hidden md:table-cell">Custodian</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Condition</th>
@@ -353,6 +390,15 @@ export default function Assets() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-gray-600 capitalize hidden md:table-cell">{(a.category || '').replace('_', ' ')}</td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        {a.department_name ? (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium border border-purple-100">
+                            <Building2 size={11} /> {a.department_name}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">— Church-wide</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">{a.location || '—'}</td>
                       <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{a.custodian_name || '—'}</td>
                       <td className="px-4 py-3">
@@ -452,6 +498,13 @@ export default function Assets() {
               <select className="input" value={form.branchId || ''} onChange={set('branchId')}>
                 <option value="">— Default —</option>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Department / Unit</label>
+              <select className="input" value={form.departmentId || ''} onChange={set('departmentId')}>
+                <option value="">— None / Church-wide —</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
             <div className="col-span-2">

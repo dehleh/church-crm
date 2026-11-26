@@ -19,9 +19,10 @@ router.post('/', authorize('admin', 'pastor', 'director', 'hod'), [
   body('status').optional().isIn(['active', 'in_use', 'in_storage', 'under_repair', 'disposed']),
   body('purchasePrice').optional({ values: 'null' }).isFloat({ min: 0 }),
   body('currentValue').optional({ values: 'null' }).isFloat({ min: 0 }),
+  body('departmentId').optional({ values: 'null' }).custom(v => !v || typeof v === 'string'),
 ], handleValidationErrors, c.createAsset);
 
-router.put('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), [
+router.put('/:id', authorize('admin', 'head_pastor', 'pastor', 'director', 'hod'), [
   body('name').optional().trim().escape(),
   body('category').optional().isIn(['furniture', 'musical_instrument', 'electronics', 'media', 'vehicle', 'building', 'equipment', 'general', 'other']),
   body('quantity').optional().isInt({ min: 1 }),
@@ -29,8 +30,9 @@ router.put('/:id', authorize('head_pastor', 'pastor', 'director', 'hod'), [
   body('status').optional().isIn(['active', 'in_use', 'in_storage', 'under_repair', 'disposed']),
   body('purchasePrice').optional({ values: 'null' }).isFloat({ min: 0 }),
   body('currentValue').optional({ values: 'null' }).isFloat({ min: 0 }),
+  body('departmentId').optional({ values: 'null' }).custom(v => !v || typeof v === 'string'),
 ], handleValidationErrors, c.updateAsset);
 
-router.delete('/:id', authorize('head_pastor', 'pastor'), c.deleteAsset);
+router.delete('/:id', authorize('admin', 'head_pastor', 'pastor'), c.deleteAsset);
 
 module.exports = router;

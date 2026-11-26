@@ -538,6 +538,7 @@ CREATE TABLE IF NOT EXISTS assets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   church_id UUID NOT NULL REFERENCES churches(id) ON DELETE CASCADE,
   branch_id UUID REFERENCES branches(id),
+  department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
   name VARCHAR(255) NOT NULL,
   description TEXT,
   category VARCHAR(50) NOT NULL DEFAULT 'general',

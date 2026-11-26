@@ -226,7 +226,7 @@ export const assetsAPI = {
   create: (data) => api.post('/assets', data),
   update: (id, data) => api.put(`/assets/${id}`, data),
   delete: (id) => api.delete(`/assets/${id}`),
-  stats: () => api.get('/assets/stats'),
+  stats: (params) => api.get('/assets/stats', { params }),
 };
 
 export const counselingAPI = {
