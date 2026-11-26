@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ShieldCheck, Plus, Edit2, KeyRound, Loader2, UserCheck, UserX, Trash2, AlertTriangle } from 'lucide-react';
-import { usersAPI, branchesAPI } from '../api/services';
+import { ShieldCheck, Plus, Edit2, KeyRound, Loader2, UserCheck, UserX, Trash2, AlertTriangle, Building2 } from 'lucide-react';
+import { usersAPI, branchesAPI, departmentsAPI } from '../api/services';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -22,6 +22,7 @@ export default function UserManagement() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -34,9 +35,14 @@ export default function UserManagement() {
   const fetch = async () => {
     setLoading(true);
     try {
-      const [usersRes, branchesRes] = await Promise.all([usersAPI.list(), branchesAPI.list()]);
+      const [usersRes, branchesRes, deptsRes] = await Promise.all([
+        usersAPI.list(),
+        branchesAPI.list(),
+        departmentsAPI.list(),
+      ]);
       setUsers(usersRes.data.data);
       setBranches(branchesRes.data.data);
+      setDepartments(deptsRes.data.data || []);
     } catch { toast.error('Failed to load users'); }
     finally { setLoading(false); }
   };
@@ -105,7 +111,15 @@ export default function UserManagement() {
 
   const openEdit = (user) => {
     setSelected(user);
-    setForm({ firstName: user.first_name, lastName: user.last_name, phone: user.phone, role: user.role, branchId: user.branch_id, isActive: user.is_active });
+    setForm({
+      firstName: user.first_name,
+      lastName: user.last_name,
+      phone: user.phone,
+      role: user.role,
+      branchId: user.branch_id,
+      departmentId: user.department_id || '',
+      isActive: user.is_active,
+    });
     setModal('edit');
   };
 
@@ -140,7 +154,7 @@ export default function UserManagement() {
           <div className="flex items-center justify-center py-16"><Loader2 size={28} className="animate-spin text-brand-500" /></div>
         ) : (
           <table className="crm-table">
-            <thead><tr><th>User</th><th>Role</th><th>Branch</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
+            <thead><tr><th>User</th><th>Role</th><th>Jurisdiction / Unit</th><th>Branch</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
             <tbody>
               {users.map(u => (
                 <tr key={u.id}>
@@ -159,6 +173,15 @@ export default function UserManagement() {
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full capitalize ${getRoleBadge(u.role)}`}>
                       {getRoleTitle(u.role)}
                     </span>
+                  </td>
+                  <td>
+                    {u.department_name ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <Building2 size={11} /> {u.department_name}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Church-wide</span>
+                    )}
                   </td>
                   <td className="text-sm text-gray-500">{u.branch_name || 'All Branches'}</td>
                   <td>
@@ -215,6 +238,16 @@ export default function UserManagement() {
               {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
+          <div>
+            <label className="label">Assigned Department / Jurisdiction</label>
+            <select className="input" value={form.departmentId||''} onChange={set('departmentId')}>
+              <option value="">Church-wide / All Units</option>
+              {departments.map(d => (
+                <option key={d.id} value={d.id}>{d.name} ({d.category || 'Unit'})</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-gray-500 mt-1">For HODs and directors, this restricts their access strictly to their assigned department's members &amp; checklists.</p>
+          </div>
           <p className="text-xs text-gray-400 bg-amber-50 text-amber-700 p-3 rounded-lg">A temporary password will be generated. Share it securely with the new user.</p>
         </div>
       </Modal>
@@ -242,6 +275,16 @@ export default function UserManagement() {
               <option value="">All Branches</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="label">Assigned Department / Jurisdiction</label>
+            <select className="input" value={form.departmentId||''} onChange={set('departmentId')}>
+              <option value="">Church-wide / All Units</option>
+              {departments.map(d => (
+                <option key={d.id} value={d.id}>{d.name} ({d.category || 'Unit'})</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-gray-500 mt-1">For HODs and directors, scopes access strictly to what pertains to their jurisdiction.</p>
           </div>
         </div>
       </Modal>

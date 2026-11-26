@@ -197,7 +197,7 @@ export default function App() {
             <Route path="fellowship" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Fellowship /></L></RoleRoute>} />
             <Route path="groups" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Groups /></L></RoleRoute>} />
 
-            <Route path="branches" element={<RoleRoute allowedRoles={['admin']}><L><Branches /></L></RoleRoute>} />
+            <Route path="branches" element={<RoleRoute allowedRoles={['admin', 'pastor']}><L><Branches /></L></RoleRoute>} />
             <Route path="media" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Media /></L></RoleRoute>} />
             <Route path="prayer" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Prayer /></L></RoleRoute>} />
             <Route path="communications" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director']}><L><Communications /></L></RoleRoute>} />
@@ -208,7 +208,7 @@ export default function App() {
             <Route path="counseling" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director']}><L><Counseling /></L></RoleRoute>} />
             <Route path="welfare" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'finance']}><L><Welfare /></L></RoleRoute>} />
             <Route path="procurement" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'finance', 'hod']}><L><Procurement /></L></RoleRoute>} />
-            <Route path="settings" element={<RoleRoute allowedRoles={['admin']}><L><Settings /></L></RoleRoute>} />
+            <Route path="settings" element={<RoleRoute allowedRoles={['admin', 'pastor']}><L><Settings /></L></RoleRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

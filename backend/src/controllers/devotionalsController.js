@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs');
 const { query } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
@@ -79,7 +81,8 @@ const getDevotional = async (req, res) => {
 const createDevotional = async (req, res) => {
   const {
     date, title, themeScripture, scriptureText, content, confession,
-    prayerPoint, bibleReadingPlan, author, isPublished = true
+    prayerPoint, bibleReadingPlan, author, isPublished = true,
+    manualUrl, manualName
   } = req.body;
 
   if (!date || !title?.trim() || !themeScripture?.trim() || !content?.trim()) {
@@ -93,8 +96,9 @@ const createDevotional = async (req, res) => {
     const { rows } = await query(
       `INSERT INTO daily_devotionals (
         church_id, date, title, theme_scripture, scripture_text, content,
-        confession, prayer_point, bible_reading_plan, author, is_published
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        confession, prayer_point, bible_reading_plan, author, is_published,
+        manual_url, manual_name
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       ON CONFLICT (church_id, date) DO UPDATE SET
         title = EXCLUDED.title,
         theme_scripture = EXCLUDED.theme_scripture,
@@ -105,12 +109,15 @@ const createDevotional = async (req, res) => {
         bible_reading_plan = EXCLUDED.bible_reading_plan,
         author = EXCLUDED.author,
         is_published = EXCLUDED.is_published,
+        manual_url = COALESCE(EXCLUDED.manual_url, daily_devotionals.manual_url),
+        manual_name = COALESCE(EXCLUDED.manual_name, daily_devotionals.manual_name),
         updated_at = NOW()
       RETURNING *`,
       [
         req.churchId, date, title.trim(), themeScripture.trim(), scriptureText || '',
         content, confession || '', prayerPoint || '', bibleReadingPlan || '',
-        author || 'Pastoral Team', isPublished !== false
+        author || 'Pastoral Team', isPublished !== false,
+        manualUrl || null, manualName || null
       ]
     );
 
@@ -126,7 +133,8 @@ const updateDevotional = async (req, res) => {
   const { id } = req.params;
   const {
     date, title, themeScripture, scriptureText, content, confession,
-    prayerPoint, bibleReadingPlan, author, isPublished
+    prayerPoint, bibleReadingPlan, author, isPublished,
+    manualUrl, manualName
   } = req.body;
 
   try {
@@ -142,13 +150,18 @@ const updateDevotional = async (req, res) => {
         bible_reading_plan = COALESCE($8, bible_reading_plan),
         author = COALESCE($9, author),
         is_published = COALESCE($10, is_published),
+        manual_url = COALESCE($11, manual_url),
+        manual_name = COALESCE($12, manual_name),
         updated_at = NOW()
-       WHERE id = $11 AND church_id = $12
+       WHERE id = $13 AND church_id = $14
        RETURNING *`,
       [
         date, title ? title.trim() : null, themeScripture, scriptureText, content,
         confession, prayerPoint, bibleReadingPlan, author,
-        isPublished !== undefined ? isPublished : null, id, req.churchId
+        isPublished !== undefined ? isPublished : null,
+        manualUrl !== undefined ? manualUrl : null,
+        manualName !== undefined ? manualName : null,
+        id, req.churchId
       ]
     );
 
@@ -157,6 +170,45 @@ const updateDevotional = async (req, res) => {
   } catch (err) {
     logger.error('updateDevotional error', { error: err.message });
     return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// POST /api/devotionals/upload-manual
+const uploadDevotionalManual = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No file uploaded' });
+  }
+
+  try {
+    const storageService = require('../services/storageService');
+    const fileBuffer = req.file.buffer || fs.readFileSync(req.file.path);
+    const uploaded = await storageService.uploadFile({
+      buffer: fileBuffer,
+      filename: req.file.originalname || req.file.filename,
+      mimetype: req.file.mimetype,
+      folder: 'devotionals',
+    });
+
+    if (req.file.path && fs.existsSync(req.file.path)) {
+      const finalLocalPath = path.resolve(storageService.uploadDir, uploaded.key.replace(/^\/uploads\//, ''));
+      if (path.resolve(req.file.path) !== finalLocalPath) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        url: uploaded.url,
+        filename: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+      },
+      message: 'Devotional manual / study booklet uploaded successfully',
+    });
+  } catch (err) {
+    logger.error('uploadDevotionalManual failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to upload manual' });
   }
 };
 
@@ -391,6 +443,7 @@ module.exports = {
   createDevotional,
   updateDevotional,
   deleteDevotional,
+  uploadDevotionalManual,
   broadcastDevotional,
   getDevotionalSettings,
   updateDevotionalSettings,

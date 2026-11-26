@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import {
   GraduationCap, BookOpen, CheckCircle2, PlayCircle, Clock,
   ArrowRight, Award, ChevronLeft, ChevronRight, Video, FileText,
-  Loader2, Sparkles, Send, Check
+  Loader2, Sparkles, Send, Check, Download, Paperclip
 } from 'lucide-react';
 import { memberPortalAPI } from '../../api/memberClient';
+import { getAssetUrl } from '../../api/client';
 import toast from 'react-hot-toast';
 
 export default function MemberPortalDiscipleship() {
@@ -126,7 +127,7 @@ export default function MemberPortalDiscipleship() {
     return (
       <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-6">
         {/* Back header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <button
             onClick={() => setActiveCourseId(null)}
             className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-brand-600 font-semibold transition-colors"
@@ -134,15 +135,30 @@ export default function MemberPortalDiscipleship() {
             <ChevronLeft size={16} /> Back to Courses
           </button>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 font-medium">Course Progress:</span>
-            <div className="w-28 sm:w-36 bg-gray-200 h-2.5 rounded-full overflow-hidden">
-              <div
-                className="bg-emerald-500 h-full rounded-full transition-all duration-300"
-                style={{ width: `${courseDetails.progress_percent || 0}%` }}
-              />
+          <div className="flex flex-wrap items-center gap-3">
+            {courseDetails.document_url && (
+              <a
+                href={getAssetUrl(courseDetails.document_url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                download
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors shadow-2xs"
+              >
+                <Download size={13} />
+                <span>Download Course Manual ({courseDetails.document_name || 'PDF'})</span>
+              </a>
+            )}
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 font-medium">Course Progress:</span>
+              <div className="w-28 sm:w-36 bg-gray-200 h-2.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-emerald-500 h-full rounded-full transition-all duration-300"
+                  style={{ width: `${courseDetails.progress_percent || 0}%` }}
+                />
+              </div>
+              <span className="text-xs font-bold text-gray-800">{courseDetails.progress_percent || 0}%</span>
             </div>
-            <span className="text-xs font-bold text-gray-800">{courseDetails.progress_percent || 0}%</span>
           </div>
         </div>
 
@@ -180,7 +196,7 @@ export default function MemberPortalDiscipleship() {
                 {courseDetails.category}
               </span>
               <h2 className="font-bold font-display text-gray-900 text-base mt-1">{courseDetails.title}</h2>
-              <p className="text-xs text-gray-500 mt-0.5">{lessons.length} Modules &amp; Lessons</p>
+              <p className="text-xs text-gray-500 mt-0.5">{lessons.length} Chapters &amp; Modules</p>
             </div>
 
             <div className="space-y-1.5 pt-2 border-t border-gray-100 max-h-[60vh] overflow-y-auto">
@@ -203,15 +219,25 @@ export default function MemberPortalDiscipleship() {
                         <div className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${
                           isSelected ? 'border-indigo-600 text-indigo-600 font-bold' : 'border-gray-300 text-gray-400'
                         }`}>
-                          {idx + 1}
+                          {lesson.chapter_num || idx + 1}
                         </div>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs truncate leading-snug">{lesson.title}</p>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] uppercase font-bold text-indigo-600">
+                          Ch. {lesson.chapter_num || idx + 1}
+                        </span>
+                        <p className="text-xs truncate leading-snug">{lesson.title}</p>
+                      </div>
                       <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5">
                         <span>{lesson.duration_minutes || 20}m</span>
                         {lesson.video_url && <span>• Video</span>}
+                        {lesson.document_url && (
+                          <span className="text-emerald-600 font-medium inline-flex items-center gap-0.5">
+                            • <Paperclip size={10} /> Document
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -226,8 +252,8 @@ export default function MemberPortalDiscipleship() {
               <>
                 <div className="space-y-2 border-b border-gray-100 pb-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-indigo-600">
-                      Lesson {activeLessonIdx + 1} of {lessons.length}
+                    <span className="text-xs font-bold text-indigo-600 uppercase tracking-wide">
+                      Chapter {currentLesson.chapter_num || activeLessonIdx + 1} of {lessons.length}
                     </span>
                     {currentLesson.is_completed && (
                       <span className="badge badge-green text-[10px] font-bold">
@@ -246,6 +272,33 @@ export default function MemberPortalDiscipleship() {
                     </div>
                   )}
                 </div>
+
+                {/* Prepared Chapter Document / PDF Download Card */}
+                {currentLesson.document_url && (
+                  <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <FileText size={20} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-gray-900 truncate">
+                          {currentLesson.document_name || `Chapter ${currentLesson.chapter_num || activeLessonIdx + 1} Prepared Document`}
+                        </div>
+                        <div className="text-[11px] text-gray-500">Official chapter study manual, syllabus notes &amp; guide</div>
+                      </div>
+                    </div>
+                    <a
+                      href={getAssetUrl(currentLesson.document_url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download
+                      className="btn-primary text-xs py-2 px-3.5 flex items-center justify-center gap-1.5 flex-shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs"
+                    >
+                      <Download size={13} />
+                      <span>Open / Download PDF</span>
+                    </a>
+                  </div>
+                )}
 
                 {/* Video Lesson (if present) */}
                 {currentLesson.video_url && (

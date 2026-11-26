@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
+const { upload, uploadFor } = require('../middleware/upload');
 const discipleship = require('../controllers/discipleshipController');
 
 router.use(authenticate);
@@ -11,11 +12,13 @@ router.post('/courses', authorize('admin', 'pastor', 'director'), discipleship.c
 router.put('/courses/:id', authorize('admin', 'pastor', 'director'), discipleship.updateCourse);
 router.delete('/courses/:id', authorize('admin', 'pastor'), discipleship.deleteCourse);
 
+router.post('/upload-document', authorize('admin', 'pastor', 'director'), uploadFor('documents'), upload.single('file'), discipleship.uploadCourseDocument);
+
 router.post('/courses/:id/lessons', authorize('admin', 'pastor', 'director'), discipleship.createLesson);
 router.put('/lessons/:lessonId', authorize('admin', 'pastor', 'director'), discipleship.updateLesson);
 router.delete('/lessons/:lessonId', authorize('admin', 'pastor'), discipleship.deleteLesson);
 
 router.post('/courses/:id/enroll', authorize('admin', 'pastor', 'director', 'hod'), discipleship.enrollMemberAdmin);
-router.post('/seed-default', authorize('admin'), discipleship.seedDefaultCourses);
+router.post('/seed-default', authorize('admin', 'pastor'), discipleship.seedDefaultCourses);
 
 module.exports = router;

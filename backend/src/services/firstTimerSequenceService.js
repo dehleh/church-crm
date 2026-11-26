@@ -184,15 +184,17 @@ async function processDueSequenceQueue() {
         if (item.channel === 'whatsapp' && item.recipient_phone) {
           await sendWhatsApp({
             to: item.recipient_phone,
+            body: item.message_body,
             message: item.message_body,
             churchSettings: messagingCfg,
-          });
+          }, messagingCfg);
         } else if (item.channel === 'sms' && item.recipient_phone) {
           await sendSMS({
             to: item.recipient_phone,
+            body: item.message_body,
             message: item.message_body,
             churchSettings: messagingCfg,
-          });
+          }, messagingCfg);
         } else if (item.channel === 'email' && item.recipient_email) {
           await sendEmail({
             to: item.recipient_email,

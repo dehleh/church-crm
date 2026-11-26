@@ -3,9 +3,10 @@ import { useParams, Link } from 'react-router-dom';
 import {
   BookOpen, Calendar, ChevronLeft, ChevronRight, Share2, Volume2,
   VolumeX, Check, Bookmark, Sparkles, Heart, Sun, Moon, ArrowLeft,
-  Copy, MessageCircle, Clock, ExternalLink
+  Copy, MessageCircle, Clock, ExternalLink, Download
 } from 'lucide-react';
 import { memberPortalAPI } from '../../api/memberClient';
+import { getAssetUrl } from '../../api/client';
 import toast from 'react-hot-toast';
 
 export default function MemberPortalDevotional() {
@@ -281,6 +282,19 @@ export default function MemberPortalDevotional() {
                 {copied ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
                 {copied ? 'Copied' : 'Copy'}
               </button>
+
+              {devotional.manual_url && (
+                <a
+                  href={getAssetUrl(devotional.manual_url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-amber-900 hover:bg-amber-50 text-xs font-bold transition shadow-sm"
+                >
+                  <Download className="w-4 h-4 text-amber-600" />
+                  Devotional Manual Booklet (PDF)
+                </a>
+              )}
             </div>
           </div>
 

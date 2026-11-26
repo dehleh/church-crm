@@ -1,6 +1,7 @@
+const path = require('path');
+const fs = require('fs');
 const { query } = require('../config/database');
 const bcrypt = require('bcryptjs');
-const fs = require('fs');
 const logger = require('../config/logger');
 const { sendEmail } = require('../services/emailService');
 const { sendSMS, sendWhatsApp } = require('../services/smsService');

@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   GraduationCap, Plus, Search, BookOpen, Users, Clock, Video,
   CheckCircle2, Award, ChevronRight, Edit2, Trash2, Loader2, Sparkles,
-  ExternalLink, FileText, ArrowLeft, PlayCircle
+  ExternalLink, FileText, ArrowLeft, PlayCircle, Upload, Download, Paperclip
 } from 'lucide-react';
 import { discipleshipAPI, membersAPI } from '../api/services';
+import { getAssetUrl } from '../api/client';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -32,16 +33,19 @@ export default function Discipleship() {
   const [courseModal, setCourseModal] = useState(false);
   const [courseForm, setCourseForm] = useState({
     title: '', category: 'foundation', level: 'beginner', description: '',
-    instructorName: '', durationWeeks: 4, isPublished: true
+    instructorName: '', durationWeeks: 4, isPublished: true, documentUrl: '', documentName: ''
   });
   const [savingCourse, setSavingCourse] = useState(false);
 
   const [lessonModal, setLessonModal] = useState(false);
   const [lessonForm, setLessonForm] = useState({
     title: '', description: '', content: '', scriptureReferences: '',
-    videoUrl: '', audioUrl: '', durationMinutes: 20
+    videoUrl: '', audioUrl: '', durationMinutes: 20, chapterNum: 1, documentUrl: '', documentName: ''
   });
   const [savingLesson, setSavingLesson] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const courseFileInputRef = useRef(null);
+  const lessonFileInputRef = useRef(null);
 
   const [enrollModal, setEnrollModal] = useState(false);
   const [enrollMemberId, setEnrollMemberId] = useState('');
@@ -84,9 +88,51 @@ export default function Discipleship() {
   const openNewCourse = () => {
     setCourseForm({
       title: '', category: 'foundation', level: 'beginner', description: '',
-      instructorName: '', durationWeeks: 4, isPublished: true
+      instructorName: '', durationWeeks: 4, isPublished: true, documentUrl: '', documentName: ''
     });
     setCourseModal(true);
+  };
+
+  const handleUploadCourseDocument = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    setUploadingDoc(true);
+    try {
+      const res = await discipleshipAPI.uploadDocument(formData);
+      setCourseForm(f => ({
+        ...f,
+        documentUrl: res.data.data.url,
+        documentName: res.data.data.filename || file.name,
+      }));
+      toast.success('Course document uploaded successfully!');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to upload document');
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleUploadLessonDocument = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    setUploadingDoc(true);
+    try {
+      const res = await discipleshipAPI.uploadDocument(formData);
+      setLessonForm(f => ({
+        ...f,
+        documentUrl: res.data.data.url,
+        documentName: res.data.data.filename || file.name,
+      }));
+      toast.success('Chapter study document uploaded!');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to upload document');
+    } finally {
+      setUploadingDoc(false);
+    }
   };
 
   const handleSaveCourse = async (e) => {
@@ -137,9 +183,11 @@ export default function Discipleship() {
   };
 
   const openNewLesson = () => {
+    const currentLessonsCount = selectedCourse?.lessons?.length || 0;
     setLessonForm({
       title: '', description: '', content: '', scriptureReferences: '',
-      videoUrl: '', audioUrl: '', durationMinutes: 20
+      videoUrl: '', audioUrl: '', durationMinutes: 20,
+      chapterNum: currentLessonsCount + 1, documentUrl: '', documentName: ''
     });
     setLessonModal(true);
   };
@@ -241,8 +289,20 @@ export default function Discipleship() {
                 <div className="flex flex-wrap items-center gap-4 text-xs text-indigo-300 mt-4">
                   {selectedCourse.instructor_name && <span>👤 Instructor: <strong>{selectedCourse.instructor_name}</strong></span>}
                   <span>⏱️ Duration: <strong>{selectedCourse.duration_weeks} Weeks</strong></span>
-                  <span>📚 <strong>{selectedCourse.lessons?.length || 0} Lessons</strong></span>
+                  <span>📚 <strong>{selectedCourse.lessons?.length || 0} Chapters / Modules</strong></span>
                   <span>👥 <strong>{selectedCourse.enrollments?.length || 0} Students</strong></span>
+                  {selectedCourse.document_url && (
+                    <a
+                      href={getAssetUrl(selectedCourse.document_url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 hover:bg-emerald-500/30 transition-colors font-medium"
+                    >
+                      <Download size={13} />
+                      <span>Full Manual: {selectedCourse.document_name || 'Download PDF'}</span>
+                    </a>
+                  )}
                 </div>
               </div>
 
@@ -260,7 +320,7 @@ export default function Discipleship() {
                   onClick={openNewLesson}
                   className="btn-primary text-xs bg-indigo-500 hover:bg-indigo-400 text-white"
                 >
-                  <Plus size={14} /> Add Lesson
+                  <Plus size={14} /> Add Chapter
                 </button>
                 <button
                   onClick={openEnrollModal}
@@ -280,7 +340,7 @@ export default function Discipleship() {
                 activeTab === 'lessons' ? 'border-brand-600 text-brand-600' : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Curriculum & Lessons ({selectedCourse.lessons?.length || 0})
+              Curriculum Chapters ({selectedCourse.lessons?.length || 0})
             </button>
             <button
               onClick={() => setActiveTab('students')}
@@ -297,10 +357,10 @@ export default function Discipleship() {
               {(!selectedCourse.lessons || selectedCourse.lessons.length === 0) ? (
                 <div className="card p-12 text-center">
                   <BookOpen size={40} className="mx-auto text-gray-300 mb-3" />
-                  <p className="text-gray-700 font-semibold">No lessons added to this course yet</p>
-                  <p className="text-gray-400 text-sm mt-1">Start building your discipleship curriculum with lessons, scripture, and study notes.</p>
+                  <p className="text-gray-700 font-semibold">No chapters added to this course yet</p>
+                  <p className="text-gray-400 text-sm mt-1">Start building your discipleship curriculum with chapter-by-chapter modules, prepared documents, and study notes.</p>
                   <button onClick={openNewLesson} className="btn-primary mt-4 inline-flex items-center gap-1.5">
-                    <Plus size={15} /> Add First Lesson
+                    <Plus size={15} /> Add First Chapter
                   </button>
                 </div>
               ) : (
@@ -309,18 +369,34 @@ export default function Discipleship() {
                     <div key={lesson.id} className="card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-gray-300 transition-all">
                       <div className="flex items-start gap-3">
                         <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center text-xs flex-shrink-0">
-                          {lesson.order_num || idx + 1}
+                          {lesson.chapter_num || lesson.order_num || idx + 1}
                         </div>
                         <div>
-                          <h3 className="font-semibold text-gray-900 text-sm">{lesson.title}</h3>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 uppercase tracking-wider">
+                              Chapter {lesson.chapter_num || lesson.order_num || idx + 1}
+                            </span>
+                            <h3 className="font-semibold text-gray-900 text-sm">{lesson.title}</h3>
+                          </div>
                           {lesson.scripture_references && (
                             <p className="text-xs text-indigo-600 font-medium mt-0.5">
                               📖 {lesson.scripture_references}
                             </p>
                           )}
-                          <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400 mt-1">
                             <span className="flex items-center gap-1"><Clock size={12} /> {lesson.duration_minutes || 20} mins</span>
                             {lesson.video_url && <span className="flex items-center gap-1 text-sky-600"><Video size={12} /> Video Attached</span>}
+                            {lesson.document_url && (
+                              <a
+                                href={getAssetUrl(lesson.document_url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download
+                                className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded text-[11px] font-semibold transition-colors border border-emerald-200"
+                              >
+                                <Paperclip size={11} /> {lesson.document_name || 'Study Material (PDF)'}
+                              </a>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -332,14 +408,14 @@ export default function Discipleship() {
                             setLessonModal(true);
                           }}
                           className="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-brand-600"
-                          title="Edit Lesson"
+                          title="Edit Chapter"
                         >
                           <Edit2 size={14} />
                         </button>
                         <button
                           onClick={() => handleDeleteLesson(lesson.id)}
                           className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"
-                          title="Delete Lesson"
+                          title="Delete Chapter"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -676,6 +752,37 @@ export default function Discipleship() {
               onChange={e => setCourseForm(f => ({ ...f, description: e.target.value }))}
             />
           </div>
+
+          {/* Prepared Course Syllabus / Document Upload */}
+          <div className="pt-2 border-t border-gray-100">
+            <label className="label flex items-center justify-between">
+              <span>Prepared Course Document / Full Syllabus (PDF, Docx)</span>
+              <span className="text-[11px] text-gray-400 font-normal">Optional manual upload</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                ref={courseFileInputRef}
+                className="hidden"
+                accept=".pdf,.doc,.docx,.txt"
+                onChange={handleUploadCourseDocument}
+              />
+              <button
+                type="button"
+                onClick={() => courseFileInputRef.current?.click()}
+                disabled={uploadingDoc}
+                className="btn-secondary text-xs flex items-center gap-1.5"
+              >
+                {uploadingDoc ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                <span>{courseForm.documentUrl ? 'Replace Document' : 'Upload Prepared Course File'}</span>
+              </button>
+              {courseForm.documentName && (
+                <span className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg flex items-center gap-1 truncate max-w-[240px]">
+                  <FileText size={12} /> {courseForm.documentName}
+                </span>
+              )}
+            </div>
+          </div>
         </form>
       </Modal>
 
@@ -683,25 +790,70 @@ export default function Discipleship() {
       <Modal
         open={lessonModal}
         onClose={() => setLessonModal(false)}
-        title={lessonForm.id ? 'Edit Lesson' : 'Add Lesson to Course Syllabus'}
+        title={lessonForm.id ? 'Edit Curriculum Chapter' : 'Add Chapter / Lesson to Syllabus'}
         size="lg"
         footer={<>
           <button onClick={() => setLessonModal(false)} className="btn-secondary">Cancel</button>
           <button onClick={handleSaveLesson} disabled={savingLesson} className="btn-primary">
-            {savingLesson ? <Loader2 size={14} className="animate-spin" /> : 'Save Lesson'}
+            {savingLesson ? <Loader2 size={14} className="animate-spin" /> : 'Save Chapter'}
           </button>
         </>}
       >
         <form onSubmit={handleSaveLesson} className="space-y-3.5 max-h-[72vh] overflow-y-auto pr-1">
-          <div>
-            <label className="label">Lesson Title *</label>
-            <input
-              className="input"
-              placeholder="e.g. Lesson 1: The New Birth & Assurance of Salvation"
-              value={lessonForm.title}
-              onChange={e => setLessonForm(f => ({ ...f, title: e.target.value }))}
-              required
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="label">Chapter Number *</label>
+              <input
+                type="number"
+                min="1"
+                className="input"
+                placeholder="e.g. 1"
+                value={lessonForm.chapterNum || 1}
+                onChange={e => setLessonForm(f => ({ ...f, chapterNum: parseInt(e.target.value) || 1 }))}
+                required
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Chapter / Lesson Title *</label>
+              <input
+                className="input"
+                placeholder="e.g. The New Birth & Assurance of Salvation"
+                value={lessonForm.title}
+                onChange={e => setLessonForm(f => ({ ...f, title: e.target.value }))}
+                required
+              />
+            </div>
+          </div>
+
+          {/* Chapter Study Document / PDF */}
+          <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-2">
+            <label className="label flex items-center justify-between text-indigo-950 font-semibold text-xs">
+              <span>Prepared Chapter Document / Study Guide (PDF, Docx)</span>
+              <span className="text-[11px] text-indigo-600 font-normal">Allows members to study chapter materials</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                ref={lessonFileInputRef}
+                className="hidden"
+                accept=".pdf,.doc,.docx,.txt"
+                onChange={handleUploadLessonDocument}
+              />
+              <button
+                type="button"
+                onClick={() => lessonFileInputRef.current?.click()}
+                disabled={uploadingDoc}
+                className="btn-secondary text-xs flex items-center gap-1.5 bg-white hover:bg-gray-50 border-indigo-200 text-indigo-800"
+              >
+                {uploadingDoc ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                <span>{lessonForm.documentUrl ? 'Replace Chapter File' : 'Upload Prepared Chapter Document'}</span>
+              </button>
+              {lessonForm.documentName && (
+                <span className="text-xs text-indigo-800 bg-white border border-indigo-300 px-2.5 py-1 rounded-lg flex items-center gap-1 truncate max-w-[260px] font-medium shadow-2xs">
+                  <FileText size={12} className="text-indigo-600" /> {lessonForm.documentName}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -737,10 +889,10 @@ export default function Discipleship() {
           </div>
 
           <div>
-            <label className="label">Lesson Teaching Notes & Content *</label>
+            <label className="label">Chapter Teaching Notes & Syllabus Content *</label>
             <textarea
               className="input min-h-[160px] font-mono text-xs"
-              placeholder="Enter markdown or lesson notes for students to read..."
+              placeholder="Enter markdown or chapter notes for students to read..."
               value={lessonForm.content}
               onChange={e => setLessonForm(f => ({ ...f, content: e.target.value }))}
               required

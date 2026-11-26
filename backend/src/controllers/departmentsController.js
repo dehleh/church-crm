@@ -84,6 +84,21 @@ const getDepartments = async (req, res) => {
     let params = [req.churchId];
     applyBranchFilter(req, 'd.branch_id', conditions, params, 2, { allowNullBranch: true });
 
+    // HOD Jurisdiction Scoping: HODs only see what pertains to their own jurisdiction
+    if (req.user?.role === 'hod') {
+      if (req.user.department_id) {
+        conditions.push(`d.id = $${params.length + 1}`);
+        params.push(req.user.department_id);
+      } else {
+        conditions.push(`(
+          d.head_user_id = $${params.length + 1}
+          OR d.head_member_id IN (SELECT id FROM members WHERE email = $${params.length + 2} OR (phone IS NOT NULL AND phone = $${params.length + 3}))
+          OR d.id IN (SELECT md.department_id FROM member_departments md JOIN members m ON m.id = md.member_id WHERE m.email = $${params.length + 2})
+        )`);
+        params.push(req.user.id, req.user.email, req.user.phone || '');
+      }
+    }
+
     const { rows } = await query(
       `SELECT d.*,
               b.name as branch_name,

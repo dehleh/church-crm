@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   BookOpen, Plus, Search, Calendar, Send, Sparkles, Settings,
-  Edit2, Trash2, Loader2, MessageCircle, Mail, CheckCircle2, Clock
+  Edit2, Trash2, Loader2, MessageCircle, Mail, CheckCircle2, Clock,
+  Upload, Download, Paperclip
 } from 'lucide-react';
 import { devotionalsAPI } from '../api/services';
+import { getAssetUrl } from '../api/client';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -44,8 +46,12 @@ export default function DailyDevotionals() {
     bibleReadingPlan: '',
     author: 'Senior Pastor',
     isPublished: true,
+    manualUrl: '',
+    manualName: '',
   });
   const [saving, setSaving] = useState(false);
+  const [uploadingManual, setUploadingManual] = useState(false);
+  const manualFileInputRef = useRef(null);
 
   // Automated Reminder Settings Modal
   const [settingsModal, setSettingsModal] = useState(false);
@@ -77,6 +83,27 @@ export default function DailyDevotionals() {
     fetchDevotionals();
   }, [fetchDevotionals]);
 
+  const handleUploadManual = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    setUploadingManual(true);
+    try {
+      const res = await devotionalsAPI.uploadManual(formData);
+      setForm(f => ({
+        ...f,
+        manualUrl: res.data.data.url,
+        manualName: res.data.data.filename || file.name,
+      }));
+      toast.success('Devotional manual uploaded successfully!');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to upload manual');
+    } finally {
+      setUploadingManual(false);
+    }
+  };
+
   const openNewDevotional = () => {
     setForm({
       date: new Date().toISOString().slice(0, 10),
@@ -89,6 +116,8 @@ export default function DailyDevotionals() {
       bibleReadingPlan: '',
       author: 'Senior Pastor',
       isPublished: true,
+      manualUrl: '',
+      manualName: '',
     });
     setModal(true);
   };
@@ -106,6 +135,8 @@ export default function DailyDevotionals() {
       bibleReadingPlan: dev.bible_reading_plan || '',
       author: dev.author || 'Senior Pastor',
       isPublished: dev.is_published !== false,
+      manualUrl: dev.manual_url || '',
+      manualName: dev.manual_name || '',
     });
     setModal(true);
   };
@@ -346,6 +377,21 @@ export default function DailyDevotionals() {
                         📚 Bible Reading Plan: <strong>{dev.bible_reading_plan}</strong>
                       </p>
                     )}
+
+                    {dev.manual_url && (
+                      <div className="pt-1">
+                        <a
+                          href={getAssetUrl(dev.manual_url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors"
+                        >
+                          <BookOpen size={13} className="text-amber-600" />
+                          <span>Devotional Manual: {dev.manual_name || 'Download PDF Booklet'}</span>
+                        </a>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex md:flex-col items-center justify-end gap-2 flex-shrink-0 pt-2 md:pt-0">
@@ -492,6 +538,37 @@ export default function DailyDevotionals() {
                 value={form.prayerPoint}
                 onChange={e => setForm(f => ({ ...f, prayerPoint: e.target.value }))}
               />
+            </div>
+          </div>
+
+          {/* Prepared Devotional Manual Upload */}
+          <div className="pt-2 border-t border-gray-100 space-y-2">
+            <label className="label flex items-center justify-between">
+              <span>Prepared Devotional Manual / Guide Booklet (PDF, Docx)</span>
+              <span className="text-[11px] text-gray-400 font-normal">Optional document attachment</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                ref={manualFileInputRef}
+                className="hidden"
+                accept=".pdf,.doc,.docx,.txt"
+                onChange={handleUploadManual}
+              />
+              <button
+                type="button"
+                onClick={() => manualFileInputRef.current?.click()}
+                disabled={uploadingManual}
+                className="btn-secondary text-xs flex items-center gap-1.5"
+              >
+                {uploadingManual ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                <span>{form.manualUrl ? 'Replace Manual' : 'Upload Prepared Devotional Booklet'}</span>
+              </button>
+              {form.manualName && (
+                <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg flex items-center gap-1 truncate max-w-[260px]">
+                  <BookOpen size={12} className="text-amber-600" /> {form.manualName}
+                </span>
+              )}
             </div>
           </div>
         </form>

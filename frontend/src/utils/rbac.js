@@ -10,7 +10,7 @@
  * 6. Member (`member`): Member portal: profile, birthdays, announcements, media, devotionals, discipleship, giving.
  */
 
-export const ADMIN_ROLES = ['head_pastor', 'admin', 'church_admin'];
+export const ADMIN_ROLES = ['head_pastor', 'admin', 'church_admin', 'pastor', 'branch_pastor'];
 
 export const ROLE_DETAILS = {
   head_pastor: {

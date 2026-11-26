@@ -339,6 +339,9 @@ export const discipleshipAPI = {
   createCourse: (data) => api.post('/discipleship/courses', data),
   updateCourse: (id, data) => api.put(`/discipleship/courses/${id}`, data),
   deleteCourse: (id) => api.delete(`/discipleship/courses/${id}`),
+  uploadDocument: (formData) => api.post('/discipleship/upload-document', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
   createLesson: (courseId, data) => api.post(`/discipleship/courses/${courseId}/lessons`, data),
   updateLesson: (lessonId, data) => api.put(`/discipleship/lessons/${lessonId}`, data),
   deleteLesson: (lessonId) => api.delete(`/discipleship/lessons/${lessonId}`),
@@ -353,6 +356,9 @@ export const devotionalsAPI = {
   create: (data) => api.post('/devotionals', data),
   update: (id, data) => api.put(`/devotionals/${id}`, data),
   delete: (id) => api.delete(`/devotionals/${id}`),
+  uploadManual: (formData) => api.post('/devotionals/upload-manual', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
   broadcast: (id, data) => api.post(`/devotionals/${id}/broadcast`, data),
   getSettings: () => api.get('/devotionals/settings'),
   updateSettings: (data) => api.put('/devotionals/settings', data),

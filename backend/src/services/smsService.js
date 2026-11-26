@@ -247,8 +247,11 @@ async function sendMetaWhatsAppMessage({ to, body, mediaUrl }, cfg) {
  * @param {{ to: string | string[], body: string }} options
  * @param {object} [churchSettings] - messaging config from church settings JSONB
  */
-async function sendSMS({ to, body }, churchSettings) {
-  const cfg = churchSettings?.messaging?.sms || churchSettings?.sms || {};
+async function sendSMS(options, churchSettings) {
+  const { to, body, message } = options || {};
+  const msgBody = String(body ?? message ?? '');
+  const effectiveSettings = churchSettings || options?.churchSettings;
+  const cfg = effectiveSettings?.messaging?.sms || effectiveSettings?.sms || {};
   const rawNumbers = Array.isArray(to) ? to : [to];
   const numbers = rawNumbers.map(n => normalizePhoneNumber(n)).filter(Boolean);
 
@@ -261,12 +264,12 @@ async function sendSMS({ to, body }, churchSettings) {
     const channel = cfg.termiiChannel || 'generic';
 
     if (!apiKey) {
-      logger.info('Termii SMS (dry run — no API key)', { recipientsCount: numbers.length, body: body.substring(0, 80) });
+      logger.info('Termii SMS (dry run — no API key)', { recipientsCount: numbers.length, body: msgBody.substring(0, 80) });
       return { sent: numbers.length, failed: 0, provider: 'termii', sid: 'dry-run' };
     }
 
     const results = await Promise.allSettled(
-      numbers.map(num => sendTermiiSMS({ to: num, body, from: sender, apiKey, channel }))
+      numbers.map(num => sendTermiiSMS({ to: num, body: msgBody, from: sender, apiKey, channel }))
     );
     const sent = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
     const failed = numbers.length - sent;
@@ -281,7 +284,7 @@ async function sendSMS({ to, body }, churchSettings) {
       return { sent: numbers.length, failed: 0, provider: 'custom', sid: 'dry-run' };
     }
     const results = await Promise.allSettled(
-      numbers.map(num => sendCustomGateway({ to: num, body }, cfg))
+      numbers.map(num => sendCustomGateway({ to: num, body: msgBody }, cfg))
     );
     const sent = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
     const failed = numbers.length - sent;
@@ -294,14 +297,14 @@ async function sendSMS({ to, body }, churchSettings) {
   const fromPhone = cfg.twilioPhone || process.env.TWILIO_PHONE;
 
   if (!client || !fromPhone) {
-    logger.info('SMS (dry run — service not configured)', { recipientsCount: numbers.length, body: body.substring(0, 80) });
+    logger.info('SMS (dry run — service not configured)', { recipientsCount: numbers.length, body: msgBody.substring(0, 80) });
     return { sent: numbers.length, failed: 0, sid: 'dry-run' };
   }
 
   const results = await Promise.allSettled(
     numbers.map((number) =>
       client.messages.create({
-        body,
+        body: msgBody,
         from: fromPhone,
         to: number,
       })
@@ -318,11 +321,14 @@ async function sendSMS({ to, body }, churchSettings) {
 /**
  * Send a WhatsApp broadcast or reminder.
  * Supports Meta WhatsApp Cloud API, Twilio WhatsApp, Termii WhatsApp, or Custom Gateway.
- * @param {{ to: string | string[], body: string, mediaUrl?: string }} options
+ * @param {{ to: string | string[], body: string, message?: string, mediaUrl?: string }} options
  * @param {object} [churchSettings] - messaging config from church settings JSONB
  */
-async function sendWhatsApp({ to, body, mediaUrl }, churchSettings) {
-  const cfg = churchSettings?.messaging?.whatsapp || churchSettings?.whatsapp || churchSettings?.messaging?.sms || churchSettings?.sms || {};
+async function sendWhatsApp(options, churchSettings) {
+  const { to, body, message, mediaUrl } = options || {};
+  const msgBody = String(body ?? message ?? '');
+  const effectiveSettings = churchSettings || options?.churchSettings;
+  const cfg = effectiveSettings?.messaging?.whatsapp || effectiveSettings?.whatsapp || effectiveSettings?.messaging?.sms || effectiveSettings?.sms || {};
   const rawNumbers = Array.isArray(to) ? to : [to];
   const numbers = rawNumbers.map(n => normalizePhoneNumber(n)).filter(Boolean);
 
@@ -334,7 +340,7 @@ async function sendWhatsApp({ to, body, mediaUrl }, churchSettings) {
 
   if (hasMeta && (provider === 'meta' || !cfg.provider)) {
     const results = await Promise.allSettled(
-      numbers.map(num => sendMetaWhatsAppMessage({ to: num, body, mediaUrl }, cfg))
+      numbers.map(num => sendMetaWhatsAppMessage({ to: num, body: msgBody, mediaUrl }, cfg))
     );
     const sent = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
     const failed = numbers.length - sent;
@@ -349,7 +355,7 @@ async function sendWhatsApp({ to, body, mediaUrl }, churchSettings) {
       return { sent: numbers.length, failed: 0, provider: 'custom', sid: 'dry-run' };
     }
     const results = await Promise.allSettled(
-      numbers.map(num => sendCustomGateway({ to: num, body }, cfg))
+      numbers.map(num => sendCustomGateway({ to: num, body: msgBody }, cfg))
     );
     const sent = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
     const failed = numbers.length - sent;
@@ -365,7 +371,7 @@ async function sendWhatsApp({ to, body, mediaUrl }, churchSettings) {
     logger.info('WhatsApp (dry run — neither Meta Cloud nor Twilio configured)', {
       recipientsCount: numbers.length,
       sampleRecipients: numbers.slice(0, 3),
-      body: body.substring(0, 100),
+      body: msgBody.substring(0, 100),
     });
     return { sent: numbers.length, failed: 0, sid: 'dry-run' };
   }
@@ -374,7 +380,7 @@ async function sendWhatsApp({ to, body, mediaUrl }, churchSettings) {
   const results = await Promise.allSettled(
     numbers.map((number) =>
       client.messages.create({
-        body,
+        body: msgBody,
         from: `whatsapp:${cleanFrom}`,
         to: `whatsapp:${number}`,
         ...(mediaUrl ? { mediaUrl: [mediaUrl] } : {}),

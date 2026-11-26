@@ -83,7 +83,7 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-const ADMIN_ROLES = ['head_pastor', 'admin', 'church_admin'];
+const ADMIN_ROLES = ['head_pastor', 'admin', 'church_admin', 'pastor', 'branch_pastor'];
 
 const authorize = (...roles) => {
   const allowed = roles.flat();

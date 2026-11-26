@@ -48,10 +48,10 @@ const NAV = [
     { to: '/procurement',      icon: ClipboardList,  label: 'Procurement',         allowedRoles: ['admin', 'pastor', 'director', 'finance', 'hod'] },
   ]},
   { group: 'Admin', items: [
-    { to: '/branches', icon: GitBranch,   label: 'Branches',         allowedRoles: ['admin'] },
+    { to: '/branches', icon: GitBranch,   label: 'Branches',         allowedRoles: ['admin', 'pastor'] },
     { to: '/users',    icon: ShieldCheck, label: 'Users',            allowedRoles: ['admin', 'pastor'] },
     { to: '/reports',  icon: BarChart2,   label: 'Reports',          allowedRoles: ['admin', 'pastor', 'director', 'finance'] },
-    { to: '/settings', icon: Settings,    label: 'Settings',         allowedRoles: ['admin'] },
+    { to: '/settings', icon: Settings,    label: 'Settings',         allowedRoles: ['admin', 'pastor'] },
   ]},
 ];
 

@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs');
 const { query, getClient } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../config/logger');
@@ -96,7 +98,8 @@ const getCourse = async (req, res) => {
 const createCourse = async (req, res) => {
   const {
     title, description, category = 'foundation', level = 'beginner',
-    coverImageUrl, instructorName, durationWeeks = 4, isPublished = true
+    coverImageUrl, instructorName, durationWeeks = 4, isPublished = true,
+    documentUrl, documentName
   } = req.body;
 
   if (!title?.trim()) {
@@ -108,13 +111,13 @@ const createCourse = async (req, res) => {
     const { rows } = await query(
       `INSERT INTO discipleship_courses (
         church_id, title, slug, description, category, level, cover_image_url,
-        instructor_name, duration_weeks, is_published
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        instructor_name, duration_weeks, is_published, document_url, document_name
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *`,
       [
         req.churchId, title.trim(), slug, description || '', category, level,
         coverImageUrl || null, instructorName || null, parseInt(durationWeeks) || 4,
-        isPublished !== false
+        isPublished !== false, documentUrl || null, documentName || null
       ]
     );
 
@@ -130,7 +133,7 @@ const updateCourse = async (req, res) => {
   const { id } = req.params;
   const {
     title, description, category, level, coverImageUrl,
-    instructorName, durationWeeks, isPublished
+    instructorName, durationWeeks, isPublished, documentUrl, documentName
   } = req.body;
 
   try {
@@ -144,13 +147,18 @@ const updateCourse = async (req, res) => {
         instructor_name = COALESCE($6, instructor_name),
         duration_weeks = COALESCE($7, duration_weeks),
         is_published = COALESCE($8, is_published),
+        document_url = COALESCE($9, document_url),
+        document_name = COALESCE($10, document_name),
         updated_at = NOW()
-       WHERE id = $9 AND church_id = $10
+       WHERE id = $11 AND church_id = $12
        RETURNING *`,
       [
         title ? title.trim() : null, description, category, level, coverImageUrl,
         instructorName, durationWeeks ? parseInt(durationWeeks) : null,
-        isPublished !== undefined ? isPublished : null, id, req.churchId
+        isPublished !== undefined ? isPublished : null,
+        documentUrl !== undefined ? documentUrl : null,
+        documentName !== undefined ? documentName : null,
+        id, req.churchId
       ]
     );
 
@@ -183,7 +191,7 @@ const createLesson = async (req, res) => {
   const { id: courseId } = req.params;
   const {
     title, description, content, scriptureReferences, videoUrl, audioUrl,
-    orderNum, durationMinutes
+    orderNum, durationMinutes, chapterNum, documentUrl, documentName
   } = req.body;
 
   if (!title?.trim() || !content?.trim()) {
@@ -201,16 +209,21 @@ const createLesson = async (req, res) => {
       nextOrder = maxOrder[0].next_order;
     }
 
+    const effectiveChapterNum = chapterNum !== undefined && chapterNum !== null && chapterNum !== ''
+      ? parseInt(chapterNum)
+      : nextOrder;
+
     const { rows } = await query(
       `INSERT INTO discipleship_lessons (
         course_id, church_id, title, description, content, scripture_references,
-        video_url, audio_url, order_num, duration_minutes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        video_url, audio_url, order_num, duration_minutes, chapter_num, document_url, document_name
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *`,
       [
         courseId, req.churchId, title.trim(), description || '', content,
         scriptureReferences || '', videoUrl || null, audioUrl || null,
-        nextOrder, parseInt(durationMinutes) || 20
+        nextOrder, parseInt(durationMinutes) || 20,
+        effectiveChapterNum, documentUrl || null, documentName || null
       ]
     );
 
@@ -226,7 +239,7 @@ const updateLesson = async (req, res) => {
   const { lessonId } = req.params;
   const {
     title, description, content, scriptureReferences, videoUrl, audioUrl,
-    orderNum, durationMinutes
+    orderNum, durationMinutes, chapterNum, documentUrl, documentName
   } = req.body;
 
   try {
@@ -240,13 +253,20 @@ const updateLesson = async (req, res) => {
         audio_url = COALESCE($6, audio_url),
         order_num = COALESCE($7, order_num),
         duration_minutes = COALESCE($8, duration_minutes),
+        chapter_num = COALESCE($9, chapter_num),
+        document_url = COALESCE($10, document_url),
+        document_name = COALESCE($11, document_name),
         updated_at = NOW()
-       WHERE id = $9 AND church_id = $10
+       WHERE id = $12 AND church_id = $13
        RETURNING *`,
       [
         title ? title.trim() : null, description, content, scriptureReferences,
         videoUrl, audioUrl, orderNum !== undefined ? parseInt(orderNum) : null,
-        durationMinutes ? parseInt(durationMinutes) : null, lessonId, req.churchId
+        durationMinutes ? parseInt(durationMinutes) : null,
+        chapterNum !== undefined ? parseInt(chapterNum) : null,
+        documentUrl !== undefined ? documentUrl : null,
+        documentName !== undefined ? documentName : null,
+        lessonId, req.churchId
       ]
     );
 
@@ -255,6 +275,45 @@ const updateLesson = async (req, res) => {
   } catch (err) {
     logger.error('updateLesson error', { error: err.message });
     return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// POST /api/discipleship/upload-document
+const uploadCourseDocument = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No file uploaded' });
+  }
+
+  try {
+    const storageService = require('../services/storageService');
+    const fileBuffer = req.file.buffer || fs.readFileSync(req.file.path);
+    const uploaded = await storageService.uploadFile({
+      buffer: fileBuffer,
+      filename: req.file.originalname || req.file.filename,
+      mimetype: req.file.mimetype,
+      folder: 'discipleship',
+    });
+
+    if (req.file.path && fs.existsSync(req.file.path)) {
+      const finalLocalPath = path.resolve(storageService.uploadDir, uploaded.key.replace(/^\/uploads\//, ''));
+      if (path.resolve(req.file.path) !== finalLocalPath) {
+        try { fs.unlinkSync(req.file.path); } catch {}
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        url: uploaded.url,
+        filename: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+      },
+      message: 'Course / Chapter document uploaded successfully',
+    });
+  } catch (err) {
+    logger.error('uploadCourseDocument failed', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to upload document' });
   }
 };
 
@@ -384,6 +443,7 @@ module.exports = {
   createLesson,
   updateLesson,
   deleteLesson,
+  uploadCourseDocument,
   enrollMemberAdmin,
   seedDefaultCourses,
 };

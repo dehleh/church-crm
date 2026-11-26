@@ -10,10 +10,10 @@ router.use(authenticate);
 router.get('/', c.getChurchSettings);
 router.get('/stats', c.getChurchStats);
 router.post('/upload-branding', authorize('admin', 'pastor', 'director'), uploadFor('branding'), upload.single('file'), c.uploadBrandingAsset);
-router.get('/messaging', authorize('admin'), c.getMessagingConfig);
-router.put('/messaging', authorize('admin'), c.updateMessagingConfig);
-router.post('/messaging/test', authorize('admin'), c.testMessaging);
-router.put('/church', authorize('admin'), [
+router.get('/messaging', authorize('admin', 'pastor'), c.getMessagingConfig);
+router.put('/messaging', authorize('admin', 'pastor'), c.updateMessagingConfig);
+router.post('/messaging/test', authorize('admin', 'pastor'), c.testMessaging);
+router.put('/church', authorize('admin', 'pastor'), [
   body('name').optional().trim(),
 ], handleValidationErrors, c.updateChurchSettings);
 router.put('/profile', [
