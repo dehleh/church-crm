@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Search, Check, Users, Save, Loader2, CalendarDays, ChevronRight,
   ShieldCheck, Baby, Bell, Printer, KeyRound, AlertTriangle, Plus, Phone, UserCheck, X
@@ -15,45 +15,89 @@ function EventPicker() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    eventsAPI.list({ limit: 50, status: 'upcoming' })
-      .then(r => setEvents(r.data.data))
+    // Fetch recent and upcoming services (not restricting to upcoming only so ongoing/today's services appear)
+    eventsAPI.list({ limit: 50 })
+      .then(r => setEvents(r.data.data || []))
       .catch(() => toast.error('Failed to load events'))
       .finally(() => setLoading(false));
   }, []);
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="page-title mb-2">Mark Attendance & Child Check-In</h1>
-      <p className="text-gray-500 text-sm mb-6">Select an event or service to record attendance or child safety check-in</p>
+    <div className="p-6 max-w-3xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="page-title mb-1">Attendance & Child Check-In</h1>
+          <p className="text-gray-500 text-sm">Select a service session below to mark congregation attendance or check in children into classrooms</p>
+        </div>
+        <button onClick={() => navigate('/events')} className="btn-primary inline-flex self-start sm:self-auto">
+          <Plus size={15} /> New Service / Event
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+        <div className="p-3.5 rounded-xl border border-blue-100 bg-blue-50/60 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Users size={16} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-blue-900 uppercase tracking-wide">Adult & General Attendance</p>
+            <p className="text-xs text-blue-700 mt-0.5">Search congregation, click to mark present, and save bulk attendance records.</p>
+          </div>
+        </div>
+        <div className="p-3.5 rounded-xl border border-purple-100 bg-purple-50/60 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Baby size={16} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-purple-900 uppercase tracking-wide">KidCheck & Child Safeguarding</p>
+            <p className="text-xs text-purple-700 mt-0.5">Fast family lookup, classroom routing, security claim tags, parent paging, and secure checkout.</p>
+          </div>
+        </div>
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-brand-500" /></div>
       ) : events.length === 0 ? (
         <div className="card text-center py-12">
           <CalendarDays size={40} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500 font-medium">No upcoming events</p>
-          <p className="text-gray-400 text-sm">Create events first, then mark attendance here</p>
-          <button onClick={() => navigate('/events')} className="btn-primary mt-4 inline-flex">Go to Events</button>
+          <p className="text-gray-700 font-semibold text-base">No services or events found</p>
+          <p className="text-gray-400 text-sm mt-1 max-w-md mx-auto">Create a Sunday Service or Midweek Event to begin marking attendance and child safety check-ins.</p>
+          <button onClick={() => navigate('/events')} className="btn-primary mt-4 inline-flex"><Plus size={15} /> Create First Event in Events</button>
         </div>
       ) : (
-        <div className="table-wrapper">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
           {events.map(ev => (
-            <button key={ev.id} onClick={() => navigate(`/events/${ev.id}/attendance`)}
-              className="w-full flex items-center gap-4 px-5 py-4 border-b border-gray-50 last:border-0 hover:bg-brand-50/40 transition-colors text-left">
-              <div className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center flex-shrink-0">
-                <CalendarDays size={18} className="text-brand-600" />
+            <div key={ev.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50/80 transition-colors">
+              <div className="flex items-start gap-3.5 min-w-0">
+                <div className="w-11 h-11 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <CalendarDays size={20} className="text-brand-600" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-gray-900 text-base leading-snug">{ev.title}</h3>
+                  <p className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-2">
+                    <span>{ev.start_datetime ? format(parseISO(ev.start_datetime), 'EEEE, MMM d, yyyy · h:mm a') : 'Scheduled Service'}</span>
+                    {ev.branch_name && <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[11px]">{ev.branch_name}</span>}
+                    <span className="flex items-center gap-1 text-emerald-700 font-medium text-[11px] bg-emerald-50 px-2 py-0.5 rounded-full">
+                      <Users size={12} /> {ev.attendance_count || 0} Checked In
+                    </span>
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900">{ev.title}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {ev.start_datetime ? format(parseISO(ev.start_datetime), 'MMM d, yyyy · h:mm a') : ''}
-                  {ev.branch_name ? ` · ${ev.branch_name}` : ''}
-                </p>
+              <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
+                <button
+                  onClick={() => navigate(`/events/${ev.id}/attendance?tab=general`)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  <Users size={13} className="text-blue-600" /> General
+                </button>
+                <button
+                  onClick={() => navigate(`/events/${ev.id}/attendance?tab=children`)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition-colors"
+                >
+                  <Baby size={14} /> KidCheck Children
+                </button>
               </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <span className="flex items-center gap-1 text-sm text-gray-500"><Users size={13} />{ev.attendance_count || 0} checked in</span>
-                <ChevronRight size={16} className="text-gray-400" />
-              </div>
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -69,8 +113,21 @@ export default function AttendancePage() {
 
 function AttendanceRecorder({ eventId }) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('general'); // 'general' | 'children'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(urlTab === 'children' ? 'children' : 'general');
   const [event, setEvent] = useState(null);
+
+  useEffect(() => {
+    if (urlTab === 'children' || urlTab === 'general') {
+      setActiveTab(urlTab);
+    }
+  }, [urlTab]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
 
   // General Attendance State
   const [members, setMembers] = useState([]);
@@ -386,7 +443,7 @@ function AttendanceRecorder({ eventId }) {
       {/* Tabs */}
       <div className="flex border-b border-gray-200">
         <button
-          onClick={() => setActiveTab('general')}
+          onClick={() => handleTabChange('general')}
           className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
             activeTab === 'general'
               ? 'border-brand-600 text-brand-600 bg-brand-50/40'
@@ -397,7 +454,7 @@ function AttendanceRecorder({ eventId }) {
           <span>General Congregation ({checked.size})</span>
         </button>
         <button
-          onClick={() => setActiveTab('children')}
+          onClick={() => handleTabChange('children')}
           className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all ${
             activeTab === 'children'
               ? 'border-brand-600 text-brand-600 bg-brand-50/40'

@@ -37,7 +37,7 @@ const NAV = [
       { to: '/events', icon: CalendarDays, label: 'Events', allowedRoles: ['admin', 'pastor', 'director', 'hod', 'finance'] },
       { to: '/devotionals', icon: BookOpen, label: 'Daily Devotionals', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
       { to: '/discipleship', icon: GraduationCap, label: 'Discipleship & School', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
-      { to: '/attendance', icon: CheckSquare, label: 'Attendance', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+      { to: '/attendance', icon: CheckSquare, label: 'Attendance & Child Check-In', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
       { to: '/communications', icon: MessageSquare, label: 'Communications', allowedRoles: ['admin', 'pastor', 'director'] },
       { to: '/follow-ups', icon: PhoneCall, label: 'Follow-ups', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
       { to: '/prayer', icon: HeartHandshake, label: 'Prayer', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
