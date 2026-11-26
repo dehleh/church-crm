@@ -13,35 +13,100 @@ function EventPicker() {
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filterType, setFilterType] = useState('all'); // 'all' | 'sunday_service' | 'midweek' | 'special'
+  const [creatingQuick, setCreatingQuick] = useState(false);
 
-  useEffect(() => {
-    // Fetch recent and upcoming services (not restricting to upcoming only so ongoing/today's services appear)
-    eventsAPI.list({ limit: 50 })
-      .then(r => setEvents(r.data.data || []))
-      .catch(() => toast.error('Failed to load events'))
-      .finally(() => setLoading(false));
+  const fetchEvents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await eventsAPI.list({ limit: 50 });
+      setEvents(res.data.data || []);
+    } catch {
+      toast.error('Failed to load events');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  const handleQuickCreate = async (type) => {
+    const isSunday = type === 'sunday_service';
+    const now = new Date();
+    const title = isSunday
+      ? `Sunday Celebration Service — ${format(now, 'MMM d, yyyy')}`
+      : `Midweek Service & Bible Study — ${format(now, 'MMM d, yyyy')}`;
+    setCreatingQuick(true);
+    try {
+      const res = await eventsAPI.create({
+        title,
+        eventType: type,
+        startDatetime: now.toISOString(),
+        location: 'Main Auditorium',
+        description: `Regular weekly ${isSunday ? 'Sunday celebration' : 'midweek'} service session.`,
+        reminderEnabled: false,
+      });
+      toast.success(`${isSunday ? 'Sunday' : 'Midweek'} service session ready for check-in!`);
+      navigate(`/events/${res.data.data.id}/attendance`);
+    } catch {
+      toast.error('Failed to create quick service session');
+    } finally {
+      setCreatingQuick(false);
+    }
+  };
+
+  const filteredEvents = events.filter(ev => {
+    if (filterType === 'all') return true;
+    if (filterType === 'sunday_service') return ev.event_type === 'sunday_service' || ev.title?.toLowerCase().includes('sunday');
+    if (filterType === 'midweek') return ev.event_type === 'midweek' || ev.title?.toLowerCase().includes('midweek') || ev.title?.toLowerCase().includes('wednesday');
+    return ev.event_type !== 'sunday_service' && ev.event_type !== 'midweek';
+  });
+
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div className="p-6 max-w-4xl mx-auto space-y-6">
+      {/* Page Title & Quick Action Buttons */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="page-title mb-1">Attendance & Child Check-In</h1>
-          <p className="text-gray-500 text-sm">Select a service session below to mark congregation attendance or check in children into classrooms</p>
+          <p className="text-gray-500 text-sm">Select a weekly service or special event to record congregation attendance and secure child check-in</p>
         </div>
-        <button onClick={() => navigate('/events')} className="btn-primary inline-flex self-start sm:self-auto">
-          <Plus size={15} /> New Service / Event
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => handleQuickCreate('sunday_service')}
+            disabled={creatingQuick}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors"
+          >
+            {creatingQuick ? <Loader2 size={13} className="animate-spin" /> : <CalendarDays size={14} />}
+            + Today's Sunday Service
+          </button>
+          <button
+            onClick={() => handleQuickCreate('midweek')}
+            disabled={creatingQuick}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-purple-600 text-white hover:bg-purple-700 shadow-sm transition-colors"
+          >
+            {creatingQuick ? <Loader2 size={13} className="animate-spin" /> : <CalendarDays size={14} />}
+            + Today's Midweek Service
+          </button>
+          <button
+            onClick={() => navigate('/events')}
+            className="btn-secondary text-xs inline-flex"
+          >
+            <Plus size={14} /> Schedule Event
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+      {/* Feature Guidance Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="p-3.5 rounded-xl border border-blue-100 bg-blue-50/60 flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5">
             <Users size={16} />
           </div>
           <div>
-            <p className="text-xs font-bold text-blue-900 uppercase tracking-wide">Adult & General Attendance</p>
-            <p className="text-xs text-blue-700 mt-0.5">Search congregation, click to mark present, and save bulk attendance records.</p>
+            <p className="text-xs font-bold text-blue-900 uppercase tracking-wide">Weekly Congregation Attendance</p>
+            <p className="text-xs text-blue-700 mt-0.5">Track Sunday & Midweek attendance trends. Auto-triggers pastoral care alerts if a member misses 3 consecutive weeks.</p>
           </div>
         </div>
         <div className="p-3.5 rounded-xl border border-purple-100 bg-purple-50/60 flex items-start gap-3">
@@ -50,55 +115,90 @@ function EventPicker() {
           </div>
           <div>
             <p className="text-xs font-bold text-purple-900 uppercase tracking-wide">KidCheck & Child Safeguarding</p>
-            <p className="text-xs text-purple-700 mt-0.5">Fast family lookup, classroom routing, security claim tags, parent paging, and secure checkout.</p>
+            <p className="text-xs text-purple-700 mt-0.5">Fast family lookup, classroom routing, security claim tags, WhatsApp codes, and verified child pickup.</p>
           </div>
         </div>
       </div>
 
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+        {[
+          { id: 'all', label: `All Services (${events.length})` },
+          { id: 'sunday_service', label: 'Sunday Services' },
+          { id: 'midweek', label: 'Midweek Services' },
+          { id: 'special', label: 'Special Events & Conferences' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setFilterType(tab.id)}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+              filterType === tab.id
+                ? 'bg-brand-600 text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Event List */}
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-brand-500" /></div>
-      ) : events.length === 0 ? (
+      ) : filteredEvents.length === 0 ? (
         <div className="card text-center py-12">
           <CalendarDays size={40} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-700 font-semibold text-base">No services or events found</p>
-          <p className="text-gray-400 text-sm mt-1 max-w-md mx-auto">Create a Sunday Service or Midweek Event to begin marking attendance and child safety check-ins.</p>
-          <button onClick={() => navigate('/events')} className="btn-primary mt-4 inline-flex"><Plus size={15} /> Create First Event in Events</button>
+          <p className="text-gray-700 font-semibold text-base">No services found in this category</p>
+          <p className="text-gray-400 text-sm mt-1 max-w-md mx-auto">Click "+ Today's Sunday Service" or "+ Today's Midweek Service" above to start taking attendance immediately.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
-          {events.map(ev => (
-            <div key={ev.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50/80 transition-colors">
-              <div className="flex items-start gap-3.5 min-w-0">
-                <div className="w-11 h-11 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <CalendarDays size={20} className="text-brand-600" />
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100 shadow-sm">
+          {filteredEvents.map(ev => {
+            const isSunday = ev.event_type === 'sunday_service' || ev.title?.toLowerCase().includes('sunday');
+            const isMidweek = ev.event_type === 'midweek' || ev.title?.toLowerCase().includes('midweek') || ev.title?.toLowerCase().includes('wednesday');
+            return (
+              <div key={ev.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50/80 transition-colors">
+                <div className="flex items-start gap-3.5 min-w-0">
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                    isSunday ? 'bg-blue-50 border border-blue-100 text-blue-600' : isMidweek ? 'bg-purple-50 border border-purple-100 text-purple-600' : 'bg-gray-50 border border-gray-100 text-gray-600'
+                  }`}>
+                    <CalendarDays size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900 text-base leading-snug truncate">{ev.title}</h3>
+                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                        isSunday ? 'bg-blue-100 text-blue-700' : isMidweek ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {isSunday ? 'Sunday' : isMidweek ? 'Midweek' : 'Event'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-2">
+                      <span>{ev.start_datetime ? format(parseISO(ev.start_datetime), 'EEEE, MMM d, yyyy · h:mm a') : 'Scheduled Service'}</span>
+                      {ev.branch_name && <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[11px]">{ev.branch_name}</span>}
+                      <span className="flex items-center gap-1 text-emerald-700 font-medium text-[11px] bg-emerald-50 px-2 py-0.5 rounded-full">
+                        <Users size={12} /> {ev.attendance_count || 0} Checked In
+                      </span>
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <h3 className="font-semibold text-gray-900 text-base leading-snug">{ev.title}</h3>
-                  <p className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-2">
-                    <span>{ev.start_datetime ? format(parseISO(ev.start_datetime), 'EEEE, MMM d, yyyy · h:mm a') : 'Scheduled Service'}</span>
-                    {ev.branch_name && <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[11px]">{ev.branch_name}</span>}
-                    <span className="flex items-center gap-1 text-emerald-700 font-medium text-[11px] bg-emerald-50 px-2 py-0.5 rounded-full">
-                      <Users size={12} /> {ev.attendance_count || 0} Checked In
-                    </span>
-                  </p>
+                <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
+                  <button
+                    onClick={() => navigate(`/events/${ev.id}/attendance?tab=general`)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <Users size={13} className="text-blue-600" /> General
+                  </button>
+                  <button
+                    onClick={() => navigate(`/events/${ev.id}/attendance?tab=children`)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition-colors"
+                  >
+                    <Baby size={14} /> KidCheck Children
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
-                <button
-                  onClick={() => navigate(`/events/${ev.id}/attendance?tab=general`)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  <Users size={13} className="text-blue-600" /> General
-                </button>
-                <button
-                  onClick={() => navigate(`/events/${ev.id}/attendance?tab=children`)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-brand-600 text-white hover:bg-brand-700 shadow-sm transition-colors"
-                >
-                  <Baby size={14} /> KidCheck Children
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
