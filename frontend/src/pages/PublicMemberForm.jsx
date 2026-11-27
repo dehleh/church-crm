@@ -52,6 +52,7 @@ export default function PublicMemberForm() {
     assignedPastorId: '',
     password: '',
     confirmPassword: '',
+    consentGiven: false,
   });
 
   useEffect(() => {
@@ -181,6 +182,11 @@ export default function PublicMemberForm() {
     event.preventDefault();
     if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim() || !form.phone.trim() || !form.gender || !form.dateOfBirth || !form.maritalStatus || !form.address.trim()) {
       toast.error('Please complete all required fields');
+      return;
+    }
+
+    if (!form.consentGiven) {
+      toast.error('Please confirm your consent to the data handling & privacy policy');
       return;
     }
 
@@ -919,6 +925,28 @@ export default function PublicMemberForm() {
                   onChange={set('notes')}
                   placeholder="Tell us anything else you would like the pastor and church leadership to know"
                 />
+              </div>
+
+              {/* NDPA 2023 / NDPC Data Privacy Disclaimer & Mandatory Consent */}
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-950">
+                  <Shield size={16} className="text-emerald-700 shrink-0" />
+                  <span>NDPC Compliance & Data Privacy Disclaimer</span>
+                </div>
+                <label htmlFor="member-consent" className="flex items-start gap-2.5 cursor-pointer text-xs text-gray-700 select-none">
+                  <input
+                    type="checkbox"
+                    id="member-consent"
+                    name="consentGiven"
+                    checked={form.consentGiven || false}
+                    onChange={(e) => setForm(prev => ({ ...prev, consentGiven: e.target.checked }))}
+                    className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 shrink-0"
+                    required
+                  />
+                  <span className="leading-relaxed">
+                    I consent to the collection and secure processing of my personal, contact, and family records by <strong>{meta.church.name}</strong> (Data Controller) and ChurchOS (Data Processor) for church membership, discipleship, and ministry records in compliance with the Nigeria Data Protection Act (NDPA 2023) and our <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-emerald-800 underline font-semibold hover:text-emerald-950">Privacy Policy</Link>.
+                  </span>
+                </label>
               </div>
 
               <button

@@ -16,6 +16,7 @@ export default function Register() {
 
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [agreeNdpc, setAgreeNdpc] = useState(false);
   const [errors, setErrors] = useState({});
   const [form, setForm] = useState({
     churchName: '', churchSlug: '', denomination: '',
@@ -61,6 +62,10 @@ export default function Register() {
   };
 
   const handleSubmit = async () => {
+    if (!agreeNdpc) {
+      toast.error('Please accept the NDPC Data Processing & Privacy terms to start your trial');
+      return;
+    }
     setLoading(true);
     try {
       const payload = {
@@ -256,7 +261,25 @@ export default function Register() {
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-gray-400 mt-4">By starting your trial, you agree to our Terms of Service and Privacy Policy.</p>
+
+              {/* NDPA 2023 / NDPC Data Processing Agreement Consent */}
+              <div className="mt-4 p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/50">
+                <label htmlFor="reg-ndpc-consent" className="flex items-start gap-2.5 cursor-pointer text-xs text-gray-700 select-none">
+                  <input
+                    type="checkbox"
+                    id="reg-ndpc-consent"
+                    checked={agreeNdpc}
+                    onChange={(e) => setAgreeNdpc(e.target.checked)}
+                    className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 shrink-0"
+                    required
+                  />
+                  <span className="leading-relaxed">
+                    I confirm that I am authorized by this church organization to agree to ChurchOS's <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-emerald-700 underline font-semibold hover:text-emerald-900">NDPC Data Processing & Privacy Policy</Link> as Data Controller, complying with the Nigeria Data Protection Act (NDPA 2023).
+                  </span>
+                </label>
+              </div>
+
+              <p className="text-[11px] text-gray-400 mt-2">By starting your trial, you agree to our Terms of Service and Privacy Policy.</p>
             </div>
           )}
 

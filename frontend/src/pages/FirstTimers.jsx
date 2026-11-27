@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   UserPlus, Plus, Search, Phone, Mail, ArrowRightCircle, Loader2, CheckCircle,
   Edit2, FileSpreadsheet, QrCode, Bot, Sparkles, Clock, Send, MessageSquare, Play,
-  XCircle, Camera, Heart, Users, CheckSquare, Building2, UserCheck, Trash2
+  XCircle, Camera, Heart, Users, CheckSquare, Building2, UserCheck, Trash2, ShieldCheck
 } from 'lucide-react';
 import { hasRole } from '../utils/rbac';
 import { firstTimersAPI, branchesAPI, membersAPI } from '../api/services';
@@ -748,6 +748,21 @@ export default function FirstTimers() {
             </select>
           </div>
           <div><label className="label">Prayer Request</label><textarea className="input min-h-[70px]" value={form.prayerRequest || ''} onChange={set('prayerRequest')} /></div>
+
+          {/* NDPA 2023 / NDPC Consent Confirmation */}
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 space-y-1">
+            <label className="flex items-start gap-2.5 cursor-pointer text-xs text-gray-700 font-medium select-none">
+              <input
+                type="checkbox"
+                checked={form.consentGiven !== false}
+                onChange={e => setForm(f => ({ ...f, consentGiven: e.target.checked }))}
+                className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 shrink-0"
+              />
+              <span className="leading-relaxed">
+                Visitor provided explicit consent for personal data capture and pastoral follow-up under Nigeria Data Protection Act (NDPA 2023) guidelines.
+              </span>
+            </label>
+          </div>
         </div>
       </Modal>
 

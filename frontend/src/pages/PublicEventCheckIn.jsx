@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { CalendarDays, CheckCircle2, Loader2, ScanLine } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { CalendarDays, CheckCircle2, Loader2, ScanLine, ShieldCheck } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { publicIntakeAPI } from '../api/services';
 import toast from 'react-hot-toast';
@@ -73,6 +73,12 @@ export default function PublicEventCheckIn() {
               <button type="submit" disabled={submitting} className="btn-primary w-full justify-center inline-flex items-center gap-2">
                 {submitting ? <Loader2 size={16} className="animate-spin" /> : <ScanLine size={16} />} Check In
               </button>
+              <div className="text-center pt-2">
+                <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-[11px] text-gray-400 hover:text-gray-600 inline-flex items-center gap-1">
+                  <ShieldCheck size={12} className="text-emerald-600" />
+                  Protected under Nigeria Data Protection Act (NDPA 2023) · Privacy Policy
+                </Link>
+              </div>
             </form>
           )}
         </div>

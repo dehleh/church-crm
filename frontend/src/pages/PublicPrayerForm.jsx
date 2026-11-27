@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Church, HeartHandshake, Loader2, Send } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { Church, HeartHandshake, Loader2, Send, ShieldCheck } from 'lucide-react';
 import { publicIntakeAPI } from '../api/services';
 import { applyChurchTheme } from '../utils/theme';
 import toast from 'react-hot-toast';
@@ -11,7 +11,7 @@ export default function PublicPrayerForm() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [form, setForm] = useState({ requesterName: '', category: 'others', request: '', branchId: '', isAnonymous: false });
+  const [form, setForm] = useState({ requesterName: '', category: 'others', request: '', branchId: '', isAnonymous: false, consentGiven: false });
 
   useEffect(() => {
     let active = true;
@@ -34,6 +34,7 @@ export default function PublicPrayerForm() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!form.request.trim()) return toast.error('Prayer request is required');
+    if (!form.consentGiven) return toast.error('Please confirm your consent to the data handling policy');
     setSubmitting(true);
     try {
       await publicIntakeAPI.submitPrayerRequest(churchSlug, form);
@@ -102,6 +103,24 @@ export default function PublicPrayerForm() {
               </div>
               <div><label className="label">Prayer Request *</label><textarea className="input min-h-[140px]" value={form.request} onChange={set('request')} /></div>
               <label className="label flex items-center gap-2"><input type="checkbox" checked={form.isAnonymous} onChange={set('isAnonymous')} /> Keep this request anonymous</label>
+
+              {/* NDPA 2023 / NDPC Privacy Consent */}
+              <div className="rounded-xl border border-rose-100 bg-rose-50/40 p-3 text-xs text-gray-700">
+                <label htmlFor="prayer-consent" className="flex items-start gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    id="prayer-consent"
+                    checked={form.consentGiven || false}
+                    onChange={(e) => setForm(f => ({ ...f, consentGiven: e.target.checked }))}
+                    className="mt-0.5 rounded text-rose-600 focus:ring-rose-500 w-3.5 h-3.5 shrink-0"
+                    required
+                  />
+                  <span>
+                    I agree to the confidential processing of this prayer request under pastoral oversight and our <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-rose-700 underline font-semibold hover:text-rose-900">NDPC Privacy Policy</Link>.
+                  </span>
+                </label>
+              </div>
+
               <button type="submit" disabled={submitting} className="btn-primary w-full justify-center inline-flex items-center gap-2">
                 {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Submit Prayer Request
               </button>

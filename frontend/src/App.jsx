@@ -51,6 +51,7 @@ const PublicWelfareForm = lazy(() => import('./pages/PublicWelfareForm'));
 const PublicEventCheckIn = lazy(() => import('./pages/PublicEventCheckIn'));
 const PublicGiving = lazy(() => import('./pages/PublicGiving'));
 const GivingCampaigns = lazy(() => import('./pages/GivingCampaigns'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
 const MemberLogin = lazy(() => import('./pages/portal/MemberLogin'));
 const MemberSetPassword = lazy(() => import('./pages/portal/MemberSetPassword'));
@@ -144,6 +145,8 @@ export default function App() {
           <Route path="/platform/login" element={<PublicRoute><PlatformLogin /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
           <Route path="/get-started" element={<L><GetStarted /></L>} />
+          <Route path="/privacy" element={<L><PrivacyPolicy /></L>} />
+          <Route path="/privacy-policy" element={<L><PrivacyPolicy /></L>} />
           <Route path="/license-expired" element={<L><LicenseExpired /></L>} />
           <Route path="/connect/:churchSlug/first-timer" element={<L><PublicFirstTimerForm /></L>} />
           <Route path="/connect/:churchSlug/member" element={<L><PublicMemberForm /></L>} />

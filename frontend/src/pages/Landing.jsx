@@ -409,13 +409,27 @@ export default function Landing() {
       <Section className="py-12">
         <div className="rounded-3xl bg-gray-950 text-white p-8 sm:p-12 lg:p-16 grid lg:grid-cols-12 gap-8 items-center border border-gray-800 shadow-2xl">
           <div className="lg:col-span-8">
-            <div className="flex items-center gap-2 text-brand-400 text-xs font-bold uppercase tracking-wider mb-3">
-              <ShieldCheck className="w-5 h-5 text-brand-400" /> ENTERPRISE-GRADE SECURITY & ISOLATION
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <span className="flex items-center gap-1.5 text-brand-400 text-xs font-bold uppercase tracking-wider">
+                <ShieldCheck className="w-5 h-5 text-brand-400" /> ENTERPRISE-GRADE SECURITY & ISOLATION
+              </span>
+              <span className="hidden sm:inline-block text-gray-600">·</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold">
+                NDPC Compliant (NDPA 2023)
+              </span>
             </div>
             <h3 className="text-2xl sm:text-3xl lg:text-4xl font-display font-extrabold mb-3">Your congregation data is sacred and protected</h3>
-            <p className="text-gray-300 text-base leading-relaxed max-w-3xl">
-              Encrypted in transit and at rest with TLS 1.3. Role-based access controls for pastors, accountants, and volunteers. Complete tenant isolation, mathematical webhook validation, and automated daily backups.
+            <p className="text-gray-300 text-base leading-relaxed max-w-3xl mb-4">
+              Compliant with the Nigeria Data Protection Act (NDPA 2023) as an approved Data Processor and Collector platform. Encrypted in transit and at rest with TLS 1.3. Role-based access controls for pastors, accountants, and volunteers. Complete tenant isolation and automated daily backups.
             </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                to="/privacy"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors underline underline-offset-4"
+              >
+                Read our NDPC Privacy & Data Handling Policy →
+              </Link>
+            </div>
           </div>
           <div className="lg:col-span-4 grid grid-cols-3 gap-3 text-center text-xs">
             <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur"><ShieldCheck className="w-6 h-6 mx-auto mb-2 text-brand-300" /><div className="font-bold">256-Bit TLS</div><div className="text-[10px] text-gray-400 mt-1">Encrypted</div></div>
@@ -596,9 +610,9 @@ export default function Landing() {
           <div>
             <div className="font-bold mb-4 text-sm text-gray-900 uppercase tracking-wider">Legal & Compliance</div>
             <ul className="space-y-2.5 text-sm text-gray-600">
-              <li><a href="#" className="hover:text-brand-600 transition-colors">Privacy Policy</a></li>
+              <li><Link to="/privacy" className="hover:text-brand-600 transition-colors font-medium text-brand-700">Privacy & Data Policy (NDPC)</Link></li>
               <li><a href="#" className="hover:text-brand-600 transition-colors">Terms of Service</a></li>
-              <li><a href="#" className="hover:text-brand-600 transition-colors">Security Overview</a></li>
+              <li><a href="#security" className="hover:text-brand-600 transition-colors">Security Overview</a></li>
             </ul>
           </div>
         </div>

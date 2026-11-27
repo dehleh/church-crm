@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Church, Loader2, Send, Camera, Upload, CheckCircle2, User, Sparkles, Heart } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { Church, Loader2, Send, Camera, Upload, CheckCircle2, User, Sparkles, Heart, ShieldCheck } from 'lucide-react';
 import { publicIntakeAPI } from '../api/services';
 import { getAssetUrl } from '../api/client';
 import { applyChurchTheme } from '../utils/theme';
@@ -34,6 +34,7 @@ export default function PublicFirstTimerForm() {
     profilePhotoUrl: '',
     serviceAspectEnjoyed: 'The Message',
     bornAgainStatus: 'Yes',
+    consentGiven: false,
   });
 
   useEffect(() => {
@@ -101,6 +102,11 @@ export default function PublicFirstTimerForm() {
     event.preventDefault();
     if (!form.firstName.trim() || !form.lastName.trim() || !form.phone.trim() || !form.email.trim() || !form.gender || !form.visitDate || !form.howDidYouHear) {
       toast.error('Please complete the required fields');
+      return;
+    }
+
+    if (!form.consentGiven) {
+      toast.error('Please confirm your consent to the data handling & privacy policy');
       return;
     }
 
@@ -338,6 +344,28 @@ export default function PublicFirstTimerForm() {
                   value={form.prayerRequest}
                   onChange={set('prayerRequest')}
                 />
+              </div>
+
+              {/* NDPA 2023 / NDPC Data Privacy Disclaimer & Mandatory Consent */}
+              <div className="rounded-2xl border border-brand-200 bg-brand-50/50 p-4 space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-brand-900">
+                  <ShieldCheck size={16} className="text-brand-600 shrink-0" />
+                  <span>Nigeria Data Protection (NDPC) Compliance Disclaimer</span>
+                </div>
+                <label htmlFor="first-timer-consent" className="flex items-start gap-2.5 cursor-pointer text-xs text-gray-700 select-none">
+                  <input
+                    type="checkbox"
+                    id="first-timer-consent"
+                    name="consentGiven"
+                    checked={form.consentGiven || false}
+                    onChange={(e) => setForm(prev => ({ ...prev, consentGiven: e.target.checked }))}
+                    className="mt-0.5 rounded text-brand-600 focus:ring-brand-500 w-4 h-4 shrink-0"
+                    required
+                  />
+                  <span className="leading-relaxed">
+                    I consent to the collection and processing of my contact and spiritual information by <strong>{meta.church.name}</strong> and ChurchOS for pastoral care, follow-up, and church fellowship in accordance with the Nigeria Data Protection Act (NDPA 2023) and our <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-brand-700 underline font-semibold hover:text-brand-900">Privacy Policy</Link>.
+                  </span>
+                </label>
               </div>
 
               <button type="submit" disabled={submitting} className="btn-primary w-full justify-center inline-flex items-center gap-2 py-3">

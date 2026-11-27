@@ -96,8 +96,9 @@ const createFirstTimerRecord = async ({ churchId, data }) => {
       gender, date_of_birth, how_did_you_hear, visit_date, service_attended, prayer_request,
       wants_to_join_church, decision, photo_url, profile_photo_url,
       service_aspect_enjoyed, born_again_status, attended_hangout, done_kic, tribe_name,
-      follow_up_assigned_to, assigned_member_id, assigned_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25, CASE WHEN $24 IS NOT NULL OR $25 IS NOT NULL THEN NOW() ELSE NULL END)
+      follow_up_assigned_to, assigned_member_id, assigned_at,
+      consent_given, consent_timestamp
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25, CASE WHEN $24 IS NOT NULL OR $25 IS NOT NULL THEN NOW() ELSE NULL END, $26, NOW())
     RETURNING *`,
     [
       uuidv4(), churchId, safeBranchId, firstName, lastName, email || null,
@@ -105,7 +106,8 @@ const createFirstTimerRecord = async ({ churchId, data }) => {
       howDidYouHear || null, visitDate || new Date(), serviceAttended || null, prayerRequest || null,
       finalWantsToJoin, finalDecision, finalPhotoUrl, finalPhotoUrl,
       finalServiceAspect, finalBornAgain, finalAttendedHangout, finalDoneKic, finalTribeName,
-      assignedUserId, assignedMemberId
+      assignedUserId, assignedMemberId,
+      data.consentGiven !== undefined ? Boolean(data.consentGiven) : true
     ]
   );
 
@@ -371,10 +373,11 @@ const createMemberRecord = async ({ churchId, data, user }) => {
       is_worker, worker_unit, worker_role, fellowship_cell_id,
       designation, leadership_title, assigned_pastor_id,
       wedding_anniversary_date, password_hash, portal_invited_at, set_password_token, set_password_expires_at,
-      family_id, spouse_id, spouse_name, spouse_phone, is_primary_family_contact, family_role, profile_photo_url
+      family_id, spouse_id, spouse_name, spouse_phone, is_primary_family_contact, family_role, profile_photo_url,
+      consent_given, consent_timestamp
     ) VALUES (
       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,
-      $42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53
+      $42,$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,NOW()
     )
     RETURNING *`,
     [
@@ -388,7 +391,8 @@ const createMemberRecord = async ({ churchId, data, user }) => {
       userIsWorker, workerUnit || null, workerRole || 'worker', fellowshipCellId || null,
       userDesignation, finalLeadershipTitle, finalAssignedPastor,
       finalAnniversaryDate, passwordHash, portalInvitedAt, setPasswordToken, setPasswordExpiresAt,
-      assignedFamilyId, linkedSpouseId, finalSpouseName, finalSpousePhone, isPrimaryContact, finalFamilyRole, finalProfilePhotoUrl
+      assignedFamilyId, linkedSpouseId, finalSpouseName, finalSpousePhone, isPrimaryContact, finalFamilyRole, finalProfilePhotoUrl,
+      data.consentGiven !== undefined ? Boolean(data.consentGiven) : true
     ]
   );
 

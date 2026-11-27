@@ -582,7 +582,7 @@ export default function PublicGiving() {
             </button>
 
             {/* Trust badge */}
-            <div className="flex items-center justify-center gap-4 text-[11px] text-slate-500 pt-1">
+            <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] text-slate-500 pt-1">
               <span className="flex items-center gap-1">
                 <Lock size={12} className="text-emerald-400" /> 256-Bit SSL Bank Encrypted
               </span>
@@ -590,6 +590,10 @@ export default function PublicGiving() {
               <span className="flex items-center gap-1">
                 <Building size={12} /> Direct Church Settlement
               </span>
+              <span>•</span>
+              <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-slate-200 underline">
+                NDPC Compliant
+              </Link>
             </div>
           </form>
 
