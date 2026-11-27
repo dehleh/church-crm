@@ -10,6 +10,7 @@ router.use(authenticate);
 // List OKRs and scorecards
 router.get('/', authorize('admin', 'senior_pastor', 'head_pastor', 'pastor', 'director', 'hod'), c.getOkrs);
 router.get('/scorecard', authorize('admin', 'senior_pastor', 'head_pastor', 'pastor', 'director', 'hod'), c.getPerformanceScorecard);
+router.get('/granular-summary', authorize('admin', 'senior_pastor', 'head_pastor', 'pastor', 'director', 'hod'), c.getGranularKpiSummary);
 
 // Create and edit OKRs (Senior leadership)
 router.post('/', authorize('admin', 'senior_pastor', 'head_pastor', 'pastor'), [
@@ -19,10 +20,11 @@ router.post('/', authorize('admin', 'senior_pastor', 'head_pastor', 'pastor'), [
 
 router.put('/:id', authorize('admin', 'senior_pastor', 'head_pastor', 'pastor'), c.updateOkr);
 
-// Staff progress self-reporting
+// Staff progress self-reporting & reflection submission
 router.patch('/:id/progress', authorize('admin', 'senior_pastor', 'head_pastor', 'pastor', 'director', 'hod'), c.updateProgress);
 
-// Senior Pastor review
+// Senior Pastor review & official verification
+router.patch('/:id/verify', authorize('admin', 'senior_pastor', 'head_pastor', 'pastor'), c.verifyOkr);
 router.patch('/:id/review', authorize('admin', 'senior_pastor', 'head_pastor', 'pastor'), c.reviewOkr);
 
 // Delete OKR

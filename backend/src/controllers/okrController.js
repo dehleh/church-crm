@@ -4,7 +4,10 @@ const logger = require('../config/logger');
 
 // ── GET /api/okrs ─────────────────────────────────────────────
 const getOkrs = async (req, res) => {
-  const { targetRole, periodType, periodDetail, fiscalYear, userId, departmentId, status } = req.query;
+  const {
+    targetRole, periodType, periodDetail, fiscalYear, userId,
+    departmentId, status, kpiCategory, verificationStatus
+  } = req.query;
   try {
     const conditions = ['o.church_id = $1'];
     const params = [req.churchId];
@@ -38,6 +41,14 @@ const getOkrs = async (req, res) => {
       conditions.push(`o.status = $${idx++}`);
       params.push(status);
     }
+    if (kpiCategory && kpiCategory !== 'all') {
+      conditions.push(`o.kpi_category = $${idx++}`);
+      params.push(kpiCategory);
+    }
+    if (verificationStatus && verificationStatus !== 'all') {
+      conditions.push(`o.verification_status = $${idx++}`);
+      params.push(verificationStatus);
+    }
 
     // Role-based visibility: Directors and HODs see their own assigned OKRs unless Admin/Pastor
     const isLeadership = ['senior_pastor', 'head_pastor', 'admin', 'church_admin', 'pastor'].includes(req.user.role);
@@ -52,11 +63,17 @@ const getOkrs = async (req, res) => {
               u.email as assignee_email,
               u.role as assignee_role,
               d.name as department_name,
-              cb.first_name || ' ' || cb.last_name as created_by_name
+              cb.first_name || ' ' || cb.last_name as created_by_name,
+              dc.title as course_title,
+              dc.duration_weeks as course_duration_weeks,
+              dc.category as course_category,
+              vb.first_name || ' ' || vb.last_name as verified_by_name
        FROM staff_okrs o
        JOIN users u ON u.id = o.user_id
        LEFT JOIN departments d ON d.id = o.department_id
        LEFT JOIN users cb ON cb.id = o.created_by
+       LEFT JOIN discipleship_courses dc ON dc.id = o.course_id
+       LEFT JOIN users vb ON vb.id = o.verified_by
        WHERE ${conditions.join(' AND ')}
        ORDER BY o.fiscal_year DESC, o.progress_pct ASC, o.created_at DESC`,
       params
@@ -173,7 +190,9 @@ const createOkr = async (req, res) => {
   const {
     userId, targetRole, departmentId, title, description,
     periodType = 'quarterly', periodDetail, fiscalYear,
-    targetMetric, targetValue = 100, weight = 1.0, keyResults = []
+    targetMetric, targetValue = 100, weight = 1.0, keyResults = [],
+    kpiCategory = 'core_leadership', courseId = null, videoUrl = null,
+    trainingDate = null, trainingVenue = null
   } = req.body;
 
   if (!userId || !title) {
@@ -188,13 +207,16 @@ const createOkr = async (req, res) => {
         id, church_id, branch_id, user_id, target_role, department_id,
         title, description, period_type, period_detail, fiscal_year,
         target_metric, target_value, current_value, progress_pct, weight,
-        status, key_results, created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0,0,$14,'in_progress',$15,$16)
+        status, key_results, created_by,
+        kpi_category, course_id, video_url, training_date, training_venue, verification_status
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0,0,$14,'in_progress',$15,$16,$17,$18,$19,$20,$21,'pending')
       RETURNING *`,
       [
         id, req.churchId, req.branchId || null, userId, targetRole || 'hod', departmentId || null,
         title, description || null, periodType, periodDetail || null, finalYear,
-        targetMetric || null, targetValue || 100, weight || 1.0, JSON.stringify(keyResults), req.user.id
+        targetMetric || null, targetValue || 100, weight || 1.0, JSON.stringify(keyResults), req.user.id,
+        kpiCategory || 'core_leadership', courseId || null, videoUrl || null,
+        trainingDate || null, trainingVenue || null
       ]
     );
 
@@ -214,7 +236,8 @@ const updateOkr = async (req, res) => {
   const { id } = req.params;
   const {
     title, description, periodType, periodDetail, fiscalYear,
-    targetMetric, targetValue, weight, keyResults, status, departmentId
+    targetMetric, targetValue, weight, keyResults, status, departmentId,
+    kpiCategory, courseId, videoUrl, trainingDate, trainingVenue
   } = req.body;
 
   try {
@@ -231,6 +254,11 @@ const updateOkr = async (req, res) => {
         key_results = CASE WHEN $11::jsonb IS NOT NULL THEN $11::jsonb ELSE key_results END,
         status = COALESCE($12, status),
         department_id = COALESCE($13, department_id),
+        kpi_category = COALESCE($14, kpi_category),
+        course_id = COALESCE($15, course_id),
+        video_url = COALESCE($16, video_url),
+        training_date = COALESCE($17, training_date),
+        training_venue = COALESCE($18, training_venue),
         updated_at = NOW()
        WHERE id = $1 AND church_id = $2
        RETURNING *`,
@@ -239,7 +267,9 @@ const updateOkr = async (req, res) => {
         fiscalYear ? parseInt(fiscalYear, 10) : null,
         targetMetric, targetValue, weight,
         keyResults ? JSON.stringify(keyResults) : null,
-        status, departmentId || null
+        status, departmentId || null,
+        kpiCategory, courseId || null, videoUrl || null,
+        trainingDate || null, trainingVenue || null
       ]
     );
 
@@ -255,7 +285,7 @@ const updateOkr = async (req, res) => {
 // Staff self-assessment & progress reporting
 const updateProgress = async (req, res) => {
   const { id } = req.params;
-  const { currentValue, progressPct, keyResults, selfAssessmentNotes } = req.body;
+  const { currentValue, progressPct, keyResults, selfAssessmentNotes, reflectionNotes } = req.body;
 
   try {
     const { rows: existing } = await query(
@@ -285,20 +315,28 @@ const updateProgress = async (req, res) => {
       status = 'in_progress';
     }
 
+    const verificationStatus = (reflectionNotes || (Array.isArray(keyResults) && keyResults.some(k => k.completed)))
+      ? (okr.verification_status === 'verified' ? 'verified' : 'submitted_for_review')
+      : okr.verification_status;
+
     const { rows } = await query(
       `UPDATE staff_okrs SET
         current_value = COALESCE($3, current_value),
         progress_pct = $4,
         key_results = CASE WHEN $5::jsonb IS NOT NULL THEN $5::jsonb ELSE key_results END,
         self_assessment_notes = COALESCE($6, self_assessment_notes),
-        status = $7,
+        reflection_notes = COALESCE($7, reflection_notes),
+        verification_status = $8,
+        last_reported_at = NOW(),
+        status = $9,
         updated_at = NOW()
        WHERE id = $1 AND church_id = $2
        RETURNING *`,
       [
         id, req.churchId, currentValue !== undefined ? currentValue : null,
         calculatedProgress, keyResults ? JSON.stringify(keyResults) : null,
-        selfAssessmentNotes || null, status
+        selfAssessmentNotes || null, reflectionNotes || null,
+        verificationStatus, status
       ]
     );
 
@@ -310,6 +348,98 @@ const updateProgress = async (req, res) => {
   } catch (err) {
     logger.error('updateProgress error', { error: err.message });
     return res.status(500).json({ success: false, message: 'Server error updating progress' });
+  }
+};
+
+// ── PATCH /api/okrs/:id/verify ────────────────────────────────
+// Senior Pastor review & official verification
+const verifyOkr = async (req, res) => {
+  const { id } = req.params;
+  const { verified = true, pastoralFeedback, status, progressPct, keyResults } = req.body;
+
+  try {
+    const isVerified = Boolean(verified);
+    const { rows } = await query(
+      `UPDATE staff_okrs SET
+        verification_status = $3,
+        verified_at = CASE WHEN $4::boolean THEN NOW() ELSE NULL END,
+        verified_by = CASE WHEN $4::boolean THEN $5 ELSE NULL END,
+        pastoral_feedback = COALESCE($6, pastoral_feedback),
+        evaluator_notes = COALESCE($6, evaluator_notes),
+        status = COALESCE($7, CASE WHEN $4::boolean THEN 'achieved' ELSE status END),
+        progress_pct = CASE WHEN $8::int IS NOT NULL THEN $8::int ELSE (CASE WHEN $4::boolean AND progress_pct < 100 THEN 100 ELSE progress_pct END) END,
+        key_results = CASE WHEN $9::jsonb IS NOT NULL THEN $9::jsonb ELSE key_results END,
+        updated_at = NOW()
+       WHERE id = $1 AND church_id = $2
+       RETURNING *`,
+      [
+        id, req.churchId,
+        isVerified ? 'verified' : 'revision_requested',
+        isVerified,
+        req.user.id,
+        pastoralFeedback || null,
+        status || null,
+        progressPct !== undefined ? parseInt(progressPct, 10) : null,
+        keyResults ? JSON.stringify(keyResults) : null
+      ]
+    );
+
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'OKR not found' });
+    return res.json({
+      success: true,
+      data: rows[0],
+      message: isVerified ? 'KPI endorsed and verified by Senior Pastor ✅' : 'Revision feedback submitted to leader'
+    });
+  } catch (err) {
+    logger.error('verifyOkr error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error verifying OKR' });
+  }
+};
+
+// ── GET /api/okrs/granular-summary ────────────────────────────
+// Granular breakdown of Trainings, Courses, Video Studies & Core Duties
+const getGranularKpiSummary = async (req, res) => {
+  const { fiscalYear } = req.query;
+  const year = fiscalYear ? parseInt(fiscalYear, 10) : new Date().getFullYear();
+
+  try {
+    const { rows: stats } = await query(
+      `SELECT
+         COUNT(*) as total_kpis,
+         COUNT(*) FILTER (WHERE kpi_category = 'leadership_training') as trainings_count,
+         COUNT(*) FILTER (WHERE kpi_category = 'leadership_training' AND (progress_pct >= 100 OR status = 'achieved')) as trainings_attended,
+         COUNT(*) FILTER (WHERE kpi_category = 'leadership_training' AND verification_status = 'verified') as trainings_verified,
+
+         COUNT(*) FILTER (WHERE kpi_category = 'discipleship_course') as courses_count,
+         COUNT(*) FILTER (WHERE kpi_category = 'discipleship_course' AND (progress_pct >= 100 OR status = 'achieved')) as courses_completed,
+
+         COUNT(*) FILTER (WHERE kpi_category = 'video_study') as videos_count,
+         COUNT(*) FILTER (WHERE kpi_category = 'video_study' AND (reflection_notes IS NOT NULL OR progress_pct >= 100)) as videos_reported,
+         COUNT(*) FILTER (WHERE kpi_category = 'video_study' AND verification_status = 'verified') as videos_verified,
+
+         COUNT(*) FILTER (WHERE kpi_category = 'departmental_duty') as dept_duties_count,
+         COUNT(*) FILTER (WHERE kpi_category = 'departmental_duty' AND progress_pct >= 70) as dept_duties_on_track,
+
+         COUNT(*) FILTER (WHERE verification_status = 'submitted_for_review') as pending_review_count
+       FROM staff_okrs
+       WHERE church_id = $1 AND fiscal_year = $2`,
+      [req.churchId, year]
+    );
+
+    return res.json({
+      success: true,
+      data: stats[0] || {
+        total_kpis: 0,
+        trainings_count: 0, trainings_attended: 0, trainings_verified: 0,
+        courses_count: 0, courses_completed: 0,
+        videos_count: 0, videos_reported: 0, videos_verified: 0,
+        dept_duties_count: 0, dept_duties_on_track: 0,
+        pending_review_count: 0
+      }
+    });
+  } catch (err) {
+    logger.error('getGranularKpiSummary error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error loading granular KPI summary' });
   }
 };
 
@@ -358,9 +488,11 @@ const deleteOkr = async (req, res) => {
 module.exports = {
   getOkrs,
   getPerformanceScorecard,
+  getGranularKpiSummary,
   createOkr,
   updateOkr,
   updateProgress,
+  verifyOkr,
   reviewOkr,
   deleteOkr,
 };

@@ -249,9 +249,11 @@ export const assetsAPI = {
 export const okrsAPI = {
   list: (params) => api.get('/okrs', { params }),
   scorecard: (params) => api.get('/okrs/scorecard', { params }),
+  granularSummary: (params) => api.get('/okrs/granular-summary', { params }),
   create: (data) => api.post('/okrs', data),
   update: (id, data) => api.put(`/okrs/${id}`, data),
   updateProgress: (id, data) => api.patch(`/okrs/${id}/progress`, data),
+  verify: (id, data) => api.patch(`/okrs/${id}/verify`, data),
   review: (id, data) => api.patch(`/okrs/${id}/review`, data),
   delete: (id) => api.delete(`/okrs/${id}`),
 };
