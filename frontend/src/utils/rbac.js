@@ -10,13 +10,19 @@
  * 6. Member (`member`): Member portal: profile, birthdays, announcements, media, devotionals, discipleship, giving.
  */
 
-export const ADMIN_ROLES = ['head_pastor', 'admin', 'church_admin', 'pastor', 'branch_pastor'];
+export const ADMIN_ROLES = ['senior_pastor', 'head_pastor', 'admin', 'church_admin', 'pastor', 'branch_pastor'];
 
 export const ROLE_DETAILS = {
+  senior_pastor: {
+    title: 'Senior Pastor',
+    badge: 'bg-red-100 text-red-800 border border-red-300 font-extrabold',
+    description: 'Senior spiritual & executive oversight, setting staff KPIs/OKRs and reviewing 360° church reports',
+    level: 1,
+  },
   head_pastor: {
-    title: 'Church Admin (Lead Pastor)',
-    badge: 'bg-red-100 text-red-700 border border-red-200',
-    description: 'General compound access to everything across the church',
+    title: 'Senior / Lead Pastor',
+    badge: 'bg-red-100 text-red-800 border border-red-300 font-extrabold',
+    description: 'Senior spiritual & executive oversight, setting staff KPIs/OKRs and reviewing 360° church reports',
     level: 1,
   },
   admin: {

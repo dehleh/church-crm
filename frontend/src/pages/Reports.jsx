@@ -53,8 +53,8 @@ export default function Reports() {
   const reportRef = useRef(null);
 
   // Active Report View
-  const [activeReport, setActiveReport] = useState('friendship'); 
-  // 'friendship' | 'hangout' | 'finance' | 'budget' | 'procurement' | 'raw_data'
+  const [activeReport, setActiveReport] = useState('senior_pastor_brief'); 
+  // 'senior_pastor_brief' | 'friendship' | 'hangout' | 'finance' | 'budget' | 'procurement' | 'raw_data'
 
   // Period Filters
   const [selectedYear, setSelectedYear] = useState('2026');
@@ -80,7 +80,9 @@ export default function Reports() {
       if (customRange.endDate) params.endDate = customRange.endDate;
 
       let res;
-      if (activeReport === 'friendship') {
+      if (activeReport === 'senior_pastor_brief') {
+        res = await reportsAPI.seniorPastorBrief(params);
+      } else if (activeReport === 'friendship') {
         res = await reportsAPI.friendshipUnit(params);
       } else if (activeReport === 'hangout') {
         res = await reportsAPI.hangoutAssimilation(params);
@@ -209,6 +211,7 @@ export default function Reports() {
       {/* ── REPORT VIEW TABS (HIDDEN ON PRINT) ────────────────── */}
       <div className="print:hidden flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none border-b border-gray-200">
         {[
+          { id: 'senior_pastor_brief', label: '👑 Senior Pastor 360° Brief', icon: Sparkles },
           { id: 'friendship', label: 'Friendship Unit Report', icon: Heart },
           { id: 'hangout', label: "First Timers' Hangout", icon: Users },
           { id: 'finance', label: 'Financial Performance', icon: DollarSign },
@@ -244,6 +247,274 @@ export default function Reports() {
           </div>
         ) : (
           <>
+            {/* ========================================================= */}
+            {/* SENIOR PASTOR 360° EXECUTIVE REPORT BRIEF                 */}
+            {/* ========================================================= */}
+            {activeReport === 'senior_pastor_brief' && reportData && (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden space-y-6">
+                {/* Executive Crown Header Banner */}
+                <div className="bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0e6080] text-white p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-400 text-amber-950 uppercase tracking-widest flex items-center gap-1 shadow-xs">
+                        <Sparkles size={12} /> Senior Pastor 360° Executive Brief
+                      </span>
+                      <span className="text-xs text-slate-300">Fiscal Year {reportData.fiscalYear || selectedYear}</span>
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight font-display text-white">
+                      {churchTitle} Ministry Health & Executive Audit
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-300 font-medium mt-1">
+                      Comprehensive 360° overview across Membership, Guest Assimilation, Finances, Services, Leadership OKRs & Pastoral Care
+                    </p>
+                  </div>
+
+                  <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 text-center shrink-0 min-w-[180px]">
+                    <p className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">
+                      Church Health Index
+                    </p>
+                    <p className="text-4xl font-extrabold text-white mt-1">
+                      {reportData.churchHealthScore || 0}%
+                    </p>
+                    <div className="w-full bg-white/20 h-2 rounded-full mt-2 overflow-hidden">
+                      <div
+                        className="bg-emerald-400 h-full rounded-full transition-all duration-700"
+                        style={{ width: `${Math.min(100, reportData.churchHealthScore || 0)}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-300 mt-1">Based on growth, assimilation & vitality</p>
+                  </div>
+                </div>
+
+                {/* Section 1: Top KPI Cards across 4 Pillars */}
+                <div className="p-6 pt-0 space-y-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {/* Card 1: Active Membership */}
+                    <div className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                      <div className="flex items-center justify-between text-brand-600 mb-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Active Membership</span>
+                        <Users size={18} />
+                      </div>
+                      <p className="text-2xl font-bold text-gray-900">{reportData.membership?.active || 0}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Total registered: <strong>{reportData.membership?.total || 0}</strong> ({reportData.membership?.newLast30Days || 0} new in 30d)
+                      </p>
+                    </div>
+
+                    {/* Card 2: Visitor Assimilation */}
+                    <div className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                      <div className="flex items-center justify-between text-purple-600 mb-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Guest Conversion</span>
+                        <UserPlus size={18} />
+                      </div>
+                      <p className="text-2xl font-bold text-gray-900">{reportData.firstTimers?.conversionRate || 0}%</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        <strong>{reportData.firstTimers?.converted || 0}</strong> converted of {reportData.firstTimers?.total || 0} total visitors
+                      </p>
+                    </div>
+
+                    {/* Card 3: Operating Surplus */}
+                    <div className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                      <div className="flex items-center justify-between text-emerald-600 mb-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Operating Net</span>
+                        <DollarSign size={18} />
+                      </div>
+                      <p className={`text-2xl font-bold ${reportData.finances?.netSurplus >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {currency(reportData.finances?.netSurplus)}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Income: {currency(reportData.finances?.income)}
+                      </p>
+                    </div>
+
+                    {/* Card 4: Leadership OKRs */}
+                    <div className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                      <div className="flex items-center justify-between text-blue-600 mb-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Leadership OKRs</span>
+                        <TrendingUp size={18} />
+                      </div>
+                      <p className="text-2xl font-bold text-gray-900">{reportData.ministryAndOkrs?.avgOkrProgress || 0}%</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Across <strong>{reportData.ministryAndOkrs?.departmentCount || 0}</strong> departments & ministries
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Two Detailed Columns: Weekly Attendance Trend + Kingdom Treasury */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Attendance & Weekly Services */}
+                    <div className="border border-gray-200 rounded-xl p-5 bg-white shadow-xs">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="font-bold text-gray-900 text-sm">Congregation Attendance Trajectory</h3>
+                          <p className="text-xs text-gray-500">Recent completed Sunday celebration and midweek services</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-bold text-brand-700 bg-brand-50 px-2.5 py-1 rounded-full">
+                            Avg: {reportData.servicesAndAttendance?.avgAttendance || 0} / service
+                          </span>
+                        </div>
+                      </div>
+
+                      {reportData.servicesAndAttendance?.recentServices?.length > 0 ? (
+                        <div className="space-y-3">
+                          <ResponsiveContainer width="100%" height={200}>
+                            <BarChart data={reportData.servicesAndAttendance.recentServices.map(s => ({
+                              title: s.title?.length > 18 ? `${s.title.substring(0, 16)}…` : s.title,
+                              attendance: parseInt(s.actual_attendance || 0, 10),
+                              expected: parseInt(s.expected_attendance || 0, 10),
+                            }))} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                              <XAxis dataKey="title" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                              <Tooltip />
+                              <Bar dataKey="attendance" fill="#0e6080" radius={[4, 4, 0, 0]} name="Actual Attendance" />
+                            </BarChart>
+                          </ResponsiveContainer>
+
+                          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100 text-center">
+                            <div className="p-2 bg-gray-50 rounded-lg">
+                              <p className="text-[10px] text-gray-400 uppercase font-semibold">Total Services</p>
+                              <p className="text-base font-bold text-gray-800">{reportData.servicesAndAttendance?.servicesCount || 0}</p>
+                            </div>
+                            <div className="p-2 bg-gray-50 rounded-lg">
+                              <p className="text-[10px] text-gray-400 uppercase font-semibold">Total Attendees</p>
+                              <p className="text-base font-bold text-gray-800">{reportData.servicesAndAttendance?.totalAttendance?.toLocaleString() || 0}</p>
+                            </div>
+                            <div className="p-2 bg-gray-50 rounded-lg">
+                              <p className="text-[10px] text-gray-400 uppercase font-semibold">Peak Service</p>
+                              <p className="text-base font-bold text-emerald-700">{reportData.servicesAndAttendance?.peakAttendance || 0}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-400 py-10 text-center italic">No completed service records yet for this period.</p>
+                      )}
+                    </div>
+
+                    {/* Kingdom Treasury & Stewardship */}
+                    <div className="border border-gray-200 rounded-xl p-5 bg-white shadow-xs">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="font-bold text-gray-900 text-sm">Kingdom Treasury & Financial Integrity</h3>
+                          <p className="text-xs text-gray-500">Tithes, offerings & ministry disbursements</p>
+                        </div>
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                          reportData.finances?.netSurplus >= 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800'
+                        }`}>
+                          {reportData.finances?.netSurplus >= 0 ? 'Surplus' : 'Deficit'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                            <p className="text-xs text-emerald-800 font-semibold uppercase">Total Church Giving (Income)</p>
+                            <p className="text-2xl font-bold text-emerald-950 mt-1">{currency(reportData.finances?.income)}</p>
+                            <p className="text-[11px] text-emerald-700 mt-0.5">Tithes, offerings & pledges</p>
+                          </div>
+
+                          <div className="p-3.5 rounded-xl bg-rose-50/60 border border-rose-100">
+                            <p className="text-xs text-rose-800 font-semibold uppercase">Total Expenditures</p>
+                            <p className="text-2xl font-bold text-rose-950 mt-1">{currency(reportData.finances?.expense)}</p>
+                            <p className="text-[11px] text-rose-700 mt-0.5">Operations, honoraria, welfare</p>
+                          </div>
+                        </div>
+
+                        {/* Budget Variance */}
+                        <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+                          <div className="flex items-center justify-between text-xs font-semibold mb-1">
+                            <span className="text-gray-700">Budget Utilization ({currency(reportData.finances?.spent)} of {currency(reportData.finances?.budgeted)})</span>
+                            <span className="text-brand-700 font-bold">
+                              {reportData.finances?.budgeted > 0 ? Math.round((reportData.finances?.spent / reportData.finances?.budgeted) * 100) : 0}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                            <div
+                              className="bg-brand-600 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${Math.min(100, reportData.finances?.budgeted > 0 ? (reportData.finances?.spent / reportData.finances?.budgeted) * 100 : 0)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row 3: Demographics & Pastoral Care Interventions */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Demographics Card */}
+                    <div className="border border-gray-200 rounded-xl p-5 bg-white shadow-xs">
+                      <h3 className="font-bold text-gray-900 text-sm mb-1">Congregation Demographics</h3>
+                      <p className="text-xs text-gray-500 mb-4">Gender & marital profile</p>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-gray-50">
+                          <span className="text-gray-600">Female / Male Ratio:</span>
+                          <span className="font-bold text-gray-900">
+                            {reportData.membership?.female || 0} F / {reportData.membership?.male || 0} M
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-gray-50">
+                          <span className="text-gray-600">Married / Single Members:</span>
+                          <span className="font-bold text-gray-900">
+                            {reportData.membership?.married || 0} Married / {reportData.membership?.single || 0} Single
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-emerald-50 text-emerald-900">
+                          <span>Active Participation Rate:</span>
+                          <span className="font-bold">
+                            {reportData.membership?.total > 0 ? Math.round((reportData.membership?.active / reportData.membership?.total) * 100) : 0}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Leadership OKRs & Performance */}
+                    <div className="border border-gray-200 rounded-xl p-5 bg-white shadow-xs">
+                      <h3 className="font-bold text-gray-900 text-sm mb-1">Leadership Performance (OKRs)</h3>
+                      <p className="text-xs text-gray-500 mb-4">Ministry Directors & Unit HODs</p>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-gray-50">
+                          <span className="text-gray-600">Total Objectives Tracked:</span>
+                          <span className="font-bold text-gray-900">{reportData.ministryAndOkrs?.totalOkrs || 0}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-emerald-50 text-emerald-900">
+                          <span>Achieved / Exceeded:</span>
+                          <span className="font-bold">{reportData.ministryAndOkrs?.achievedOkrs || 0} Targets</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-rose-50 text-rose-900">
+                          <span>Lagging Behind:</span>
+                          <span className="font-bold">{reportData.ministryAndOkrs?.laggingOkrs || 0} Targets</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pastoral Care & Community */}
+                    <div className="border border-gray-200 rounded-xl p-5 bg-white shadow-xs">
+                      <h3 className="font-bold text-gray-900 text-sm mb-1">Pastoral Care & Welfare</h3>
+                      <p className="text-xs text-gray-500 mb-4">Interventions, aid, testimonies & repairs</p>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-gray-50">
+                          <span className="text-gray-600">Welfare Aid Disbursed:</span>
+                          <span className="font-bold text-gray-900">{currency(reportData.pastoralCareAndCommunity?.welfareAidDisbursed)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-gray-50">
+                          <span className="text-gray-600">Testimonies Ready for Service:</span>
+                          <span className="font-bold text-purple-700">{reportData.pastoralCareAndCommunity?.testimoniesReadyForService || 0} Approved</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-gray-50">
+                          <span className="text-gray-600">Facility Damage Resolved:</span>
+                          <span className="font-bold text-emerald-700">{reportData.pastoralCareAndCommunity?.facilityIncidentsResolved || 0} Fixed</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ========================================================= */}
             {/* REPORT 1: FRIENDSHIP UNIT REPORT (Exact match to Image 1)  */}
             {/* ========================================================= */}

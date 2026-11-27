@@ -4,9 +4,9 @@ import {
   Building2, Plus, Users, ChevronRight, Loader2, ArrowLeft, UserPlus, X,
   Mail, Phone, Calendar, Search, UserMinus, Crown, Trash2, AlertTriangle,
   CheckSquare, ClipboardCheck, Send, CheckCircle2, Clock, Sparkles, Check,
-  MessageSquare, PiggyBank
+  MessageSquare, PiggyBank, Edit3
 } from 'lucide-react';
-import { departmentsAPI, membersAPI, communicationsAPI } from '../api/services';
+import { departmentsAPI, membersAPI, communicationsAPI, usersAPI } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
@@ -1174,9 +1174,18 @@ export default function Departments() {
   const [saving, setSaving] = useState(false);
   const [selectedDept, setSelectedDept] = useState(null);
   const [allMembers, setAllMembers] = useState([]);
+  const [directors, setDirectors] = useState([]);
 
   const fetchMembers = async () => {
     try { const res = await membersAPI.list({ limit: 500 }); setAllMembers(res.data.data || []); } catch { }
+  };
+
+  const fetchDirectors = async () => {
+    try {
+      const res = await usersAPI.list({ limit: 100 });
+      const eligible = (res.data?.data || []).filter(u => ['director', 'pastor', 'head_pastor', 'senior_pastor', 'admin'].includes(u.role));
+      setDirectors(eligible);
+    } catch {}
   };
 
   const fetchDepts = async () => {
@@ -1188,7 +1197,7 @@ export default function Departments() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchDepts(); fetchMembers(); }, []);
+  useEffect(() => { fetchDepts(); fetchMembers(); fetchDirectors(); }, []);
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -1196,10 +1205,15 @@ export default function Departments() {
     if (!form.name) return toast.error('Department name is required');
     setSaving(true);
     try {
-      await departmentsAPI.create(form);
-      toast.success('Department created!');
+      if (modal === 'edit' && form.id) {
+        await departmentsAPI.update(form.id, form);
+        toast.success('Department updated successfully!');
+      } else {
+        await departmentsAPI.create(form);
+        toast.success('Department created!');
+      }
       setModal(null); fetchDepts();
-    } catch { toast.error('Failed to create department'); }
+    } catch { toast.error('Failed to save department'); }
     finally { setSaving(false); }
   };
 
@@ -1270,11 +1284,18 @@ export default function Departments() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-semibold text-gray-900 group-hover:text-brand-600 transition-colors">{dept.name}</h3>
-                      {dept.category && (
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full mt-1 inline-block capitalize ${CATEGORY_COLORS[dept.category] || 'bg-gray-100 text-gray-600'}`}>
-                          {dept.category}
-                        </span>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {dept.category && (
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${CATEGORY_COLORS[dept.category] || 'bg-gray-100 text-gray-600'}`}>
+                            {dept.category}
+                          </span>
+                        )}
+                        {dept.director_name && (
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                            Dir: {dept.director_name}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {dept.head_name ? (
                       <span className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-full shrink-0">
@@ -1290,15 +1311,38 @@ export default function Departments() {
                       <Users size={14} />
                       <span>{dept.member_count || 0} members</span>
                     </div>
-                    {canDelete(user?.role) && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setDeleteDept(dept); }}
-                        className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
-                        title="Delete Unit"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {canManage(user?.role) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setForm({
+                              id: dept.id,
+                              name: dept.name,
+                              category: dept.category || '',
+                              headMemberId: dept.head_member_id || '',
+                              directorId: dept.director_id || '',
+                              meetingSchedule: dept.meeting_schedule || '',
+                              description: dept.description || '',
+                            });
+                            setModal('edit');
+                          }}
+                          className="text-gray-400 hover:text-brand-600 p-1 rounded hover:bg-gray-100 transition-colors"
+                          title="Edit Unit & Director"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                      )}
+                      {canDelete(user?.role) && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteDept(dept); }}
+                          className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+                          title="Delete Unit"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {dept.branch_name && <p className="text-xs text-gray-400 mt-1">{dept.branch_name}</p>}
                 </div>
@@ -1308,10 +1352,20 @@ export default function Departments() {
         ))
       )}
 
-      <Modal open={modal === 'add'} onClose={() => setModal(null)} title="Create Department"
-        footer={<><button onClick={() => setModal(null)} className="btn-secondary">Cancel</button><button onClick={handleSave} disabled={saving} className="btn-primary">{saving ? <Loader2 size={15} className="animate-spin" /> : 'Create'}</button></>}>
+      <Modal open={modal === 'add' || modal === 'edit'} onClose={() => setModal(null)} title={modal === 'edit' ? 'Edit Department / Unit' : 'Create Department'}
+        footer={<><button onClick={() => setModal(null)} className="btn-secondary">Cancel</button><button onClick={handleSave} disabled={saving} className="btn-primary">{saving ? <Loader2 size={15} className="animate-spin" /> : modal === 'edit' ? 'Save Changes' : 'Create'}</button></>}>
         <div className="space-y-4">
           <div><label className="label">Department Name *</label><input className="input" placeholder="Choir, Ushering, Media Team…" value={form.name || ''} onChange={set('name')} /></div>
+          <div>
+            <label className="label">Supervising Ministry Director</label>
+            <select className="input" value={form.directorId || ''} onChange={set('directorId')}>
+              <option value="">— Select Director (Senior Pastor / Director) —</option>
+              {directors.map(d => (
+                <option key={d.id} value={d.id}>{d.first_name} {d.last_name} ({d.role})</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-gray-400 mt-1">Ministry Director in charge of this cluster of departments</p>
+          </div>
           <div>
             <label className="label">Category</label>
             <select className="input" value={form.category || ''} onChange={set('category')}>

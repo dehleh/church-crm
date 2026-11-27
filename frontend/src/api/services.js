@@ -105,6 +105,7 @@ export const financeAPI = {
 export const departmentsAPI = {
   list: () => api.get('/departments'),
   create: (data) => api.post('/departments', data),
+  update: (id, data) => api.put(`/departments/${id}`, data),
   delete: (id) => api.delete(`/departments/${id}`),
   members: (id) => api.get(`/departments/${id}/members`),
   addMember: (id, data) => api.post(`/departments/${id}/members`, data),
@@ -172,6 +173,7 @@ export const usersAPI = {
 };
 
 export const reportsAPI = {
+  seniorPastorBrief: (params) => api.get('/reports/senior-pastor-brief', { params }),
   members: (params) => api.get('/reports/members', { params }),
   finance: (params) => api.get('/reports/finance', { params }),
   attendance: (params) => api.get('/reports/attendance', { params }),
@@ -235,6 +237,32 @@ export const assetsAPI = {
   update: (id, data) => api.put(`/assets/${id}`, data),
   delete: (id) => api.delete(`/assets/${id}`),
   stats: (params) => api.get('/assets/stats', { params }),
+  uploadPhoto: (formData) => api.post('/assets/upload-photo', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  incidents: (params) => api.get('/assets/incidents', { params }),
+  incidentStats: () => api.get('/assets/incidents/stats'),
+  reportIncident: (data) => api.post('/assets/incidents', data),
+  updateIncidentStatus: (id, data) => api.patch(`/assets/incidents/${id}/status`, data),
+};
+
+export const okrsAPI = {
+  list: (params) => api.get('/okrs', { params }),
+  scorecard: (params) => api.get('/okrs/scorecard', { params }),
+  create: (data) => api.post('/okrs', data),
+  update: (id, data) => api.put(`/okrs/${id}`, data),
+  updateProgress: (id, data) => api.patch(`/okrs/${id}/progress`, data),
+  review: (id, data) => api.patch(`/okrs/${id}/review`, data),
+  delete: (id) => api.delete(`/okrs/${id}`),
+};
+
+export const testimoniesAPI = {
+  list: (params) => api.get('/testimonies', { params }),
+  stats: () => api.get('/testimonies/stats'),
+  get: (id) => api.get(`/testimonies/${id}`),
+  submit: (data) => api.post('/testimonies', data),
+  review: (id, data) => api.put(`/testimonies/${id}/review`, data),
+  delete: (id) => api.delete(`/testimonies/${id}`),
 };
 
 export const counselingAPI = {

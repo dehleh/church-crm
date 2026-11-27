@@ -103,10 +103,12 @@ const getDepartments = async (req, res) => {
       `SELECT d.*,
               b.name as branch_name,
               m.first_name || ' ' || m.last_name as head_name,
+              u_dir.first_name || ' ' || u_dir.last_name as director_name,
               (SELECT COUNT(*) FROM member_departments md WHERE md.department_id = d.id AND md.is_active = true) as member_count
        FROM departments d
        LEFT JOIN branches b ON b.id = d.branch_id
        LEFT JOIN members m ON m.id = d.head_member_id
+       LEFT JOIN users u_dir ON u_dir.id = d.director_id
        WHERE ${conditions.join(' AND ')}
        ORDER BY d.category, d.name`,
       params
@@ -118,17 +120,44 @@ const getDepartments = async (req, res) => {
 };
 
 const createDepartment = async (req, res) => {
-  const { name, description, category, headMemberId, meetingSchedule, branchId } = req.body;
+  const { name, description, category, headMemberId, meetingSchedule, branchId, directorId } = req.body;
   try {
     const finalBranchId = resolveWriteBranchId(req, branchId);
     const { rows } = await query(
-      `INSERT INTO departments (id, church_id, branch_id, name, description, category, head_member_id, meeting_schedule)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [uuidv4(), req.churchId, finalBranchId, name, description || null, category || null, headMemberId || null, meetingSchedule || null]
+      `INSERT INTO departments (id, church_id, branch_id, name, description, category, head_member_id, meeting_schedule, director_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [uuidv4(), req.churchId, finalBranchId, name, description || null, category || null, headMemberId || null, meetingSchedule || null, directorId || null]
     );
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const updateDepartment = async (req, res) => {
+  const { id } = req.params;
+  const { name, description, category, headMemberId, meetingSchedule, branchId, directorId } = req.body;
+  try {
+    const hasDirector = directorId !== undefined;
+    const finalDirector = directorId || null;
+    const { rows } = await query(
+      `UPDATE departments SET
+        name = COALESCE($3, name),
+        description = COALESCE($4, description),
+        category = COALESCE($5, category),
+        head_member_id = $6,
+        meeting_schedule = COALESCE($7, meeting_schedule),
+        branch_id = COALESCE($8, branch_id),
+        director_id = CASE WHEN $9 = true THEN $10::uuid ELSE director_id END,
+        updated_at = NOW()
+       WHERE id = $1 AND church_id = $2 RETURNING *`,
+      [id, req.churchId, name, description, category, headMemberId || null, meetingSchedule, branchId || null, hasDirector, finalDirector]
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Department not found' });
+    return res.json({ success: true, data: rows[0], message: 'Department updated successfully' });
+  } catch (err) {
+    logger.error('updateDepartment error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error updating department' });
   }
 };
 
@@ -610,6 +639,7 @@ const getPresetTemplates = async (req, res) => {
 module.exports = {
   getDepartments,
   createDepartment,
+  updateDepartment,
   deleteDepartment,
   getDepartmentMembers,
   addMemberToDepartment,

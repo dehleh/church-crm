@@ -35,6 +35,8 @@ const Counseling = lazy(() => import('./pages/Counseling'));
 const Welfare = lazy(() => import('./pages/Welfare'));
 const Procurement = lazy(() => import('./pages/Procurement'));
 const Fellowship = lazy(() => import('./pages/Fellowship'));
+const Okrs = lazy(() => import('./pages/Okrs'));
+const Testimonies = lazy(() => import('./pages/Testimonies'));
 const PlatformAdmin = lazy(() => import('./pages/PlatformAdmin'));
 const PlatformAuditLog = lazy(() => import('./pages/PlatformAuditLog'));
 const PlatformLicenseRequests = lazy(() => import('./pages/PlatformLicenseRequests'));
@@ -208,6 +210,8 @@ export default function App() {
             <Route path="counseling" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director']}><L><Counseling /></L></RoleRoute>} />
             <Route path="welfare" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'finance']}><L><Welfare /></L></RoleRoute>} />
             <Route path="procurement" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'finance', 'hod']}><L><Procurement /></L></RoleRoute>} />
+            <Route path="okrs" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Okrs /></L></RoleRoute>} />
+            <Route path="testimonies" element={<RoleRoute allowedRoles={['admin', 'pastor', 'director', 'hod']}><L><Testimonies /></L></RoleRoute>} />
             <Route path="settings" element={<RoleRoute allowedRoles={['admin', 'pastor']}><L><Settings /></L></RoleRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -168,6 +168,7 @@ CREATE TABLE IF NOT EXISTS departments (
   description TEXT,
   category VARCHAR(50),                        -- ministry | service | admin | media | music | welfare
   head_member_id UUID REFERENCES members(id) ON DELETE SET NULL,
+  director_id UUID REFERENCES users(id) ON DELETE SET NULL,
   meeting_schedule TEXT,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -2100,4 +2101,92 @@ CREATE INDEX IF NOT EXISTS idx_disc_lessons_chapter ON discipleship_lessons(cour
 -- 3. Daily Devotionals Manuals / Study Booklets
 ALTER TABLE daily_devotionals ADD COLUMN IF NOT EXISTS manual_url TEXT;
 ALTER TABLE daily_devotionals ADD COLUMN IF NOT EXISTS manual_name VARCHAR(255);
+
+-- =========================================================================
+-- Migration: 038_senior_pastor_okrs_testimonies_and_facility.sql
+-- =========================================================================
+-- 1. Directors Department Supervision
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS director_id UUID REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_departments_director ON departments(church_id, director_id);
+
+-- 2. Staff OKRs & KPIs
+CREATE TABLE IF NOT EXISTS staff_okrs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  church_id UUID NOT NULL REFERENCES churches(id) ON DELETE CASCADE,
+  branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  target_role VARCHAR(30) NOT NULL,
+  department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  period_type VARCHAR(30) DEFAULT 'quarterly',
+  period_detail VARCHAR(100),
+  fiscal_year INT DEFAULT EXTRACT(YEAR FROM CURRENT_DATE),
+  target_metric VARCHAR(255),
+  target_value NUMERIC(12, 2) DEFAULT 100.00,
+  current_value NUMERIC(12, 2) DEFAULT 0.00,
+  progress_pct INT DEFAULT 0,
+  weight NUMERIC(5, 2) DEFAULT 1.0,
+  status VARCHAR(30) DEFAULT 'in_progress',
+  key_results JSONB DEFAULT '[]',
+  evaluator_notes TEXT,
+  self_assessment_notes TEXT,
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_staff_okrs_user ON staff_okrs(church_id, user_id, fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_staff_okrs_dept ON staff_okrs(church_id, department_id);
+
+-- 3. Testimonies & Praise Reports
+CREATE TABLE IF NOT EXISTS testimonies (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  church_id UUID NOT NULL REFERENCES churches(id) ON DELETE CASCADE,
+  branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+  member_id UUID REFERENCES members(id) ON DELETE SET NULL,
+  submitter_name VARCHAR(255) NOT NULL,
+  submitter_phone VARCHAR(50),
+  submitter_email VARCHAR(150),
+  is_anonymous BOOLEAN DEFAULT false,
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  category VARCHAR(50) DEFAULT 'breakthrough',
+  testimony_date DATE DEFAULT CURRENT_DATE,
+  photo_url TEXT,
+  status VARCHAR(30) DEFAULT 'pending_review',
+  scheduled_service_date DATE,
+  service_shared_at TIMESTAMPTZ,
+  pastoral_notes TEXT,
+  reviewed_by UUID REFERENCES users(id),
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_testimonies_status ON testimonies(church_id, status);
+
+-- 4. Facility & Asset Whistleblower Incident Reporting
+CREATE TABLE IF NOT EXISTS facility_incidents (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  church_id UUID NOT NULL REFERENCES churches(id) ON DELETE CASCADE,
+  branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+  asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
+  facility_location VARCHAR(255) NOT NULL,
+  issue_type VARCHAR(50) NOT NULL DEFAULT 'damage',
+  severity VARCHAR(30) DEFAULT 'medium',
+  title VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  photo_url TEXT,
+  is_anonymous BOOLEAN DEFAULT false,
+  reporter_name VARCHAR(150),
+  reporter_phone VARCHAR(50),
+  reporter_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  reporter_member_id UUID REFERENCES members(id) ON DELETE SET NULL,
+  status VARCHAR(30) DEFAULT 'reported',
+  action_taken TEXT,
+  assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
+  resolved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_facility_incidents_status ON facility_incidents(church_id, status);
 

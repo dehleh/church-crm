@@ -788,7 +788,224 @@ const getFirstTimerReport = async (req, res) => {
   } catch (err) { return res.status(500).json({ success: false, message: 'Server error' }); }
 };
 
+// ── SENIOR PASTOR 360° EXECUTIVE BRIEF ────────────────────────
+const getSeniorPastorBrief = async (req, res) => {
+  const { year, branchId } = req.query;
+  const churchId = req.churchId;
+  const effectiveBranchId = req.branchId || branchId;
+  const targetYear = year ? parseInt(year, 10) : new Date().getFullYear();
+
+  try {
+    let branchCond = '';
+    const bParams = [churchId];
+    if (effectiveBranchId) {
+      bParams.push(effectiveBranchId);
+      branchCond = ' AND branch_id = $2';
+    }
+
+    // 1. Membership summary
+    const memRes = await query(
+      `SELECT
+         COUNT(*) as total_members,
+         COUNT(*) FILTER (WHERE status = 'active') as active_members,
+         COUNT(*) FILTER (WHERE LOWER(gender) = 'female') as female_count,
+         COUNT(*) FILTER (WHERE LOWER(gender) = 'male') as male_count,
+         COUNT(*) FILTER (WHERE marital_status = 'married') as married_count,
+         COUNT(*) FILTER (WHERE marital_status = 'single') as single_count,
+         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') as new_members_last_30_days
+       FROM members WHERE church_id = $1${branchCond}`,
+      bParams
+    );
+
+    // 2. First timers & assimilation
+    const ftRes = await query(
+      `SELECT
+         COUNT(*) as total_visitors,
+         COUNT(*) FILTER (WHERE follow_up_status = 'converted') as converted_count,
+         COUNT(*) FILTER (WHERE follow_up_status = 'pending') as pending_followup,
+         COUNT(*) FILTER (WHERE EXTRACT(YEAR FROM visit_date) = $${bParams.length + 1}) as visitors_this_year
+       FROM first_timers WHERE church_id = $1${branchCond}`,
+      [...bParams, targetYear]
+    );
+
+    // 3. Financial overview (Income, Expenses, Net)
+    const finRes = await query(
+      `SELECT
+         COALESCE(SUM(amount) FILTER (WHERE type = 'income' AND EXTRACT(YEAR FROM transaction_date) = $${bParams.length + 1}), 0) as total_income,
+         COALESCE(SUM(amount) FILTER (WHERE type = 'expense' AND EXTRACT(YEAR FROM transaction_date) = $${bParams.length + 1}), 0) as total_expense
+       FROM transactions WHERE church_id = $1${branchCond}`,
+      [...bParams, targetYear]
+    );
+
+    // 4. Budget overview
+    const budgetRes = await query(
+      `SELECT
+         COALESCE(SUM(total_amount), 0) as total_budgeted,
+         COALESCE(SUM(spent_amount), 0) as total_budget_spent
+       FROM budgets WHERE church_id = $1 AND fiscal_year = $${bParams.length + 1}${branchCond}`,
+      [...bParams, targetYear]
+    );
+
+    // 5. Weekly Services & Attendance
+    const attRes = await query(
+      `SELECT
+         COUNT(*) as services_count,
+         COALESCE(SUM(actual_attendance), 0) as total_attendance,
+         COALESCE(AVG(actual_attendance), 0) as avg_attendance,
+         COALESCE(MAX(actual_attendance), 0) as peak_attendance
+       FROM events
+       WHERE church_id = $1 AND status = 'completed' AND EXTRACT(YEAR FROM start_datetime) = $${bParams.length + 1}${branchCond}`,
+      [...bParams, targetYear]
+    );
+
+    // 6. Recent service attendance trend
+    const recentEventsRes = await query(
+      `SELECT title, event_type, start_datetime, actual_attendance, expected_attendance
+       FROM events
+       WHERE church_id = $1 AND status = 'completed'${branchCond}
+       ORDER BY start_datetime DESC LIMIT 6`,
+      bParams
+    );
+
+    // 7. Leadership & OKR Performance
+    const okrRes = await query(
+      `SELECT
+         COUNT(*) as total_okrs,
+         COUNT(*) FILTER (WHERE status = 'achieved' OR status = 'exceeded' OR progress_pct >= 100) as achieved_count,
+         COUNT(*) FILTER (WHERE status = 'lagging' OR progress_pct < 40) as lagging_count,
+         ROUND(COALESCE(AVG(progress_pct), 0), 1) as avg_okr_progress
+       FROM staff_okrs
+       WHERE church_id = $1 AND fiscal_year = $${bParams.length + 1}`,
+      [...bParams, targetYear]
+    );
+
+    // 8. Pastoral Care, Welfare, Counseling & Testimonies
+    const [welfareRes, counselingRes, testimonyRes, incidentRes, deptsRes] = await Promise.all([
+      query(
+        `SELECT
+           COUNT(*) as total_cases,
+           COUNT(*) FILTER (WHERE status = 'approved' OR status = 'disbursed') as approved_cases,
+           COALESCE(SUM(amount_requested) FILTER (WHERE status = 'approved' OR status = 'disbursed'), 0) as total_aid_disbursed
+         FROM welfare_applications WHERE church_id = $1${branchCond}`,
+        bParams
+      ),
+      query(
+        `SELECT
+           COUNT(*) as total_sessions,
+           COUNT(*) FILTER (WHERE status = 'completed') as completed_sessions
+         FROM counseling_sessions WHERE church_id = $1${branchCond}`,
+        bParams
+      ),
+      query(
+        `SELECT
+           COUNT(*) as total_testimonies,
+           COUNT(*) FILTER (WHERE status = 'approved_for_service') as approved_for_service,
+           COUNT(*) FILTER (WHERE status = 'shared_in_service') as shared_in_service,
+           COUNT(*) FILTER (WHERE status = 'pending_review') as pending_review
+         FROM testimonies WHERE church_id = $1`,
+        [churchId]
+      ),
+      query(
+        `SELECT
+           COUNT(*) as total_incidents,
+           COUNT(*) FILTER (WHERE status = 'reported' OR status = 'investigating') as active_unresolved,
+           COUNT(*) FILTER (WHERE status = 'resolved') as resolved_incidents
+         FROM facility_incidents WHERE church_id = $1`,
+        [churchId]
+      ),
+      query(
+        `SELECT COUNT(*) as dept_count FROM departments WHERE church_id = $1 AND is_active = true${branchCond}`,
+        bParams
+      )
+    ]);
+
+    const mem = memRes.rows[0] || {};
+    const ft = ftRes.rows[0] || {};
+    const fin = finRes.rows[0] || {};
+    const bud = budgetRes.rows[0] || {};
+    const att = attRes.rows[0] || {};
+    const okr = okrRes.rows[0] || {};
+    const welf = welfareRes.rows[0] || {};
+    const coun = counselingRes.rows[0] || {};
+    const test = testimonyRes.rows[0] || {};
+    const inc = incidentRes.rows[0] || {};
+    const dept = deptsRes.rows[0] || {};
+
+    const totalIncome = parseFloat(fin.total_income || 0);
+    const totalExpense = parseFloat(fin.total_expense || 0);
+    const netSurplus = totalIncome - totalExpense;
+
+    const totalVisitors = parseInt(ft.total_visitors || 0, 10);
+    const convertedVisitors = parseInt(ft.converted_count || 0, 10);
+    const visitorConversionRate = totalVisitors > 0 ? Math.round((convertedVisitors / totalVisitors) * 100) : 0;
+
+    return res.json({
+      success: true,
+      data: {
+        fiscalYear: targetYear,
+        churchHealthScore: Math.min(100, Math.round(
+          ((mem.active_members > 0 ? 30 : 0) +
+           (visitorConversionRate * 0.25) +
+           (netSurplus >= 0 ? 25 : 10) +
+           (parseFloat(okr.avg_okr_progress || 0) * 0.20))
+        )),
+        membership: {
+          total: parseInt(mem.total_members || 0, 10),
+          active: parseInt(mem.active_members || 0, 10),
+          newLast30Days: parseInt(mem.new_members_last_30_days || 0, 10),
+          female: parseInt(mem.female_count || 0, 10),
+          male: parseInt(mem.male_count || 0, 10),
+          married: parseInt(mem.married_count || 0, 10),
+          single: parseInt(mem.single_count || 0, 10),
+        },
+        firstTimers: {
+          total: totalVisitors,
+          thisYear: parseInt(ft.visitors_this_year || 0, 10),
+          converted: convertedVisitors,
+          conversionRate: visitorConversionRate,
+          pendingFollowup: parseInt(ft.pending_followup || 0, 10),
+        },
+        finances: {
+          income: totalIncome,
+          expense: totalExpense,
+          netSurplus,
+          budgeted: parseFloat(bud.total_budgeted || 0),
+          spent: parseFloat(bud.total_budget_spent || 0),
+        },
+        servicesAndAttendance: {
+          servicesCount: parseInt(att.services_count || 0, 10),
+          totalAttendance: parseInt(att.total_attendance || 0, 10),
+          avgAttendance: Math.round(parseFloat(att.avg_attendance || 0)),
+          peakAttendance: parseInt(att.peak_attendance || 0, 10),
+          recentServices: recentEventsRes.rows,
+        },
+        ministryAndOkrs: {
+          departmentCount: parseInt(dept.dept_count || 0, 10),
+          totalOkrs: parseInt(okr.total_okrs || 0, 10),
+          achievedOkrs: parseInt(okr.achieved_count || 0, 10),
+          laggingOkrs: parseInt(okr.lagging_count || 0, 10),
+          avgOkrProgress: parseFloat(okr.avg_okr_progress || 0),
+        },
+        pastoralCareAndCommunity: {
+          welfareCases: parseInt(welf.total_cases || 0, 10),
+          welfareAidDisbursed: parseFloat(welf.total_aid_disbursed || 0),
+          counselingSessions: parseInt(coun.completed_sessions || 0, 10),
+          testimoniesSubmitted: parseInt(test.total_testimonies || 0, 10),
+          testimoniesReadyForService: parseInt(test.approved_for_service || 0, 10),
+          testimoniesShared: parseInt(test.shared_in_service || 0, 10),
+          facilityIncidentsActive: parseInt(inc.active_unresolved || 0, 10),
+          facilityIncidentsResolved: parseInt(inc.resolved_incidents || 0, 10),
+        }
+      }
+    });
+  } catch (err) {
+    logger.error('getSeniorPastorBrief error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error generating Senior Pastor Brief' });
+  }
+};
+
 module.exports = {
+  getSeniorPastorBrief,
   getMemberReport,
   getFinanceReport,
   getAttendanceReport,

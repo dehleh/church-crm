@@ -5,6 +5,9 @@ const { authenticate, authorize } = require('../middleware/auth');
 
 router.use(authenticate);
 
+// Senior Pastor 360° Executive Brief
+router.get('/senior-pastor-brief', authorize('admin', 'senior_pastor', 'head_pastor', 'pastor', 'director'), c.getSeniorPastorBrief);
+
 // Executive Infographic Board Reports
 router.get('/friendship-unit', authorize('admin', 'pastor', 'director', 'hod'), c.getFriendshipUnitReport);
 router.get('/hangout-assimilation', authorize('admin', 'pastor', 'director', 'hod'), c.getHangoutReport);

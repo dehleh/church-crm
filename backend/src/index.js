@@ -204,6 +204,8 @@ app.use('/api/service-plans', require('./routes/servicePlans'));
 app.use('/api/child-check-in', require('./routes/childCheckIn'));
 app.use('/api/pastoral-appointments', require('./routes/pastoralAppointments'));
 app.use('/api/pledges', require('./routes/pledges'));
+app.use('/api/okrs', require('./routes/okrs'));
+app.use('/api/testimonies', require('./routes/testimonies'));
 
 // Initialize background job queue (BullMQ if REDIS_URL set, in-process otherwise).
 // Importing csvImportController here also registers the CSV processors.

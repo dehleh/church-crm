@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { getRoleTitle, getRoleBadge, ROLE_DETAILS } from '../utils/rbac';
 
 const ASSIGNABLE_ROLES = [
+  'senior_pastor',
   'admin',
   'pastor',
   'director',

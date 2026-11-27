@@ -7,7 +7,7 @@ import {
   MessageSquare, ShieldCheck, BarChart2, PiggyBank, CheckSquare,
   Settings, PhoneCall, Users2, Package, HandHeart, Heart,
   User, KeyRound, ClipboardList, Globe, Home, BookOpen, GraduationCap,
-  Clock, CreditCard, Sparkles
+  Clock, CreditCard, Sparkles, Target
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { hasRole, getRoleTitle } from '../../utils/rbac';
@@ -43,6 +43,8 @@ const NAV = [
       { to: '/prayer', icon: HeartHandshake, label: 'Prayer', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
       { to: '/counseling', icon: HandHeart, label: 'Counseling', allowedRoles: ['admin', 'pastor', 'director'] },
       { to: '/welfare', icon: Heart, label: 'Welfare', allowedRoles: ['admin', 'pastor', 'director', 'finance'] },
+      { to: '/testimonies', icon: Sparkles, label: 'Testimonies & Praise', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
+      { to: '/okrs', icon: Target, label: 'Leadership OKRs & KPIs', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
       { to: '/media', icon: Film, label: 'Media', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
       { to: '/assets', icon: Package, label: 'Inventory', allowedRoles: ['admin', 'pastor', 'director', 'hod'] },
     ]

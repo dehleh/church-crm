@@ -149,7 +149,7 @@ const createAsset = async (req, res) => {
   const {
     name, description, category, assetTag, quantity, condition, status,
     purchaseDate, purchasePrice, currentValue, location, custodianId, branchId, notes,
-    departmentId
+    departmentId, photoUrl
   } = req.body;
   try {
     const finalBranchId = resolveWriteBranchId(req, branchId);
@@ -157,14 +157,14 @@ const createAsset = async (req, res) => {
     const { rows } = await query(
       `INSERT INTO assets (id, church_id, branch_id, department_id, name, description, category, asset_tag,
         quantity, condition, status, purchase_date, purchase_price, current_value,
-        location, custodian_id, notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
+        location, custodian_id, notes, created_by, photo_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
       [
         uuidv4(), req.churchId, finalBranchId, finalDeptId || null, name, description || null,
         category || 'general', assetTag || null, quantity || 1,
         condition || 'good', status || 'active',
         purchaseDate || null, purchasePrice || null, currentValue || null,
-        location || null, custodianId || null, notes || null, req.user.id
+        location || null, custodianId || null, notes || null, req.user.id, photoUrl || null
       ]
     );
     logger.info('Asset created', { assetId: rows[0].id, name, departmentId: finalDeptId, userId: req.user.id });
@@ -181,7 +181,7 @@ const updateAsset = async (req, res) => {
   const {
     name, description, category, assetTag, quantity, condition, status,
     purchaseDate, purchasePrice, currentValue, location, custodianId, branchId, notes,
-    departmentId
+    departmentId, photoUrl
   } = req.body;
   try {
     const hasDept = departmentId !== undefined;
@@ -196,13 +196,14 @@ const updateAsset = async (req, res) => {
         location = COALESCE($13, location), custodian_id = $14,
         branch_id = $15, notes = COALESCE($16, notes),
         department_id = CASE WHEN $17 = true THEN $18::uuid ELSE department_id END,
+        photo_url = COALESCE($19, photo_url),
         updated_at = NOW()
        WHERE id = $1 AND church_id = $2 RETURNING *`,
       [
         id, req.churchId, name, description, category, assetTag,
         quantity, condition, status, purchaseDate, purchasePrice, currentValue,
         location, custodianId || null, branchId || null, notes,
-        hasDept, finalDept
+        hasDept, finalDept, photoUrl
       ]
     );
     if (!rows[0]) return res.status(404).json({ success: false, message: 'Asset not found' });
@@ -211,6 +212,201 @@ const updateAsset = async (req, res) => {
   } catch (err) {
     logger.error('Update asset error', { error: err.message });
     return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// POST /api/assets/upload-photo
+const uploadAssetPhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No image file uploaded' });
+    }
+    const photoUrl = `/uploads/media/${req.file.filename}`;
+    return res.json({
+      success: true,
+      url: photoUrl,
+      message: 'Photo uploaded successfully'
+    });
+  } catch (err) {
+    logger.error('uploadAssetPhoto error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Failed to upload photo' });
+  }
+};
+
+// ── FACILITY INCIDENTS & WHISTLEBLOWER REPORTING ──────────────
+
+// GET /api/assets/incidents/stats
+const getIncidentStats = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT
+         COUNT(*) as total,
+         COUNT(*) FILTER (WHERE status = 'reported') as reported,
+         COUNT(*) FILTER (WHERE status = 'investigating') as investigating,
+         COUNT(*) FILTER (WHERE status = 'under_repair') as under_repair,
+         COUNT(*) FILTER (WHERE status = 'resolved') as resolved,
+         COUNT(*) FILTER (WHERE severity = 'critical' AND status != 'resolved') as active_critical
+       FROM facility_incidents
+       WHERE church_id = $1`,
+      [req.churchId]
+    );
+    return res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    logger.error('getIncidentStats error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error loading incident stats' });
+  }
+};
+
+// GET /api/assets/incidents
+const getIncidents = async (req, res) => {
+  const { page = 1, limit = 20, status, severity, issueType, assetId, search } = req.query;
+  const offset = (page - 1) * limit;
+
+  try {
+    const conditions = ['fi.church_id = $1'];
+    const params = [req.churchId];
+    let idx = 2;
+
+    if (status && status !== 'all') {
+      conditions.push(`fi.status = $${idx++}`);
+      params.push(status);
+    }
+    if (severity && severity !== 'all') {
+      conditions.push(`fi.severity = $${idx++}`);
+      params.push(severity);
+    }
+    if (issueType && issueType !== 'all') {
+      conditions.push(`fi.issue_type = $${idx++}`);
+      params.push(issueType);
+    }
+    if (assetId) {
+      conditions.push(`fi.asset_id = $${idx++}`);
+      params.push(assetId);
+    }
+    if (search) {
+      conditions.push(`(fi.title ILIKE $${idx} OR fi.facility_location ILIKE $${idx} OR fi.description ILIKE $${idx})`);
+      params.push(`%${search}%`);
+      idx++;
+    }
+
+    const where = conditions.join(' AND ');
+    const countRes = await query(`SELECT COUNT(*) FROM facility_incidents fi WHERE ${where}`, params);
+
+    params.push(parseInt(limit, 10), offset);
+    const { rows } = await query(
+      `SELECT fi.*,
+              a.name as asset_name, a.asset_tag, a.category as asset_category,
+              u.first_name || ' ' || u.last_name as assigned_to_name
+       FROM facility_incidents fi
+       LEFT JOIN assets a ON a.id = fi.asset_id
+       LEFT JOIN users u ON u.id = fi.assigned_to
+       WHERE ${where}
+       ORDER BY
+         CASE WHEN fi.severity = 'critical' AND fi.status != 'resolved' THEN 1
+              WHEN fi.status = 'reported' THEN 2
+              WHEN fi.status = 'investigating' THEN 3
+              WHEN fi.status = 'under_repair' THEN 4
+              ELSE 5 END,
+         fi.created_at DESC
+       LIMIT $${idx} OFFSET $${idx + 1}`,
+      params
+    );
+
+    return res.json({
+      success: true,
+      data: rows,
+      pagination: {
+        total: parseInt(countRes.rows[0].count, 10),
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        totalPages: Math.ceil(countRes.rows[0].count / limit),
+      }
+    });
+  } catch (err) {
+    logger.error('getIncidents error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error loading incidents' });
+  }
+};
+
+// POST /api/assets/incidents
+// Whistleblower damage report
+const reportIncident = async (req, res) => {
+  const {
+    assetId, facilityLocation, issueType = 'damage', severity = 'medium',
+    title, description, photoUrl, isAnonymous = false, reporterName, reporterPhone
+  } = req.body;
+
+  if (!facilityLocation || !title || !description) {
+    return res.status(400).json({ success: false, message: 'Facility location, title, and description are required' });
+  }
+
+  try {
+    const finalReporterName = isAnonymous ? 'Anonymous Church Member' : (reporterName || (req.user ? `${req.user.first_name} ${req.user.last_name}` : 'Whistleblower Reporter'));
+    const finalReporterUserId = isAnonymous ? null : (req.user?.id || null);
+
+    const { rows } = await query(
+      `INSERT INTO facility_incidents (
+        id, church_id, branch_id, asset_id, facility_location,
+        issue_type, severity, title, description, photo_url,
+        is_anonymous, reporter_name, reporter_phone, reporter_user_id, status
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'reported')
+      RETURNING *`,
+      [
+        uuidv4(), req.churchId, req.branchId || null, assetId || null, facilityLocation,
+        issueType, severity, title, description, photoUrl || null,
+        isAnonymous, finalReporterName, reporterPhone || null, finalReporterUserId
+      ]
+    );
+
+    // If an asset was specified and severity is critical or damage, update asset condition
+    if (assetId && (issueType === 'damage' || issueType === 'broken' || severity === 'critical')) {
+      await query(
+        `UPDATE assets SET condition = 'needs_repair', updated_at = NOW() WHERE id = $1 AND church_id = $2`,
+        [assetId, req.churchId]
+      );
+    }
+
+    logger.info('Facility whistleblower incident logged', { incidentId: rows[0].id, location: facilityLocation, severity });
+    return res.status(201).json({
+      success: true,
+      data: rows[0],
+      message: '🚨 Thank you! Facility damage report logged. Our facility maintenance team has been alerted.'
+    });
+  } catch (err) {
+    logger.error('reportIncident error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error reporting incident' });
+  }
+};
+
+// PATCH /api/assets/incidents/:id/status
+const updateIncidentStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status, actionTaken, assignedTo } = req.body;
+
+  const validStatuses = ['reported', 'investigating', 'under_repair', 'resolved', 'dismissed'];
+  if (status && !validStatuses.includes(status)) {
+    return res.status(400).json({ success: false, message: 'Invalid incident status' });
+  }
+
+  try {
+    const resolvedClause = status === 'resolved' ? 'NOW()' : 'resolved_at';
+    const { rows } = await query(
+      `UPDATE facility_incidents SET
+        status = COALESCE($3, status),
+        action_taken = COALESCE($4, action_taken),
+        assigned_to = COALESCE($5, assigned_to),
+        resolved_at = ${resolvedClause},
+        updated_at = NOW()
+       WHERE id = $1 AND church_id = $2
+       RETURNING *`,
+      [id, req.churchId, status, actionTaken || null, assignedTo || null]
+    );
+
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Incident report not found' });
+    return res.json({ success: true, data: rows[0], message: 'Incident updated successfully' });
+  } catch (err) {
+    logger.error('updateIncidentStatus error', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Server error updating incident' });
   }
 };
 
@@ -229,4 +425,16 @@ const deleteAsset = async (req, res) => {
   }
 };
 
-module.exports = { getAssetStats, getAssets, getAsset, createAsset, updateAsset, deleteAsset };
+module.exports = {
+  getAssetStats,
+  getAssets,
+  getAsset,
+  createAsset,
+  updateAsset,
+  deleteAsset,
+  uploadAssetPhoto,
+  getIncidentStats,
+  getIncidents,
+  reportIncident,
+  updateIncidentStatus,
+};
